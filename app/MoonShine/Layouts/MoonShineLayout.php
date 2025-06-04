@@ -7,7 +7,6 @@ namespace App\MoonShine\Layouts;
 use MoonShine\Laravel\Layouts\AppLayout;
 use MoonShine\ColorManager\ColorManager;
 use MoonShine\Contracts\ColorManager\ColorManagerContract;
-use App\MoonShine\Pages\website;
 use MoonShine\MenuManager\MenuItem;
 use MoonShine\Laravel\Components\Layout\{Locales, Notifications, Profile, Search};
 use MoonShine\UI\Components\{Breadcrumbs,
@@ -32,6 +31,7 @@ use MoonShine\UI\Components\{Breadcrumbs,
     Layout\TopBar,
     Layout\Wrapper,
     When};
+use App\MoonShine\Resources\WebsiteResource;
 
 final class MoonShineLayout extends AppLayout
 {
@@ -46,8 +46,7 @@ final class MoonShineLayout extends AppLayout
     {
         return [
             ...parent::menu(),
-            MenuItem::make('Website', Website::class),
-
+            MenuItem::make('Websites', WebsiteResource::class),
         ];
     }
 
