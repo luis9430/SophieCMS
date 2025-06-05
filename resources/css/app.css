@@ -4,8 +4,662 @@
 @source '../../storage/framework/views/*.php';
 @source '../**/*.blade.php';
 @source '../**/*.js';
+@source '../**/*.jsx';
 
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+/* Estilos para compatibilidad entre Tailwind y Mantine */
+.mantine-page-builder {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+/* Asegurar que Mantine tenga prioridad en su contenedor */
+#preact-page-builder {
+    isolation: isolate;
+}
+
+/* Compatibilidad entre Tailwind y Mantine para botones */
+.mantine-page-builder button {
+    font-family: inherit;
+}
+
+/* ========================================
+   ESTILOS PARA SORTABLEJS (DRAG & DROP)
+   ======================================== */
+
+/* Estado ghost (placeholder mientras se arrastra) */
+.sortable-ghost {
+    opacity: 0.4;
+    transform: scale(0.98);
+    transition: all 0.2s ease;
+    border: 2px dashed #228be6 !important;
+    background-color: #e3f2fd !important;
+}
+
+/* Estado chosen (elemento seleccionado para arrastrar) */
+.sortable-chosen {
+    transform: scale(1.02);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+    z-index: 1000;
+    border: 2px solid #228be6 !important;
+}
+
+/* Estado drag (elemento siendo arrastrado) */
+.sortable-drag {
+    opacity: 0.8;
+    transform: rotate(2deg);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+}
+
+/* Handle de arrastre */
+.drag-handle {
+    cursor: grab;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.drag-handle:hover {
+    background-color: #f1f3f4;
+    color: #228be6;
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+    background-color: #e3f2fd;
+}
+
+/* ========================================
+   ANIMACIONES Y TRANSICIONES MEJORADAS
+   ======================================== */
+
+/* Animación suave para componentes que aparecen */
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Animación para botones hover */
+@keyframes pulseGlow {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(34, 139, 230, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 6px rgba(34, 139, 230, 0);
+    }
+}
+
+/* Aplicar animaciones */
+.mantine-Paper-root {
+    animation: slideInUp 0.3s ease-out;
+}
+
+.mantine-Button-root:focus {
+    animation: pulseGlow 1.5s infinite;
+}
+
+/* ========================================
+   MEJORAS DE UX Y ESTADOS HOVER
+   ======================================== */
+
+/* Hover effects para el sidebar */
+.mantine-page-builder .mantine-Paper-root:hover {
+    transform: translateY(-1px);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Estados de selección más claros */
+.block-selected {
+    background: linear-gradient(135deg, #e3f2fd 0%, #f8f9fa 100%);
+    border-left: 4px solid #228be6;
+}
+
+/* Mejoras en los ActionIcon */
+.mantine-ActionIcon-root {
+    transition: all 0.2s ease;
+}
+
+.mantine-ActionIcon-root:hover {
+    transform: scale(1.1);
+}
+
+/* ========================================
+   RESPONSIVE DESIGN
+   ======================================== */
+
+@media (max-width: 768px) {
+    .mantine-AppShell-navbar {
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+    }
+    
+    .mantine-AppShell-navbar.mobile-open {
+        transform: translateX(0);
+    }
+    
+    .drag-handle {
+        padding: 8px;
+    }
+}
+
+/* ========================================
+   ESTILOS PARA ESTADOS ESPECÍFICOS
+   ======================================== */
+
+/* Loading states */
+.component-loading {
+    position: relative;
+    pointer-events: none;
+}
+
+.component-loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Empty state mejorado */
+.empty-canvas {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border: 2px dashed #ced4da;
+    transition: all 0.3s ease;
+}
+
+.empty-canvas:hover {
+    border-color: #228be6;
+    background: linear-gradient(135deg, #e3f2fd 0%, #f8f9fa 100%);
+}
+
+/* ========================================
+   UTILIDADES PERSONALIZADAS
+   ======================================== */
+
+.text-gradient {
+    background: linear-gradient(135deg, #228be6, #1976d2);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.glass-effect {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.shadow-custom {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* ========================================
+   SCROLLBAR PERSONALIZADO
+   ======================================== */
+
+.mantine-ScrollArea-viewport::-webkit-scrollbar {
+    width: 6px;
+}
+
+.mantine-ScrollArea-viewport::-webkit-scrollbar-track {
+    background: #f1f3f4;
+}
+
+.mantine-ScrollArea-viewport::-webkit-scrollbar-thumb {
+    background: #ced4da;
+    border-radius: 3px;
+}
+
+.mantine-ScrollArea-viewport::-webkit-scrollbar-thumb:hover {
+    background: #adb5bd;
+}
+
+/* Estilos base para SortableJS */
+.sortable-ghost {
+    opacity: 0.4;
+    background: linear-gradient(45deg, #f1f3f4 25%, transparent 25%),
+                linear-gradient(-45deg, #f1f3f4 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #f1f3f4 75%),
+                linear-gradient(-45deg, transparent 75%, #f1f3f4 75%);
+    background-size: 10px 10px;
+    background-position: 0 0, 0 5px, 5px -5px, -5px 0px;
+    border: 2px dashed #228be6 !important;
+    transform: rotate(2deg);
+    animation: ghostPulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes ghostPulse {
+    0% { opacity: 0.3; }
+    100% { opacity: 0.6; }
+}
+
+.sortable-chosen {
+    transform: scale(1.02);
+    box-shadow: 0 8px 25px rgba(34, 139, 230, 0.15);
+    z-index: 999;
+    border: 2px solid #228be6 !important;
+}
+
+.sortable-drag {
+    opacity: 0.8;
+    transform: rotate(3deg) scale(0.98);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+}
+
+/* Mejorar el handle de drag */
+.drag-handle {
+    transition: all 0.2s ease;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.drag-handle:hover {
+    background-color: rgba(34, 139, 230, 0.1);
+    transform: scale(1.1);
+}
+
+.drag-handle:active {
+    background-color: rgba(34, 139, 230, 0.2);
+    transform: scale(0.95);
+}
+
+.drag-handle::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px;
+    height: 2px;
+    background: currentColor;
+    opacity: 0.3;
+    border-radius: 1px;
+    box-shadow: 
+        0 -3px 0 currentColor,
+        0 3px 0 currentColor;
+}
+
+/* Estilos específicos para contenedores */
+.container-grid {
+    transition: all 0.3s ease;
+    border-radius: 8px;
+    position: relative;
+}
+
+.container-grid:hover {
+    background-color: rgba(34, 139, 230, 0.02);
+}
+
+.container-grid.drag-over {
+    background-color: rgba(34, 139, 230, 0.05) !important;
+    border: 2px dashed #228be6 !important;
+    box-shadow: inset 0 0 10px rgba(34, 139, 230, 0.1);
+}
+
+/* Contenedores anidados */
+.nested-container {
+    min-height: 80px;
+    transition: all 0.2s ease;
+    border-radius: 6px;
+    position: relative;
+}
+
+.nested-container:empty::before {
+    content: 'Arrastra elementos aquí';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #adb5bd;
+    font-size: 14px;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+.nested-container.drag-over {
+    background-color: rgba(34, 139, 230, 0.1) !important;
+    border-color: #228be6 !important;
+    border-style: solid !important;
+    border-width: 2px !important;
+}
+
+/* Grid específico */
+.grid-container {
+    display: grid;
+    transition: all 0.3s ease;
+}
+
+.grid-container.responsive {
+    /* Grid responsive automático */
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+/* Flexbox específico */
+.flex-container {
+    display: flex;
+    transition: all 0.3s ease;
+}
+
+.flex-container.wrap {
+    flex-wrap: wrap;
+}
+
+/* Stack específico */
+.stack-container {
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+}
+
+/* Animaciones para el canvas */
+.canvas-container {
+    transition: all 0.3s ease;
+}
+
+/* Estilos para los bloques */
+.block-container {
+    transition: all 0.2s ease;
+    position: relative;
+    border-radius: 8px;
+}
+
+.block-container:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.block-container.selected {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 25px rgba(34, 139, 230, 0.15);
+}
+
+.block-container.container-type {
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    border: 1px dashed #dee2e6;
+}
+
+.block-container.container-type:hover {
+    border-color: #228be6;
+    background: linear-gradient(135deg, #f1f8ff 0%, #ffffff 100%);
+}
+
+/* Action buttons */
+.action-button {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.block-container:hover .action-button {
+    opacity: 1;
+}
+
+.action-button .mantine-ActionIcon-root {
+    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Settings panel animation */
+.settings-panel {
+    animation: slideInFromRight 0.3s ease;
+}
+
+@keyframes slideInFromRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Indicadores visuales para contenedores vacíos */
+.empty-container {
+    background: 
+        radial-gradient(circle at 25% 25%, rgba(34, 139, 230, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 75% 75%, rgba(34, 139, 230, 0.1) 0%, transparent 50%);
+    border: 2px dashed #dee2e6;
+    position: relative;
+}
+
+.empty-container::before {
+    content: '';
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 20px;
+    height: 20px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23adb5bd' stroke-width='2'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E") no-repeat center;
+    background-size: contain;
+    opacity: 0.5;
+}
+
+/* Mejoras de accesibilidad */
+.drag-handle:focus {
+    outline: 2px solid #228be6;
+    outline-offset: 2px;
+    background-color: rgba(34, 139, 230, 0.1);
+}
+
+.block-container:focus-within {
+    outline: 2px solid rgba(34, 139, 230, 0.5);
+    outline-offset: 2px;
+}
+
+.sortable-chosen:focus {
+    outline: none; /* Evitar doble outline */
+}
+
+/* Estados de carga */
+.loading-shimmer {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .settings-panel {
+        width: 100% !important;
+        height: 60vh !important;
+        top: auto !important;
+        bottom: 0 !important;
+        border-radius: 16px 16px 0 0;
+        animation: slideInFromBottom 0.3s ease;
+    }
+    
+    @keyframes slideInFromBottom {
+        from {
+            transform: translateY(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+    .grid-container {
+        grid-template-columns: 1fr !important;
+    }
+
+    .flex-container {
+        flex-direction: column !important;
+    }
+
+    .action-button {
+        opacity: 1; /* Siempre visible en móvil */
+    }
+}
+
+@media (max-width: 480px) {
+    .block-container {
+        margin-bottom: 8px;
+        padding: 8px;
+    }
+
+    .nested-container {
+        min-height: 60px;
+    }
+
+    .drag-handle {
+        padding: 8px;
+    }
+}
+
+/* Mejoras visuales para diferentes tipos de grid */
+.grid-1-col { grid-template-columns: 1fr; }
+.grid-2-col { grid-template-columns: repeat(2, 1fr); }
+.grid-3-col { grid-template-columns: repeat(3, 1fr); }
+.grid-4-col { grid-template-columns: repeat(4, 1fr); }
+.grid-5-col { grid-template-columns: repeat(5, 1fr); }
+.grid-6-col { grid-template-columns: repeat(6, 1fr); }
+
+/* Espaciado para grid */
+.grid-gap-xs { gap: 8px; }
+.grid-gap-sm { gap: 12px; }
+.grid-gap-md { gap: 16px; }
+.grid-gap-lg { gap: 24px; }
+.grid-gap-xl { gap: 32px; }
+
+/* Animaciones de hover para los elementos de la sidebar */
+.sidebar-block:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar-block:active {
+    transform: translateY(0);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Indicadores de drop zone */
+.drop-zone-active {
+    background: linear-gradient(45deg, rgba(34, 139, 230, 0.1) 0%, rgba(34, 139, 230, 0.05) 100%);
+    border: 2px dashed #228be6;
+    animation: dropZonePulse 2s ease-in-out infinite;
+}
+
+@keyframes dropZonePulse {
+    0%, 100% { 
+        border-color: #228be6; 
+        background-color: rgba(34, 139, 230, 0.05);
+    }
+    50% { 
+        border-color: #339af0; 
+        background-color: rgba(34, 139, 230, 0.1);
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .sortable-ghost {
+        background: #2d3748;
+        border-color: #4299e1 !important;
+    }
+    
+    .drag-handle:hover {
+        background-color: rgba(66, 153, 225, 0.2);
+    }
+
+    .empty-container {
+        background: 
+            radial-gradient(circle at 25% 25%, rgba(66, 153, 225, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 75% 75%, rgba(66, 153, 225, 0.1) 0%, transparent 50%);
+    }
+
+    .block-container.container-type {
+        background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+        border-color: #4a5568;
+    }
+}
+
+/* Print styles */
+@media print {
+    .settings-panel,
+    .action-button,
+    .drag-handle,
+    .empty-container::before {
+        display: none !important;
+    }
+    
+    .block-container {
+        box-shadow: none !important;
+        border: 1px solid #e2e8f0 !important;
+        transform: none !important;
+    }
+
+    .container-grid,
+    .nested-container {
+        border: 1px solid #e2e8f0 !important;
+        background: white !important;
+    }
+}
+
+/* Animaciones de entrada para nuevos elementos */
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.new-block {
+    animation: slideInUp 0.3s ease;
+}
+
+/* Mejorar la visualización de elementos anidados */
+.nested-level-1 { margin-left: 0; }
+.nested-level-2 { margin-left: 8px; }
+.nested-level-3 { margin-left: 16px; }
+.nested-level-4 { margin-left: 24px; }
+
+/* Estilos para preview mode */
+.preview-mode .drag-handle,
+.preview-mode .action-button,
+.preview-mode .block-header {
+    display: none !important;
+}
+
+.preview-mode .block-container {
+    border: none !important;
+    cursor: default !important;
+}
+
+.preview-mode .block-container:hover {
+    transform: none !important;
+    box-shadow: none !important;
 }

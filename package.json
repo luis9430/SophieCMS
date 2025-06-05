@@ -15,6 +15,13 @@
         "vite": "^6.2.4"
     },
     "dependencies": {
-        "alpinejs": "^3.14.9"
+        "@mantine/core": "^8.0.2",
+        "@mantine/hooks": "^8.0.2",
+        "@mantine/notifications": "^8.0.2",
+        "@preact/preset-vite": "^2.10.1",
+        "@tabler/icons-preact": "^3.34.0",
+        "alpinejs": "^3.14.9",
+        "preact": "^10.26.8",
+        "sortablejs": "^1.15.6"
     }
 }

@@ -614,6 +614,104 @@
                                     </div>
                                 </div>
                             </template>
+                            
+                            <!-- GRID BLOCK TEMPLATE -->
+                            <template x-if="selectedBlock.type === 'grid'">
+                                <div class="space-y-6">
+                                    <!-- Grid Configuration -->
+                                    <div class="space-y-4">
+                                        <h4 class="text-sm font-semibold text-gray-900 flex items-center space-x-2">
+                                            <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/>
+                                            </svg>
+                                            <span>Grid Configuration</span>
+                                        </h4>
+                                        
+                                        <div class="space-y-4">
+                                            <!-- Number of Columns -->
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                                    Number of Columns: <span class="text-indigo-600 font-semibold" x-text="selectedBlock.config.columns"></span>
+                                                </label>
+                                                <input 
+                                                    type="range"
+                                                    min="1"
+                                                    max="4"
+                                                    step="1"
+                                                    x-model="selectedBlock.config.columns"
+                                                    @input="updateBlockConfig()"
+                                                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider">
+                                                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                                    <span>1</span>
+                                                    <span>2</span>
+                                                    <span>3</span>
+                                                    <span>4</span>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Gap Setting -->
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Column Gap</label>
+                                                <select 
+                                                    x-model="selectedBlock.config.gap"
+                                                    @change="updateBlockConfig()"
+                                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200">
+                                                    <option value="none">No gap</option>
+                                                    <option value="xs">Extra small (4px)</option>
+                                                    <option value="sm">Small (8px)</option>
+                                                    <option value="md">Medium (16px)</option>
+                                                    <option value="lg">Large (24px)</option>
+                                                    <option value="xl">Extra large (32px)</option>
+                                                    <option value="2xl">Double XL (48px)</option>
+                                                </select>
+                                            </div>
+                                            
+                                            <!-- Minimum Height -->
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Minimum Height</label>
+                                                <select 
+                                                    x-model="selectedBlock.config.min_height"
+                                                    @change="updateBlockConfig()"
+                                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200">
+                                                    <option value="auto">Auto</option>
+                                                    <option value="h-24">Small (96px)</option>
+                                                    <option value="h-32">Medium (128px)</option>
+                                                    <option value="h-48">Large (192px)</option>
+                                                    <option value="h-64">Extra Large (256px)</option>
+                                                    <option value="h-96">Double XL (384px)</option>
+                                                    <option value="min-h-screen">Full Screen</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Column Content (Temporary) -->
+                                    <div class="space-y-4" x-show="selectedBlock.config.columns">
+                                        <h4 class="text-sm font-semibold text-gray-900 flex items-center space-x-2">
+                                            <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                                            </svg>
+                                            <span>Column Content (Preview)</span>
+                                        </h4>
+                                        
+                                        <template x-for="i in parseInt(selectedBlock.config.columns)" :key="i">
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2" x-text="`Column ${i} Content`"></label>
+                                                <textarea 
+                                                    x-model="selectedBlock.config[`column_${i}_content`]"
+                                                    @input="updateBlockConfig()"
+                                                    rows="2"
+                                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200 resize-none"
+                                                    :placeholder="`Temporary content for column ${i}...`"></textarea>
+                                            </div>
+                                        </template>
+                                        
+                                        <div class="text-xs text-gray-500 bg-blue-50 p-3 rounded-lg">
+                                            💡 <strong>Coming Soon:</strong> Drag & drop blocks directly into columns for nested layouts!
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
                         </div>
                         
                         <!-- LAYOUT TAB -->
