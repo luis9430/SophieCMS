@@ -15,6 +15,7 @@ import {
     TextInput,
     Textarea,
     Slider,
+    TagsInput,
 } from '@mantine/core';
 import {
     IconSettings,
@@ -52,15 +53,58 @@ function StyleSettings({ styles, updateStyle }) {
                         onChange={(value) => updateStyle('textAlign', value)}
                     />
                     <Group grow>
+                        <Select
+                            label="Width Preset"
+                            placeholder="Selecciona preset"
+                            data={[
+                                { value: 'auto', label: 'Auto' },
+                                { value: '100%', label: 'Full Width (100%)' },
+                                { value: '100vw', label: 'Viewport Width (100vw)' },
+                                { value: 'container', label: 'Container (max-width)' },
+                                { value: 'custom', label: 'Custom' }
+                            ]}
+                            value={styles.widthPreset || 'auto'}
+                            onChange={(value) => updateStyle('widthPreset', value)}
+                        />
+                        <Select
+                            label="Height Preset"
+                            placeholder="Selecciona preset"
+                            data={[
+                                { value: 'auto', label: 'Auto' },
+                                { value: '100vh', label: 'Full Screen (100vh)' },
+                                { value: '50vh', label: 'Half Screen (50vh)' },
+                                { value: 'custom', label: 'Custom' }
+                            ]}
+                            value={styles.heightPreset || 'auto'}
+                            onChange={(value) => updateStyle('heightPreset', value)}
+                        />
+                    </Group>
+                    <Group grow>
+                        <TextInput
+                            label="Width Custom"
+                            placeholder="800px, 90%, 60rem"
+                            value={styles.width || ''}
+                            onChange={(e) => updateStyle('width', e.target.value)}
+                            disabled={styles.widthPreset !== 'custom'}
+                        />
+                        <TextInput
+                            label="Height Custom"
+                            placeholder="400px, 80vh, 20rem"
+                            value={styles.height || ''}
+                            onChange={(e) => updateStyle('height', e.target.value)}
+                            disabled={styles.heightPreset !== 'custom'}
+                        />
+                    </Group>
+                    <Group grow>
                         <TextInput
                             label="Max Width"
-                            placeholder="100%, 800px, auto"
+                            placeholder="1200px, 90%, none"
                             value={styles.maxWidth || ''}
                             onChange={(e) => updateStyle('maxWidth', e.target.value)}
                         />
                         <TextInput
                             label="Min Height"
-                            placeholder="auto, 300px, 50vh"
+                            placeholder="300px, 40vh, auto"
                             value={styles.minHeight || ''}
                             onChange={(e) => updateStyle('minHeight', e.target.value)}
                         />
@@ -188,11 +232,21 @@ function StyleSettings({ styles, updateStyle }) {
                         value={styles.customId || ''}
                         onChange={(e) => updateStyle('customId', e.target.value)}
                     />
-                    <TextInput
+                    <TagsInput
                         label="CSS Classes"
-                        placeholder="clase1 clase2 bg-red-500"
-                        value={styles.customClasses || ''}
-                        onChange={(e) => updateStyle('customClasses', e.target.value)}
+                        placeholder="Escribe una clase y presiona Enter"
+                        data={[
+                            // Sugerencias populares de Tailwind
+                            'bg-red-500', 'bg-blue-500', 'bg-green-500',
+                            'text-white', 'text-black', 'text-center',
+                            'shadow-lg', 'shadow-md', 'shadow-sm',
+                            'rounded-lg', 'rounded-md', 'rounded-full',
+                            'p-4', 'p-8', 'm-4', 'm-8',
+                            'hover:scale-105', 'transition-all'
+                        ]}
+                        value={styles.customClasses || []}
+                        onChange={(value) => updateStyle('customClasses', value)}
+                        maxTags={10}
                     />
                     <Textarea
                         label="CSS Personalizado"

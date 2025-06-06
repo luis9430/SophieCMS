@@ -14,7 +14,53 @@ export function convertStylesToCSS(styles) {
         cssStyles.margin = marginMap[styles.margin] || styles.margin;
     }
     if (styles.textAlign) cssStyles.textAlign = styles.textAlign;
-    if (styles.maxWidth) cssStyles.maxWidth = styles.maxWidth;
+
+    // ✅ WIDTH HANDLING
+    if (styles.widthPreset) {
+        switch (styles.widthPreset) {
+            case 'auto':
+                cssStyles.width = 'auto';
+                break;
+            case '100%':
+                cssStyles.width = '100%';
+                break;
+            case '100vw':
+                cssStyles.width = '100vw';
+                break;
+            case 'container':
+                cssStyles.width = '100%';
+                cssStyles.maxWidth = '1200px';
+                cssStyles.marginLeft = 'auto';
+                cssStyles.marginRight = 'auto';
+                break;
+            case 'custom':
+                if (styles.width) cssStyles.width = styles.width;
+                break;
+        }
+    }
+
+    // ✅ HEIGHT HANDLING  
+    if (styles.heightPreset) {
+        switch (styles.heightPreset) {
+            case 'auto':
+                cssStyles.height = 'auto';
+                break;
+            case '100vh':
+                cssStyles.height = '100vh';
+                break;
+            case '50vh':
+                cssStyles.height = '50vh';
+                break;
+            case 'custom':
+                if (styles.height) cssStyles.height = styles.height;
+                break;
+        }
+    }
+
+    // Max Width y Min Height (independientes de presets)
+    if (styles.maxWidth && styles.widthPreset !== 'container') {
+        cssStyles.maxWidth = styles.maxWidth;
+    }
     if (styles.minHeight) cssStyles.minHeight = styles.minHeight;
 
     // Background
@@ -51,8 +97,34 @@ export function convertStylesToCSS(styles) {
 export function getCustomAttributes(styles) {
     const attributes = {};
     
-    if (styles?.customId) attributes.id = styles.customId;
-    if (styles?.customClasses) attributes.className = styles.customClasses;
+    // ID personalizado
+    if (styles?.customId) {
+        attributes.id = styles.customId;
+    }
+    
+    // CSS Classes - ahora maneja arrays
+    if (styles?.customClasses && Array.isArray(styles.customClasses) && styles.customClasses.length > 0) {
+        attributes.className = styles.customClasses.join(' ');
+    }
     
     return attributes;
+}
+
+// Función para aplicar CSS personalizado (para casos avanzados)
+export function applyCustomCSS(styles, elementRef) {
+    if (styles?.customCSS && elementRef?.current) {
+        // Crear un style tag único para este elemento
+        const styleId = `custom-style-${elementRef.current.id || 'element'}`;
+        let styleTag = document.getElementById(styleId);
+        
+        if (!styleTag) {
+            styleTag = document.createElement('style');
+            styleTag.id = styleId;
+            document.head.appendChild(styleTag);
+        }
+        
+        // Aplicar CSS personalizado
+        const elementSelector = elementRef.current.id ? `#${elementRef.current.id}` : `.custom-element`;
+        styleTag.textContent = `${elementSelector} { ${styles.customCSS} }`;
+    }
 }
