@@ -1,7 +1,7 @@
 import { render } from 'preact';
 import { MantineProvider } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
-import PageBuilder from './components/PageBuilder';
+import PageBuilder from './block-builder/PageBuilder';
 
 // Estilos de Mantine
 import '@mantine/core/styles.css';
