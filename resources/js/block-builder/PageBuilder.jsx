@@ -5,20 +5,18 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
-    IconSettings, IconTrash, IconMenu2, IconPlus, IconDeviceFloppy,
-    IconEye, IconPalette, IconCopy, IconGrid3x3, IconColumns, IconBoxMultiple
+    IconTrash, IconMenu2, IconPlus, IconDeviceFloppy,
+    IconPalette, IconCopy, IconGrid3x3, IconCode
 } from '@tabler/icons-preact';
 import Sortable from 'sortablejs';
-import SettingsPanel from './SettingsPanel';
 import blockRegistry, { availableBlocks } from './blocks/BlockRegistry';
+import CodeViewer from './CodeViewer';
 
 export default function PageBuilder() {
     const [blocks, setBlocks] = useState([]);
-    const [selectedBlock, setSelectedBlock] = useState(null);
-    const [previewMode, setPreviewMode] = useState(false);
-    const [showSettings, setShowSettings] = useState(false);
     const [isDraggingFromSidebar, setIsDraggingFromSidebar] = useState(false);
     const [draggedBlockId, setDraggedBlockId] = useState(null);
+    const [showCodeViewer, setShowCodeViewer] = useState(false);
     const canvasRef = useRef(null);
     const sortableInstances = useRef(new Map());
 
@@ -108,7 +106,6 @@ export default function PageBuilder() {
                 return;
             }
 
-            // Lógica corregida para obtener el ID del contenedor
             const containerId = to.getAttribute('data-container-id') || to.getAttribute('data-sortable-id');
             const parentId = containerId === 'main-canvas' ? null : containerId;
 
@@ -119,7 +116,6 @@ export default function PageBuilder() {
             addBlock(blockId, parentId, newIndex);
         } else {
             console.log("Reordenando bloque existente");
-            // Aquí puedes implementar la lógica de reordenamiento si la necesitas
         }
     };
 
@@ -153,7 +149,6 @@ export default function PageBuilder() {
         initializeAllSortables();
         return () => destroyAllSortables();
     }, [blocks]);
-
 
     // --- MANEJO DE BLOQUES (CRUD) ---
 
@@ -211,8 +206,6 @@ export default function PageBuilder() {
             return newBlocksState;
         });
 
-        setSelectedBlock(newBlock);
-        setShowSettings(true);
         notifications.show({
             title: 'Componente agregado',
             message: `${newBlock.name} se agregó correctamente`,
@@ -220,24 +213,6 @@ export default function PageBuilder() {
             icon: <IconPlus size={18} />,
         });
     }, []);
-
-    const selectBlock = (block, event) => {
-        if (event && event.target.closest('.action-button')) return;
-        event.stopPropagation(); // ✅ Añade esta línea
-        setSelectedBlock(block);
-        setShowSettings(true);
-    };
-
-    const openSettings = (block, event) => {
-        event.stopPropagation();
-        setSelectedBlock(block);
-        setShowSettings(true);
-    };
-
-    const closeSettings = () => {
-        setShowSettings(false);
-        setTimeout(() => setSelectedBlock(null), 150);
-    };
 
     const updateBlock = (blockId, newConfig, newStyles) => {
         const updateBlockInArray = (blockArray) => {
@@ -252,9 +227,6 @@ export default function PageBuilder() {
             });
         };
         setBlocks(prevBlocks => updateBlockInArray(prevBlocks));
-        if (selectedBlock?.id === blockId) {
-            setSelectedBlock(prev => ({ ...prev, config: newConfig, styles: newStyles }));
-        }
     };
     
     const removeBlock = (blockId, event) => {
@@ -265,7 +237,6 @@ export default function PageBuilder() {
             return true;
         });
         setBlocks(prev => removeRecursively(prev, blockId));
-        if (selectedBlock?.id === blockId) closeSettings();
         notifications.show({ 
             title: 'Componente eliminado', 
             color: 'red', 
@@ -273,48 +244,45 @@ export default function PageBuilder() {
         });
     };
 
-        const duplicateBlock = (blockId, event) => {
-            event.stopPropagation();
-            const blockToDuplicate = findBlockById(blocks, blockId);
-            if (!blockToDuplicate) return;
+    const duplicateBlock = (blockId, event) => {
+        event.stopPropagation();
+        const blockToDuplicate = findBlockById(blocks, blockId);
+        if (!blockToDuplicate) return;
 
-            const newBlock = JSON.parse(JSON.stringify(blockToDuplicate));
-            newBlock.id = `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            newBlock.name = `${blockToDuplicate.name} (Copia)`;
+        const newBlock = JSON.parse(JSON.stringify(blockToDuplicate));
+        newBlock.id = `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        newBlock.name = `${blockToDuplicate.name} (Copia)`;
 
-            setBlocks(prevBlocks => {
-                const newBlocksState = JSON.parse(JSON.stringify(prevBlocks));
-                
-                // Función recursiva para encontrar y duplicar en la posición correcta
-                const findAndDuplicate = (currentLevelBlocks, targetId) => {
-                    for (let i = 0; i < currentLevelBlocks.length; i++) {
-                        const block = currentLevelBlocks[i];
-                        
-                        if (block.id === targetId) {
-                            // ✅ Insertar justo después del elemento original
-                            currentLevelBlocks.splice(i + 1, 0, newBlock);
-                            return true;
-                        }
-                        
-                        // Buscar en children si es un contenedor
-                        if (block.children && findAndDuplicate(block.children, targetId)) {
-                            return true;
-                        }
+        setBlocks(prevBlocks => {
+            const newBlocksState = JSON.parse(JSON.stringify(prevBlocks));
+            
+            const findAndDuplicate = (currentLevelBlocks, targetId) => {
+                for (let i = 0; i < currentLevelBlocks.length; i++) {
+                    const block = currentLevelBlocks[i];
+                    
+                    if (block.id === targetId) {
+                        currentLevelBlocks.splice(i + 1, 0, newBlock);
+                        return true;
                     }
-                    return false;
-                };
+                    
+                    if (block.children && findAndDuplicate(block.children, targetId)) {
+                        return true;
+                    }
+                }
+                return false;
+            };
 
-                findAndDuplicate(newBlocksState, blockId);
-                return newBlocksState;
-            });
+            findAndDuplicate(newBlocksState, blockId);
+            return newBlocksState;
+        });
 
-            notifications.show({ 
-                title: 'Componente duplicado', 
-                message: `Se creó una copia debajo del original`,
-                color: 'green', 
-                icon: <IconCopy size={18} /> 
-            });
-        };
+        notifications.show({ 
+            title: 'Componente duplicado', 
+            message: `Se creó una copia debajo del original`,
+            color: 'green', 
+            icon: <IconCopy size={18} /> 
+        });
+    };
 
     // --- FUNCIONES DE RENDERIZADO ---
     
@@ -369,11 +337,17 @@ export default function PageBuilder() {
         }
 
         const BlockComponent = blockRegistry.get(block.type)?.component;
-        return BlockComponent ? <BlockComponent config={block.config} styles={block.styles} color={block.color} /> : <Text c="red">Error: Componente "{block.type}" no encontrado.</Text>;
+        return BlockComponent ? 
+            <BlockComponent 
+                config={block.config} 
+                styles={block.styles} 
+                color={block.color}
+                onUpdate={(newConfig) => updateBlock(block.id, newConfig, block.styles)}
+            /> : 
+            <Text c="red">Error: Componente "{block.type}" no encontrado.</Text>;
     };
 
     const renderBlock = (block) => {
-        const isSelected = selectedBlock?.id === block.id;
         return (
             <Paper 
                 key={block.id} 
@@ -381,45 +355,61 @@ export default function PageBuilder() {
                 p="md" 
                 withBorder 
                 data-block-id={block.id}
+                className="block-container"
                 style={{ 
-                    border: isSelected ? `2px solid var(--mantine-color-${block.color}-4)` : '1px solid #e9ecef', 
+                    border: '1px solid #e9ecef', 
                     cursor: 'pointer', 
-                    position: 'relative' 
+                    position: 'relative',
+                    transition: 'border-color 0.2s'
                 }}
-                onClick={(e) => selectBlock(block, e)}
+                onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = `var(--mantine-color-${block.color}-4)`;
+                    const actions = e.currentTarget.querySelector('.block-actions');
+                    if (actions) actions.style.opacity = '1';
+                }}
+                onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#e9ecef';
+                    const actions = e.currentTarget.querySelector('.block-actions');
+                    if (actions) actions.style.opacity = '0';
+                }}
             >
-             <Group justify="space-between" mb="sm">
-                <Group gap="sm">
-                    <div className="drag-handle" style={{ cursor: 'grab', padding: '4px' }} title="Arrastra para mover">
-                        <IconMenu2 size={16} color="#868e96" />
-                    </div>
-                    {!previewMode && (
-                        <>
-                            <Tooltip label="Duplicar">
-                                <ActionIcon variant="light" size="sm" color="green" onClick={(e) => duplicateBlock(block.id, e)}>
-                                    <IconCopy size={14} />
-                                </ActionIcon>
-                            </Tooltip>
-                            <Tooltip label="Eliminar">
-                                <ActionIcon variant="light" color="red" size="sm" onClick={(e) => removeBlock(block.id, e)}>
-                                    <IconTrash size={14} />
-                                </ActionIcon>
-                            </Tooltip>
-                        </>
-                    )}
-                    <Badge variant="light" color={block.color}>{block.name}</Badge>
-                </Group>
-                {!previewMode && (
-                    <Group gap="xs" className="action-button">
-                        <Tooltip label="Configurar">
-                            <ActionIcon variant="light" size="sm" color="blue" onClick={(e) => openSettings(block, e)}>
-                                <IconSettings size={14} />
+                <Group justify="space-between" mb="sm">
+                    <Group gap="sm">
+                        <div className="drag-handle" style={{ cursor: 'grab', padding: '4px' }} title="Arrastra para mover">
+                            <IconMenu2 size={16} color="#868e96" />
+                        </div>
+                        <Badge variant="light" color={block.color}>{block.name}</Badge>
+                    </Group>
+                    <Group 
+                        gap="xs" 
+                        className="block-actions"
+                        style={{ 
+                            opacity: 0,
+                            transition: 'opacity 0.2s ease'
+                        }}
+                    >
+                        <Tooltip label="Duplicar">
+                            <ActionIcon 
+                                variant="filled" 
+                                size="sm" 
+                                color="green" 
+                                onClick={(e) => duplicateBlock(block.id, e)}
+                            >
+                                <IconCopy size={14} />
                             </ActionIcon>
                         </Tooltip>
-                        {/* ✅ YA NO NECESITAS ESTOS BOTONES AQUÍ */}
+                        <Tooltip label="Eliminar">
+                            <ActionIcon 
+                                variant="filled" 
+                                color="red" 
+                                size="sm" 
+                                onClick={(e) => removeBlock(block.id, e)}
+                            >
+                                <IconTrash size={14} />
+                            </ActionIcon>
+                        </Tooltip>
                     </Group>
-                )}
-            </Group>
+                </Group>
                 {renderBlockContent(block)}
             </Paper>
         );
@@ -432,146 +422,137 @@ export default function PageBuilder() {
         return acc;
     }, {});
 
-
     // --- JSX DEL COMPONENTE PRINCIPAL ---
     return (
-            <AppShell
-                navbar={{ width: 320, breakpoint: 'sm' }}
-                aside={{ 
-                    width: 400,
-                    breakpoint: 'md', 
-                    hidden: !showSettings
-                }}
-                header={{ height: 70 }}
-                padding={0}
-                style={{ height: '100vh', overflow: 'hidden' }}
-            >
-                <AppShell.Header>
-                    <Container size="100%" h="100%">
-                        <Flex justify="space-between" align="center" h="100%" px="md">
-                            <Group gap="sm">
-                                <IconPalette size={28} color="#228be6" />
-                                <Text size="lg" fw={700}>Page Builder</Text>
-                            </Group>
-                            <Group>
-                                <Button leftSection={<IconDeviceFloppy size={18} />} size="sm">Guardar</Button>
-                            </Group>
-                        </Flex>
-                    </Container>
-                </AppShell.Header>
-
-                <AppShell.Navbar 
-                    p="md" 
-                    style={{ 
-                        overflow: 'auto',
-                        height: 'calc(100vh - 70px)'
-                    }}
-                >
-                    <Text fw={600} mb="lg">COMPONENTES</Text>
-                    <Stack gap="lg">
-                        {Object.entries(blocksByCategory).map(([category, categoryBlocks]) => (
-                            <div key={category}>
-                                <Text fw={500} size="xs" c="dimmed" mb="sm" tt="uppercase">{category}</Text>
-                                <div className="sidebar-blocks-list" data-sortable-id={`sidebar-${category}`} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                    {categoryBlocks.map((blockDef) => (
-                                        <Paper key={blockDef.id} p="sm" withBorder data-block-id={blockDef.id} style={{ cursor: 'grab', userSelect: 'none' }}>
-                                            <Group wrap="nowrap" style={{ pointerEvents: 'none' }}>
-                                                <blockDef.icon size={20} color={`var(--mantine-color-${blockDef.color}-6)`} />
-                                                <div>
-                                                    <Text size="sm" fw={500}>{blockDef.name}</Text>
-                                                    <Text size="xs" c="dimmed" truncate>{blockDef.description}</Text>
-                                                </div>
-                                            </Group>
-                                        </Paper>
-                                    ))}
-                                </div>
-                            </div>
-                        ))}
-                    </Stack>
-                </AppShell.Navbar>
-
-                <AppShell.Main 
-                    style={{ 
-                        backgroundColor: '#f8f9fa', 
-                        overflow: 'auto',
-                        height: 'calc(100vh - 70px)',
-                        display: 'flex',
-                        flexDirection: 'column'
-                    }}
-                >
-                    <Container 
-                        size="100%" 
-                       style={{ 
-                            flex: 1, 
-                            paddingTop: 'var(--mantine-spacing-xl)', 
-                            paddingBottom: 'var(--mantine-spacing-xl)',
-                            maxWidth: '100%',  // ✅ Añade esto
-                            width: '100%'      // ✅ Y esto también
-                        }}
-                    >
-                        {blocks.length === 0 ? (
-                            <Paper 
-                                ref={canvasRef} 
-                                data-sortable-id="main-canvas" 
-                                p="xl" 
-                                withBorder 
-                                style={{ 
-                                    textAlign: 'center', 
-                                    backgroundColor: 'white', 
-                                    minHeight: '60vh', 
-                                    display: 'flex', 
-                                    flexDirection: 'column', 
-                                    justifyContent: 'center', 
-                                    alignItems: 'center' 
-                                }}
+        <AppShell
+            navbar={{ width: 320, breakpoint: 'sm' }}
+            header={{ height: 70 }}
+            padding={0}
+            style={{ height: '100vh', overflow: 'hidden' }}
+        >
+            <AppShell.Header>
+                <Container size="100%" h="100%">
+                    <Flex justify="space-between" align="center" h="100%" px="md">
+                        <Group gap="sm">
+                            <IconPalette size={28} color="#228be6" />
+                            <Text size="lg" fw={700}>Page Builder</Text>
+                        </Group>
+                        <Group>
+                            <Button 
+                                leftSection={<IconCode size={18} />} 
+                                size="sm" 
+                                variant="light"
+                                onClick={() => setShowCodeViewer(true)}
                             >
-                                <IconGrid3x3 size={64} color="#ced4da" />
-                                <Text size="xl" fw={600} mt="md">Canvas Vacío</Text>
-                                <Text c="dimmed" mt="xs">Arrastra componentes desde la izquierda para comenzar.</Text>
-                            </Paper>
-                        ) : (
-                            <div ref={canvasRef} data-sortable-id="main-canvas" style={{ minHeight: '200px' }}>
-                                {blocks.map(block => renderBlock(block))}
+                                Ver Código
+                            </Button>
+                            <Button leftSection={<IconDeviceFloppy size={18} />} size="sm">
+                                Guardar
+                            </Button>
+                        </Group>
+                    </Flex>
+                </Container>
+            </AppShell.Header>
+
+            <AppShell.Navbar 
+                p="md" 
+                style={{ 
+                    overflow: 'auto',
+                    height: 'calc(100vh - 70px)'
+                }}
+            >
+                <Text fw={600} mb="lg">COMPONENTES</Text>
+                <Stack gap="lg">
+                    {Object.entries(blocksByCategory).map(([category, categoryBlocks]) => (
+                        <div key={category}>
+                            <Text fw={500} size="xs" c="dimmed" mb="sm" tt="uppercase">{category}</Text>
+                            <div className="sidebar-blocks-list" data-sortable-id={`sidebar-${category}`} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {categoryBlocks.map((blockDef) => (
+                                    <Paper key={blockDef.id} p="sm" withBorder data-block-id={blockDef.id} style={{ cursor: 'grab', userSelect: 'none' }}>
+                                        <Group wrap="nowrap" style={{ pointerEvents: 'none' }}>
+                                            <blockDef.icon size={20} color={`var(--mantine-color-${blockDef.color}-6)`} />
+                                            <div>
+                                                <Text size="sm" fw={500}>{blockDef.name}</Text>
+                                                <Text size="xs" c="dimmed" truncate>{blockDef.description}</Text>
+                                            </div>
+                                        </Group>
+                                    </Paper>
+                                ))}
                             </div>
-                        )}
-                    </Container>
-                </AppShell.Main>
+                        </div>
+                    ))}
+                </Stack>
+            </AppShell.Navbar>
 
-                {showSettings && selectedBlock && (
-                    <AppShell.Aside 
-                        p="md"
-                        style={{ 
-                            overflow: 'auto',
-                            height: 'calc(100vh - 70px)'
-                        }}
-                    >
-                        <SettingsPanel
-                            selectedBlock={selectedBlock}
-                            updateBlock={updateBlock}
-                            onClose={closeSettings}
-                        />
-                    </AppShell.Aside>
-                )}
+            <AppShell.Main 
+                style={{ 
+                    backgroundColor: '#f8f9fa', 
+                    overflow: 'auto',
+                    height: 'calc(100vh - 70px)',
+                    display: 'flex',
+                    flexDirection: 'column'
+                }}
+            >
+                <Container 
+                    size="100%" 
+                    style={{ 
+                        flex: 1, 
+                        paddingTop: 'var(--mantine-spacing-xl)', 
+                        paddingBottom: 'var(--mantine-spacing-xl)',
+                        maxWidth: '100%',
+                        width: '100%'
+                    }}
+                >
+                    {blocks.length === 0 ? (
+                        <Paper 
+                            ref={canvasRef} 
+                            data-sortable-id="main-canvas" 
+                            p="xl" 
+                            withBorder 
+                            style={{ 
+                                textAlign: 'center', 
+                                backgroundColor: 'white', 
+                                minHeight: '60vh', 
+                                display: 'flex', 
+                                flexDirection: 'column', 
+                                justifyContent: 'center', 
+                                alignItems: 'center' 
+                            }}
+                        >
+                            <IconGrid3x3 size={64} color="#ced4da" />
+                            <Text size="xl" fw={600} mt="md">Canvas Vacío</Text>
+                            <Text c="dimmed" mt="xs">Arrastra componentes desde la izquierda para comenzar.</Text>
+                        </Paper>
+                    ) : (
+                        <div ref={canvasRef} data-sortable-id="main-canvas" style={{ minHeight: '200px' }}>
+                            {blocks.map(block => renderBlock(block))}
+                        </div>
+                    )}
+                </Container>
+            </AppShell.Main>
+
+            {/* Modal del visualizador de código */}
+            <CodeViewer 
+                opened={showCodeViewer}
+                onClose={() => setShowCodeViewer(false)}
+                blocks={blocks}
+            />
                 
-                <style>{`
-                    .sortable-ghost { 
-                        opacity: 0.4; 
-                        background: #f1f3f4 !important; 
-                    }
-                    .drag-handle:hover { 
-                        background-color: #f8f9fa; 
-                        border-radius: 4px; 
-                    }
-                    
-                    /* Asegurar scroll en todos los paneles */
-                    .mantine-AppShell-navbar,
-                    .mantine-AppShell-main,
-                    .mantine-AppShell-aside {
-                        overflow-y: auto !important;
-                    }
-                `}</style>
-            </AppShell>
-        );
-
-
-}
+            <style>{`
+                .sortable-ghost { 
+                    opacity: 0.4; 
+                    background: #f1f3f4 !important; 
+                }
+                .drag-handle:hover { 
+                    background-color: #f8f9fa; 
+                    border-radius: 4px; 
+                }
+                
+                .mantine-AppShell-navbar,
+                .mantine-AppShell-main {
+                    overflow-y: auto !important;
+                }
+            `}</style>
+        </AppShell>
+    );
+}       
