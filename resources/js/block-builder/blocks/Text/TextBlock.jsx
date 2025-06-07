@@ -1,9 +1,12 @@
 import { useState, useRef, useEffect } from 'preact/hooks';
-import { Text, Textarea } from '@mantine/core';
+import { Text, Textarea, ActionIcon, Tooltip } from '@mantine/core';
+import { IconCode } from '@tabler/icons-preact';
+import BladeBlockEditor from '../../monaco/BladeBlockEditor';
 
 export default function TextBlock({ config, styles, onUpdate }) {
     const [isEditing, setIsEditing] = useState(false);
     const [tempContent, setTempContent] = useState(config.content || '');
+    const [codeEditorOpened, setCodeEditorOpened] = useState(false);
     const textareaRef = useRef(null);
 
     // Enfocar el textarea cuando entra en modo edición
@@ -119,6 +122,26 @@ export default function TextBlock({ config, styles, onUpdate }) {
                     ✏️ Doble clic
                 </div>
             )}
+            
+            {/* Botón de edición de código */}
+            <Tooltip label="Editar Código">
+                <ActionIcon 
+                    variant="light" 
+                    color="blue" 
+                    style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 10 }}
+                    onClick={() => setCodeEditorOpened(true)}
+                >
+                    <IconCode size={16} />
+                </ActionIcon>
+            </Tooltip>
+            
+            {/* Editor de código Blade */}
+            <BladeBlockEditor 
+                block={{ id: 'text-block', type: 'text', name: 'Text Block', config, styles }}
+                onUpdate={(newConfig) => onUpdate(newConfig)}
+                opened={codeEditorOpened}
+                onClose={() => setCodeEditorOpened(false)}
+            />
 
             <style>{`
                 .block-container:hover .edit-hint {

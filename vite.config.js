@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import laravel from 'laravel-vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import preact from '@preact/preset-vite';
+import monacoEditorPlugin from 'vite-plugin-monaco-editor'; 
 
 export default defineConfig({
     plugins: [
@@ -14,7 +15,9 @@ export default defineConfig({
             refresh: true,
         }),
         tailwindcss(),
-        preact(), // Plugin de Preact
+        preact(), 
+        monacoEditorPlugin.default({})
+
     ],
     resolve: {
         alias: {

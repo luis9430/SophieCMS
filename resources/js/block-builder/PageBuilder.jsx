@@ -469,12 +469,26 @@ export default function PageBuilder() {
                             <div className="sidebar-blocks-list" data-sortable-id={`sidebar-${category}`} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 {categoryBlocks.map((blockDef) => (
                                     <Paper key={blockDef.id} p="sm" withBorder data-block-id={blockDef.id} style={{ cursor: 'grab', userSelect: 'none' }}>
-                                        <Group wrap="nowrap" style={{ pointerEvents: 'none' }}>
-                                            <blockDef.icon size={20} color={`var(--mantine-color-${blockDef.color}-6)`} />
-                                            <div>
-                                                <Text size="sm" fw={500}>{blockDef.name}</Text>
-                                                <Text size="xs" c="dimmed" truncate>{blockDef.description}</Text>
-                                            </div>
+                                        <Group wrap="nowrap" position="apart">
+                                            <Group wrap="nowrap">
+                                                <blockDef.icon size={20} color={`var(--mantine-color-${blockDef.color}-6)`} />
+                                                <div>
+                                                    <Text size="sm" fw={500}>{blockDef.name}</Text>
+                                                    <Text size="xs" c="dimmed" truncate>{blockDef.description}</Text>
+                                                </div>
+                                            </Group>
+                                            <ActionIcon 
+                                                size="sm" 
+                                                color={blockDef.color} 
+                                                variant="light"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    addBlock(blockDef.id);
+                                                }}
+                                                style={{ pointerEvents: 'auto' }}
+                                            >
+                                                <IconPlus size={14} />
+                                            </ActionIcon>
                                         </Group>
                                     </Paper>
                                 ))}
@@ -555,4 +569,4 @@ export default function PageBuilder() {
             `}</style>
         </AppShell>
     );
-}       
+}

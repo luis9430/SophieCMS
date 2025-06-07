@@ -1,23 +1,17 @@
 {{-- resources/views/blocks/hero.blade.php --}}
-<section class="{{ $cssClasses }}">
-    <div class="relative z-10">
-        <div>
-            <h1 class="{{ $titleClasses }} mb-4">
-                {{ $config['title'] ?? 'Título por defecto' }}
-            </h1>
-            
-            @if(!empty($config['subtitle']))
-                <p class="text-xl md:text-2xl mb-8 opacity-90">
-                    {{ $config['subtitle'] }}
-                </p>
-            @endif
-            
-            @if($config['show_button'] ?? true)
-                <a href="{{ $config['button_url'] ?? '#' }}"
-                   class="inline-block bg-white text-blue-500 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-gray-100 transition-colors">
-                    {{ $config['button_text'] ?? 'Botón de Acción' }}
-                </a>
-            @endif
-        </div>
+<section class="bg-gray-100 py-12 px-4 text-center {{ $cssClasses ?? '' }}" x-data="{ title: '{{ $config['title'] ?? 'Título Impactante' }}', subtitle: '{{ $config['subtitle'] ?? 'Subtítulo descriptivo' }}' }">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-4xl md:text-5xl font-bold mb-4 text-gray-800" x-text="title">
+            {{ $config['title'] ?? 'Título Impactante' }}
+        </h1>
+        
+        <p class="text-xl text-gray-600 mb-8" x-text="subtitle">
+            {{ $config['subtitle'] ?? 'Subtítulo que describe tu propuesta de valor' }}
+        </p>
+        
+        <a href="{{ $config['buttonUrl'] ?? '#' }}" 
+           class="bg-blue-500 hover:bg-blue-600 text-white px-8 py-4 rounded-lg font-semibold text-lg transition-colors">
+            {{ $config['buttonText'] ?? 'Comenzar Ahora' }}
+        </a>
     </div>
 </section>

@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'preact/hooks';
-import { Text, Button, TextInput, Textarea } from '@mantine/core';
+import { Text, Button, TextInput, Textarea, ActionIcon, Tooltip } from '@mantine/core';
+import { IconCode } from '@tabler/icons-preact';
+import BladeBlockEditor from '../../monaco/BladeBlockEditor';
 
 export default function HeroBlock({ config, styles, color, onUpdate }) {
     const [editingField, setEditingField] = useState(null); // 'title', 'subtitle', 'buttonText'
@@ -8,6 +10,7 @@ export default function HeroBlock({ config, styles, color, onUpdate }) {
         subtitle: config.subtitle || '',
         buttonText: config.buttonText || ''
     });
+    const [codeEditorOpened, setCodeEditorOpened] = useState(false);
     
     const inputRef = useRef(null);
 
@@ -233,6 +236,26 @@ export default function HeroBlock({ config, styles, color, onUpdate }) {
                     </div>
                 </>
             )}
+
+            {/* Botón de edición de código */}
+            <Tooltip label="Editar Código">
+                <ActionIcon 
+                    variant="light" 
+                    color="blue" 
+                    style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 10 }}
+                    onClick={() => setCodeEditorOpened(true)}
+                >
+                    <IconCode size={16} />
+                </ActionIcon>
+            </Tooltip>
+            
+            {/* Editor de código Blade */}
+            <BladeBlockEditor 
+                block={{ id: 'hero-block', type: 'hero', name: 'Hero Section', config, styles }}
+                onUpdate={(newConfig) => onUpdate(newConfig)}
+                opened={codeEditorOpened}
+                onClose={() => setCodeEditorOpened(false)}
+            />
 
             <style>{`
                 .block-container:hover .edit-hint {

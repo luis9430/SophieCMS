@@ -18,10 +18,14 @@
         "@mantine/core": "^8.0.2",
         "@mantine/hooks": "^8.0.2",
         "@mantine/notifications": "^8.0.2",
+        "@monaco-editor/react": "^4.7.0",
         "@preact/preset-vite": "^2.10.1",
         "@tabler/icons-preact": "^3.34.0",
         "alpinejs": "^3.14.9",
+        "monaco-editor": "^0.52.2",
+        "monaco-react": "^1.1.0",
         "preact": "^10.26.8",
-        "sortablejs": "^1.15.6"
+        "sortablejs": "^1.15.6",
+        "vite-plugin-monaco-editor": "^1.1.0"
     }
 }
