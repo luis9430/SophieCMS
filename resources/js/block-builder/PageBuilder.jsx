@@ -1,23 +1,384 @@
-import { useState, useCallback, useEffect  } from 'preact/hooks';
+import { useState, useCallback, useEffect, useRef } from 'preact/hooks';
 import {
-    AppShell, Text, Button, Group, Container, Flex, Box, ActionIcon, Tooltip
+    AppShell, Text, Button, Group, Container, Flex, Box, ActionIcon, Tooltip,
+    Collapse
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
-    IconDeviceFloppy, IconEye, IconRefresh, IconCode, IconPalette, IconSun, IconMoon
+    IconDeviceFloppy, IconEye, IconRefresh, IconCode, IconPalette, 
+    IconSun, IconMoon, IconPlus, IconList,
+    IconVariable, IconCopy, IconChevronDown, IconChevronRight
 } from '@tabler/icons-preact';
 
-// ✅ Import del CodeMirrorEditor mejorado
 import CodeMirrorEditor from './codemirror/CodeMirrorEditor';
 
+// ✅ IMPORTAR HOOKS DESDE ARCHIVOS SEPARADOS
+import { useVariables } from './hooks/useVariables.js';
+import { useApi } from './hooks/useApi.js';
+
+// ===================================================================
+// COMPONENTE VARIABLES PANEL - USANDO HOOK EXTERNO
+// ===================================================================
+
+const VariablesPanel = ({ onInsertVariable }) => {
+    // ✅ USAR HOOK EXTERNO EN LUGAR DE INLINE
+    const {
+        showVariablesPanel,
+        expandedSections,
+        searchTerm,
+        filteredVariables,
+        variableStats,
+        toggleVariablesPanel,
+        hidePanel,
+        toggleSection,
+        updateSearchTerm,
+        clearSearch,
+        formatVariable
+    } = useVariables();
+
+    const handleInsertVariable = (varPath) => {
+        const formatted = formatVariable(varPath);
+        onInsertVariable(formatted);
+    };
+
+    if (!showVariablesPanel) {
+        return (
+            <ActionIcon 
+                variant="light" 
+                color="purple"
+                onClick={toggleVariablesPanel}
+                size="lg"
+                style={{ position: 'fixed', left: 10, top: 100, zIndex: 1000 }}
+            >
+                <IconVariable size={18} />
+            </ActionIcon>
+        );
+    }
+
+    return (
+        <Box style={{
+            position: 'fixed',
+            left: 10,
+            top: 100,
+            width: 300,
+            maxHeight: 'calc(100vh - 120px)',
+            overflowY: 'auto',
+            backgroundColor: '#ffffff',
+            border: '1px solid #e9ecef',
+            borderRadius: 8,
+            padding: 16,
+            zIndex: 1000,
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+        }}>
+            <Group justify="space-between" mb="md">
+                <Group gap="xs">
+                    <IconVariable size={20} color="purple" />
+                    <Text fw={600}>Variables</Text>
+                    <Text size="xs" c="dimmed">({variableStats.filtered})</Text>
+                </Group>
+                <ActionIcon 
+                    variant="subtle" 
+                    onClick={hidePanel}
+                >
+                    ✕
+                </ActionIcon>
+            </Group>
+
+            {/* Buscador */}
+            <input
+                type="text"
+                placeholder="Buscar variables..."
+                value={searchTerm}
+                onChange={(e) => updateSearchTerm(e.target.value)}
+                style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    marginBottom: '12px',
+                    border: '1px solid #e9ecef',
+                    borderRadius: '4px',
+                    fontSize: '12px'
+                }}
+            />
+
+            {/* Variables organizadas */}
+            {Object.entries(filteredVariables).map(([sectionKey, section]) => (
+                <Box key={sectionKey} mb="md">
+                    <Group 
+                        gap="xs" 
+                        mb="xs" 
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => toggleSection(sectionKey)}
+                    >
+                        {expandedSections[sectionKey] ? 
+                            <IconChevronDown size={16} /> : 
+                            <IconChevronRight size={16} />
+                        }
+                        <Text fw={500} size="sm">{section.title}</Text>
+                        <Text size="xs" c="dimmed">({Object.keys(section.variables).length})</Text>
+                    </Group>
+                    
+                    <Collapse in={expandedSections[sectionKey]}>
+                        {Object.entries(section.variables).map(([varPath, value]) => (
+                            <Box 
+                                key={varPath}
+                                p="xs"
+                                mb="xs"
+                                style={{
+                                    backgroundColor: '#f8f9fa',
+                                    borderRadius: 4,
+                                    border: '1px solid #e9ecef',
+                                    cursor: 'pointer'
+                                }}
+                                onClick={() => handleInsertVariable(varPath)}
+                            >
+                                <Text size="xs" fw={500} c="blue">
+                                    {`{{ ${varPath} }}`}
+                                </Text>
+                                <Text size="xs" c="dimmed" truncate>
+                                    {String(value)}
+                                </Text>
+                            </Box>
+                        ))}
+                    </Collapse>
+                </Box>
+            ))}
+            
+            {/* Stats */}
+            {searchTerm && (
+                <Box mt="md" p="xs" style={{ backgroundColor: '#e8f5e8', borderRadius: 4 }}>
+                    <Text size="xs">
+                        {variableStats.filtered} de {variableStats.total} variables
+                        {variableStats.filtered !== variableStats.total && (
+                            <Button 
+                                size="xs" 
+                                variant="subtle" 
+                                onClick={clearSearch}
+                                style={{ marginLeft: 8 }}
+                            >
+                                Limpiar
+                            </Button>
+                        )}
+                    </Text>
+                </Box>
+            )}
+        </Box>
+    );
+};
+
+// ===================================================================
+// COMPONENTE PRINCIPAL
+// ===================================================================
+
 export default function PageBuilder() {
-    const [theme, setTheme] = useState('light'); // Estado para el tema
+    // ✅ USAR HOOKS EXTERNOS EN LUGAR DE INLINE
+    const variablesHook = useVariables();
+    const apiHook = useApi();
+    
+    // Estado local con template inicial
+    const [theme, setTheme] = useState('light');
+    const [code, setCode] = useState(`<div class="p-8 text-center">
+    <h1 class="text-3xl font-bold mb-4">¡Hola {{ user.name }}!</h1>
+    <p class="text-lg text-gray-600 mb-4">Bienvenido a {{ app.name }}</p>
+    <p class="text-sm text-gray-500">Hoy es {{ current.date }} y son las {{ current.time }}</p>
+    
+    <div class="mt-8 p-4 bg-blue-50 rounded-lg">
+        <p class="text-sm">💡 <strong>Tip:</strong> Usa el panel de variables (icono púrpura) para insertar más variables automáticamente</p>
+    </div>
+</div>`);
+    const [previewHTML, setPreviewHTML] = useState('');
+    // Estado adicional para controlar updates
+    const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
+    
+    // Estado para templates con ejemplos
+    const [templates, setTemplates] = useState([
+        {
+            id: 1,
+            name: "Landing Page Básica",
+            code: `<div class="min-h-screen bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center">
+    <div class="text-center text-white p-8">
+        <h1 class="text-4xl font-bold mb-4">Hola {{ user.name }}</h1>
+        <p class="text-xl mb-6">Bienvenido a {{ app.name }}</p>
+        <p class="text-lg opacity-90">Tu email: {{ user.email }}</p>
+        <p class="text-sm opacity-75 mt-4">Fecha: {{ current.date }}</p>
+    </div>
+</div>`,
+            created_at: "2024-01-15T10:30:00Z"
+        },
+        {
+            id: 2,
+            name: "Card de Usuario",
+            code: `<div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-6 m-8">
+    <div class="text-center">
+        <div class="w-20 h-20 bg-blue-500 rounded-full mx-auto mb-4 flex items-center justify-center text-white text-2xl font-bold">
+            {{ user.name | first_letter }}
+        </div>
+        <h2 class="text-2xl font-bold text-gray-800">{{ user.name }}</h2>
+        <p class="text-gray-600">{{ user.email }}</p>
+        <p class="text-sm text-gray-500 mt-2">Usuario ID: {{ user.id }}</p>
+        
+        <div class="mt-6 pt-4 border-t border-gray-200">
+            <p class="text-xs text-gray-400">Generado por {{ app.name }}</p>
+            <p class="text-xs text-gray-400">{{ current.time }}</p>
+        </div>
+    </div>
+</div>`,
+            created_at: "2024-01-16T14:20:00Z"
+        },
+        {
+            id: 3,
+            name: "Dashboard Simple",
+            code: `<div class="p-6 bg-gray-100 min-h-screen">
+    <header class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-800">Dashboard de {{ user.name }}</h1>
+        <p class="text-gray-600">{{ current.date }} - {{ current.time }}</p>
+    </header>
+    
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-semibold text-gray-700">Usuario</h3>
+            <p class="text-2xl font-bold text-blue-600">{{ user.name }}</p>
+            <p class="text-sm text-gray-500">{{ user.email }}</p>
+        </div>
+        
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-semibold text-gray-700">Sistema</h3>
+            <p class="text-2xl font-bold text-green-600">{{ app.name }}</p>
+            <p class="text-sm text-gray-500">Activo</p>
+        </div>
+        
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-semibold text-gray-700">Fecha</h3>
+            <p class="text-2xl font-bold text-purple-600">{{ current.date }}</p>
+            <p class="text-sm text-gray-500">{{ current.time }}</p>
+        </div>
+    </div>
+</div>`,
+            created_at: "2024-01-17T09:15:00Z"
+        }
+    ]);
+    const [currentTemplate, setCurrentTemplate] = useState(null);
+    const [savedCode, setSavedCode] = useState('');
+    const [isDirty, setIsDirty] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [autoSaving, setAutoSaving] = useState(false);
+    const [showTemplates, setShowTemplates] = useState(false);
+    const [templateName, setTemplateName] = useState('');
 
-    useEffect(() => {
-        console.log('El tema del editor ha cambiado a:', theme);
-    }, [theme]);
+    // Función para insertar variables
+    const insertVariable = useCallback((variableText) => {
+        setCode(prev => prev + variableText);
+        setIsDirty(true);
+        
+        notifications.show({
+            title: 'Variable insertada',
+            message: `Se agregó: ${variableText}`,
+            color: 'purple'
+        });
+    }, []);
 
-    // Función para alternar tema
+    // Forzar procesamiento manual de variables
+    const updatePreview = useCallback(() => {
+        console.log('Procesamiento manual iniciado...');
+        
+        try {
+            const processedHTML = variablesHook.processCode(code);
+            setPreviewHTML(processedHTML);
+            
+            console.log('Procesamiento manual completado:', processedHTML.length, 'caracteres');
+            
+            notifications.show({
+                title: 'Variables reprocesadas',
+                message: `Preview actualizado (${processedHTML.length} caracteres)`,
+                color: 'green',
+                icon: <IconEye size={18} />
+            });
+        } catch (error) {
+            console.error('Error en procesamiento manual:', error);
+            notifications.show({
+                title: 'Error',
+                message: `Error procesando variables: ${error.message}`,
+                color: 'red'
+            });
+        }
+    }, [code, variablesHook]);
+
+    // Cargar templates
+    const loadTemplates = useCallback(async () => {
+        try {
+            const response = await apiHook.get('/templates');
+            setTemplates(response.data || response);
+        } catch (error) {
+            notifications.show({
+                title: 'Error',
+                message: 'No se pudieron cargar los templates',
+                color: 'red'
+            });
+        }
+    }, [apiHook]);
+
+    // Guardar template
+    const saveTemplate = useCallback(async () => {
+        if (!code.trim()) {
+            notifications.show({
+                title: 'Advertencia',
+                message: 'No hay código para guardar',
+                color: 'yellow'
+            });
+            return;
+        }
+
+        if (!currentTemplate && !templateName.trim()) {
+            const name = prompt('Nombre del template:');
+            if (!name) return;
+            setTemplateName(name);
+        }
+
+        setSaving(true);
+        try {
+            const data = {
+                name: currentTemplate ? currentTemplate.name : templateName,
+                code: code,
+                type: 'html'
+            };
+
+            let response;
+            if (currentTemplate) {
+                response = await apiHook.put(`/templates/${currentTemplate.id}`, data);
+            } else {
+                response = await apiHook.post('/templates', data);
+                setTemplates(prev => [response.template, ...prev]);
+            }
+
+            setCurrentTemplate(response.template);
+            setSavedCode(code);
+            setIsDirty(false);
+            setTemplateName('');
+
+            notifications.show({
+                title: 'Éxito',
+                message: 'Template guardado correctamente',
+                color: 'green',
+                icon: <IconDeviceFloppy size={18} />
+            });
+
+        } catch (error) {
+            notifications.show({
+                title: 'Error',
+                message: 'No se pudo guardar el template',
+                color: 'red'
+            });
+        } finally {
+            setSaving(false);
+        }
+    }, [code, currentTemplate, templateName, apiHook]);
+
+    // Función mejorada para cambios de código
+    const handleCodeChange = useCallback((newCode) => {
+        console.log('Código cambiado:', newCode.length, 'caracteres');
+        setCode(newCode);
+        setIsDirty(newCode !== savedCode);
+    }, [savedCode]);
+
     const toggleTheme = useCallback(() => {
         const newTheme = theme === 'light' ? 'dark' : 'light';
         setTheme(newTheme);
@@ -29,307 +390,64 @@ export default function PageBuilder() {
         });
     }, [theme]);
 
-    // HTML inicial de ejemplo con más ejemplos de Alpine.js, Tailwind y Blade
-    const initialHTML = `<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mi Página</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-        [x-cloak] { display: none !important; }
-    </style>
-</head>
-<body>
-    <!-- Este editor soporta sintaxis Blade: {{-- comentarios --}}, @if, @foreach, etc. -->
-    <!-- Para ver Blade en acción, utiliza: @extends('layouts.app'), @section('content') -->
-    <!-- Hero Section con Alpine.js y Tailwind -->
-    <section class="bg-gradient-to-r from-blue-500 to-purple-600 text-white py-20 px-4 transition-all duration-500 hover:shadow-2xl" 
-             x-data="{ 
-                title: '¡Bienvenido a tu Página!', 
-                subtitle: 'Editor con sintaxis highlighting para Alpine.js, Tailwind CSS y Blade', 
-                showButton: true,
-                count: 0 
-             }" x-init="console.log('Alpine inicializado')">
-        <div class="max-w-4xl mx-auto text-center">
-            <h1 class="text-5xl font-bold mb-6 hover:text-yellow-300 transition-colors" 
-                x-text="title" 
-                @click="title = 'Título Clickeado!'"></h1>
-            <p class="text-xl mb-8 opacity-90 leading-relaxed" x-text="subtitle"></p>
-            
-            <!-- Botón con Alpine.js -->
-            <button x-show="showButton" 
-                    @click="showButton = false; count++; $nextTick(() => showButton = true)"
-                    class="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-gray-100 hover:scale-105 transition-all duration-300 shadow-lg">
-                Comenzar Ahora (Clicks: <span x-text="count"></span>)
-            </button>
-        </div>
-    </section>
-
-    <!-- Counter Demo con Alpine avanzado -->
-    <section class="py-12 px-4 bg-gradient-to-br from-gray-50 to-blue-50">
-        <div class="max-w-4xl mx-auto text-center">
-            <div x-data="{ 
-                    count: 0, 
-                    step: 1,
-                    history: [],
-                    get canUndo() { return this.history.length > 0 }
-                 }" 
-                 class="bg-white p-8 rounded-xl shadow-lg inline-block border-2 border-gray-100 hover:border-blue-200 transition-all">
-                    
-                    <h3 class="text-2xl font-semibold mb-6 text-gray-800">Demo Alpine.js Avanzado</h3>
-                    
-                    <!-- Controls -->
-                    <div class="mb-6 space-y-4">
-                        <div class="flex items-center justify-center space-x-4">
-                            <label class="text-sm font-medium text-gray-600">Paso:</label>
-                            <input type="number" x-model="step" min="1" max="10" 
-                                   class="w-16 px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
-                        </div>
-                    </div>
-                    
-                    <!-- Counter Display -->
-                    <div class="flex items-center justify-center space-x-6 mb-6">
-                        <button @click="count = Math.max(0, count - step); history.push(count + step)" 
-                                class="bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 transition-all transform hover:scale-105 shadow-md">
-                            -<span x-text="step"></span>
-                        </button>
-                        
-                        <div class="text-center">
-                            <div x-text="count" 
-                                 class="text-4xl font-bold w-24 h-16 flex items-center justify-center bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg shadow-lg"></div>
-                            <p class="text-xs text-gray-500 mt-2">Valor actual</p>
-                        </div>
-                        
-                        <button @click="count += step; history.push(count - step)" 
-                                class="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 transition-all transform hover:scale-105 shadow-md">
-                            +<span x-text="step"></span>
-                        </button>
-                    </div>
-                    
-                    <!-- Undo button -->
-                    <button x-show="canUndo" 
-                            @click="count = history.pop()" 
-                            class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 transition-colors text-sm">
-                        ↶ Deshacer
-                    </button>
-                    
-                    <p class="text-gray-600 mt-4 text-sm">
-                        Contador interactivo con historial - 
-                        <span x-text="history.length"></span> acciones en historial
-                    </p>
-                </div>
-            </div>
-        </section>
-    @endif
-
-    {{-- Blade loop example --}}
-    @foreach(['Alpine.js', 'Tailwind CSS', 'Laravel Blade'] as $tech)
-        <!-- Features Section for {{ $tech }} -->
-    @endforeach
-    
-    <!-- Content Section -->
-    <section class="py-16 px-4 bg-white">
-        <div class="max-w-6xl mx-auto">
-            <h2 class="text-4xl font-bold text-center mb-12 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Características Destacadas
-            </h2>
-            <div class="grid md:grid-cols-3 gap-8">
-                <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl shadow-lg border border-blue-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                    <div class="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center mb-4 shadow-md">
-                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-semibold mb-3 text-blue-900">CodeMirror Editor</h3>
-                    <p class="text-blue-700 leading-relaxed">
-                        Editor estable con autocompletado inteligente para Tailwind CSS, Alpine.js y Laravel Blade. 
-                        <strong>Sin problemas de cursor!</strong>
-                    </p>
-                </div>
-
-                <div class="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl shadow-lg border border-green-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                    <div class="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center mb-4 shadow-md">
-                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 11-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 010-2h4a1 1 0 011 1v4a1 1 0 01-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L13.586 5H12z" clip-rule="evenodd"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-semibold mb-3 text-green-900">Tailwind CSS</h3>
-                    <p class="text-green-700 leading-relaxed">
-                        Framework CSS utilitario con <span class="bg-green-200 px-2 py-1 rounded text-green-800 font-medium">highlighting sintáctico</span> 
-                        para crear diseños responsive rápidamente.
-                    </p>
-                </div>
-
-                <div class="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl shadow-lg border border-purple-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                    <div class="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center mb-4 shadow-md">
-                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"></path>
-                            <path fill-rule="evenodd" d="M4 5a2 2 0 012-2v1a1 1 0 001 1h6a1 1 0 001-1V3a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-semibold mb-3 text-purple-900">Alpine.js + Blade</h3>
-                    <p class="text-purple-700 leading-relaxed">
-                        <code class="bg-purple-200 text-purple-800 px-1 rounded">x-data</code>, 
-                        <code class="bg-purple-200 text-purple-800 px-1 rounded">@click</code>, 
-                        <code class="bg-purple-200 text-purple-800 px-1 rounded">@if</code> 
-                        con colorización específica para mejor legibilidad.
-                    </p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Interactive Demo with complex Alpine.js -->
-    <section class="py-12 px-4 bg-gradient-to-r from-indigo-50 to-cyan-50" 
-             x-data="{ 
-                tabs: ['Form', 'List', 'Settings'], 
-                activeTab: 'Form',
-                formData: { name: '', email: '', message: '' },
-                items: ['Item 1', 'Item 2', 'Item 3'],
-                settings: { theme: 'light', notifications: true }
-             }">
-        <div class="max-w-4xl mx-auto">
-            <h2 class="text-3xl font-bold text-center mb-8 text-gray-800">Demo Interactivo Avanzado</h2>
-            
-            <!-- Tabs -->
-            <div class="flex justify-center mb-6">
-                <div class="bg-white rounded-lg p-1 shadow-lg border">
-                    <template x-for="tab in tabs">
-                        <button @click="activeTab = tab" 
-                                :class="activeTab === tab ? 'bg-blue-500 text-white' : 'text-gray-600 hover:text-blue-500'"
-                                class="px-6 py-2 rounded-md transition-all duration-200 font-medium"
-                                x-text="tab">
-                        </button>
-                    </template>
-                </div>
-            </div>
-            
-            <!-- Tab Content -->
-            <div class="bg-white rounded-xl shadow-lg p-6 border">
-                <!-- Form Tab -->
-                <div x-show="activeTab === 'Form'" x-transition.duration.300ms>
-                    <h3 class="text-xl font-semibold mb-4">Formulario de Contacto</h3>
-                    <div class="space-y-4">
-                        <input type="text" x-model="formData.name" placeholder="Tu nombre" 
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all">
-                        <input type="email" x-model="formData.email" placeholder="Tu email" 
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all">
-                        <textarea x-model="formData.message" placeholder="Tu mensaje" rows="4"
-                                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all resize-none"></textarea>
-                        
-                        <div x-show="formData.name && formData.email && formData.message" 
-                             x-transition
-                             class="p-4 bg-green-50 border border-green-200 rounded-lg">
-                            <h4 class="font-semibold text-green-800 mb-2">Vista previa:</h4>
-                            <p class="text-green-700">
-                                <strong>Nombre:</strong> <span x-text="formData.name"></span><br>
-                                <strong>Email:</strong> <span x-text="formData.email"></span><br>
-                                <strong>Mensaje:</strong> <span x-text="formData.message"></span>
-                            </p>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- List Tab -->
-                <div x-show="activeTab === 'List'" x-transition.duration.300ms>
-                    <h3 class="text-xl font-semibold mb-4">Lista Dinámica</h3>
-                    <div class="space-y-3">
-                        <template x-for="(item, index) in items" :key="index">
-                            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
-                                <span x-text="item" class="font-medium"></span>
-                                <button @click="items.splice(index, 1)" 
-                                        class="text-red-500 hover:text-red-700 font-bold">✕</button>
-                            </div>
-                        </template>
-                        <button @click="items.push('Nuevo Item ' + (items.length + 1))" 
-                                class="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium">
-                            + Agregar Item
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- Settings Tab -->
-                <div x-show="activeTab === 'Settings'" x-transition.duration.300ms>
-                    <h3 class="text-xl font-semibold mb-4">Configuraciones</h3>
-                    <div class="space-y-4">
-                        <div class="flex items-center justify-between">
-                            <label class="font-medium">Notificaciones</label>
-                            <button @click="settings.notifications = !settings.notifications"
-                                    :class="settings.notifications ? 'bg-green-500' : 'bg-gray-300'"
-                                    class="w-12 h-6 rounded-full transition-colors relative">
-                                <div :class="settings.notifications ? 'translate-x-6' : 'translate-x-1'"
-                                     class="w-4 h-4 bg-white rounded-full transition-transform absolute top-1"></div>
-                            </button>
-                        </div>
-                        <div x-show="settings.notifications" class="text-sm text-green-600">
-                            ✓ Las notificaciones están habilitadas
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Footer -->
-    <footer class="bg-gray-900 text-white py-8 px-4">
-        <div class="max-w-4xl mx-auto text-center">
-            <p class="text-lg">&copy; 2025 Page Builder con CodeMirror, Tailwind y Alpine.js</p>
-            <p class="text-gray-400 mt-2">Con highlighting sintáctico avanzado para mejor desarrollo</p>
-        </div>
-    </footer>
-</body>
-</html>`;
-
-    const [code, setCode] = useState(initialHTML);
-    const [previewHTML, setPreviewHTML] = useState(initialHTML);
-    const [isUpdatingPreview, setIsUpdatingPreview] = useState(false);
-
-    // Funciones sin cambios
-    const handleCodeChange = useCallback((newCode) => {
-        setCode(newCode);
-    }, []);
-
-    const updatePreview = useCallback(() => {
-        setIsUpdatingPreview(true);
-        
-        setTimeout(() => {
-            setPreviewHTML(code);
-            setIsUpdatingPreview(false);
-            
-            notifications.show({
-                title: 'Preview actualizado',
-                message: 'Los cambios se han aplicado correctamente',
-                color: 'green',
-                icon: <IconEye size={18} />
-            });
-        }, 300);
-    }, [code]);
-
-    const handleSave = useCallback(() => {
-        notifications.show({
-            title: 'Código guardado',
-            message: 'Tu página se ha guardado correctamente',
-            color: 'blue',
-            icon: <IconDeviceFloppy size={18} />
-        });
-    }, []);
-
     const resetCode = useCallback(() => {
-        setCode(initialHTML);
-        setPreviewHTML(initialHTML);
+        if (isDirty && !confirm('Tienes cambios sin guardar. ¿Continuar?')) {
+            return;
+        }
+
+        setCurrentTemplate(null);
+        setCode('');
+        setSavedCode('');
+        setIsDirty(false);
+        setPreviewHTML('');
+        
         notifications.show({
-            title: 'Código reseteado',
-            message: 'Se ha restaurado el código inicial',
+            title: 'Editor reseteado',
+            message: 'Se ha iniciado un nuevo template',
             color: 'orange',
             icon: <IconRefresh size={18} />
         });
-    }, [initialHTML]);
+    }, [isDirty]);
+
+    // Cargar templates al iniciar (comentado porque usamos ejemplos)
+    // useEffect(() => {
+    //     loadTemplates();
+    // }, [loadTemplates]);
+
+    // Auto-actualizar preview cuando cambia el código
+    useEffect(() => {
+        // 🔧 EVITAR CONFLICTOS DURANTE CARGA DE TEMPLATES
+        if (isLoadingTemplate) {
+            console.log('⏸️ Auto-update pausado - cargando template');
+            return;
+        }
+        
+        // 🔧 MEJORAR AUTO-UPDATE DEL PREVIEW
+        const updatePreviewContent = () => {
+            if (code) {
+                try {
+                    console.log('🔄 Auto-update iniciado para:', code.length, 'caracteres');
+                    const processedHTML = variablesHook.processCode(code);
+                    setPreviewHTML(processedHTML);
+                    console.log('✅ Auto-update completado:', processedHTML.length, 'caracteres');
+                } catch (error) {
+                    console.error('❌ Error en auto-update:', error);
+                    setPreviewHTML(`<div style="padding: 20px; color: red;">Error procesando variables: ${error.message}</div>`);
+                }
+            } else {
+                console.log('📄 Código vacío - limpiando preview');
+                setPreviewHTML('');
+            }
+        };
+
+        // Pequeño delay para evitar updates muy frecuentes
+        const timeoutId = setTimeout(updatePreviewContent, 150);
+        return () => clearTimeout(timeoutId);
+    }, [code, variablesHook, isLoadingTemplate]);
+
+    // ===================================================================
+    // RENDER
+    // ===================================================================
 
     return (
         <AppShell
@@ -341,7 +459,6 @@ export default function PageBuilder() {
                 backgroundColor: theme === 'dark' ? '#1a1a1a' : '#ffffff'
             }}
         >
-            {/* Header */}
             <AppShell.Header style={{ backgroundColor: theme === 'dark' ? '#2d2d2d' : '#ffffff' }}>
                 <Container size="100%" h="100%">
                     <Flex justify="space-between" align="center" h="100%" px="md">
@@ -350,12 +467,42 @@ export default function PageBuilder() {
                             <Text size="lg" fw={700} c={theme === 'dark' ? 'white' : 'dark'}>
                                 Page Builder
                             </Text>
-                            <Text size="sm" c="dimmed">
-                                CodeMirror + Syntax Highlighting
-                            </Text>
+                            
+                            {/* Status indicators */}
+                            {currentTemplate && (
+                                <Group gap="xs">
+                                    <div style={{
+                                        width: 8,
+                                        height: 8,
+                                        borderRadius: '50%',
+                                        backgroundColor: isDirty ? '#f59e0b' : '#10b981'
+                                    }} />
+                                    <Text size="sm" c={isDirty ? 'yellow' : 'green'}>
+                                        {autoSaving ? 'Auto-guardando...' : isDirty ? 'Sin guardar' : 'Guardado'}
+                                    </Text>
+                                </Group>
+                            )}
+                            
+                            {apiHook.loading && (
+                                <Text size="xs" c="blue">🔄 Cargando...</Text>
+                            )}
+                            {apiHook.hasError && (
+                                <Text size="xs" c="red">❌ Error API</Text>
+                            )}
                         </Group>
+                        
                         <Group>
-                            {/* ✅ Botón para cambiar tema */}
+                            <Tooltip label="Gestionar templates">
+                                <ActionIcon 
+                                    variant="light" 
+                                    color="green"
+                                    onClick={() => setShowTemplates(!showTemplates)}
+                                    size="lg"
+                                >
+                                    <IconList size={18} />
+                                </ActionIcon>
+                            </Tooltip>
+                            
                             <Tooltip label={`Cambiar a tema ${theme === 'light' ? 'oscuro' : 'claro'}`}>
                                 <ActionIcon 
                                     variant="light" 
@@ -367,28 +514,12 @@ export default function PageBuilder() {
                                 </ActionIcon>
                             </Tooltip>
                             
-                            <Tooltip label="Sintaxis highlighting para Alpine.js, Tailwind CSS y Blade">
-                                <ActionIcon 
-                                    variant="light" 
-                                    color="green"
-                                    onClick={() => {
-                                        notifications.show({
-                                            title: 'Syntax Highlighting Activado',
-                                            message: '🎨 Alpine.js (verde), Tailwind (azul), Blade (rosa). Ctrl+Space para autocompletado.',
-                                            color: 'green',
-                                            autoClose: 8000
-                                        });
-                                    }}
-                                >
-                                    <IconCode size={18} />
-                                </ActionIcon>
-                            </Tooltip>
-                            
                             <Tooltip label="Resetear código">
                                 <ActionIcon 
                                     variant="light" 
                                     color="orange" 
                                     onClick={resetCode}
+                                    size="lg"
                                 >
                                     <IconRefresh size={18} />
                                 </ActionIcon>
@@ -398,36 +529,290 @@ export default function PageBuilder() {
                                 leftSection={<IconEye size={18} />} 
                                 size="sm" 
                                 variant="light"
-                                loading={isUpdatingPreview}
                                 onClick={updatePreview}
                             >
-                                {isUpdatingPreview ? 'Actualizando...' : 'Actualizar Preview'}
+                                Procesar Variables
                             </Button>
                             
                             <Button 
                                 leftSection={<IconDeviceFloppy size={18} />} 
                                 size="sm"
-                                onClick={handleSave}
+                                onClick={saveTemplate}
+                                loading={saving || apiHook.loading}
+                                disabled={!isDirty && !currentTemplate}
+                                color={isDirty ? 'orange' : 'blue'}
                             >
-                                Guardar
+                                {saving ? 'Guardando...' : isDirty ? 'Guardar cambios' : 'Guardar'}
                             </Button>
                         </Group>
                     </Flex>
                 </Container>
             </AppShell.Header>
 
-            {/* Main Content */}
-            <AppShell.Main 
-                style={{ 
-                    height: 'calc(100vh - 70px)',
-                    minHeight: '600px',
-                    overflow: 'hidden'
-                }}
-            >
+            <AppShell.Main style={{ height: 'calc(100vh - 70px)', overflow: 'hidden' }}>
                 <Flex style={{ height: '100%' }}>
-                    {/* Editor Panel - 50% */}
+                    {/* TEMPLATES SIDEBAR */}
+                    {showTemplates && (
+                        <Box style={{ 
+                            width: '300px', 
+                            borderRight: `1px solid ${theme === 'dark' ? '#404040' : '#e9ecef'}`,
+                            backgroundColor: theme === 'dark' ? '#1e1e1e' : '#ffffff'
+                        }}>
+                            <Box p="md">
+                                <Group justify="space-between" mb="md">
+                                    <Text size="lg" fw={600} c={theme === 'dark' ? 'white' : 'dark'}>
+                                        Templates
+                                    </Text>
+                                    <ActionIcon 
+                                        variant="subtle" 
+                                        onClick={() => setShowTemplates(false)}
+                                    >
+                                        ✕
+                                    </ActionIcon>
+                                </Group>
+                                
+                                {/* Botón nuevo template */}
+                                <Button
+                                    fullWidth
+                                    variant="light"
+                                    leftSection={<IconPlus size={16} />}
+                                    mb="md"
+                                    onClick={() => {
+                                        // 🔧 PREVENIR CONFLICTOS CON AUTO-UPDATE
+                                        setIsLoadingTemplate(true);
+                                        
+                                        // 🔧 MEJORAR "NUEVO TEMPLATE"
+                                        if (isDirty && !confirm('Tienes cambios sin guardar. ¿Continuar?')) {
+                                            setIsLoadingTemplate(false);
+                                            return;
+                                        }
+                                        
+                                        const newCode = `<div class="p-8 text-center">
+    <h1 class="text-3xl font-bold mb-4">Nuevo Template</h1>
+    <p class="text-lg text-gray-600 mb-4">Hola {{ user.name }}!</p>
+    <p class="text-sm text-gray-500">Comenzando en {{ app.name }}</p>
+</div>`;
+                                        
+                                        console.log('=== CREANDO NUEVO TEMPLATE ===');
+                                        setCurrentTemplate(null);
+                                        setCode(newCode);
+                                        setSavedCode('');
+                                        setIsDirty(true);
+                                        setTemplateName('');
+                                        
+                                        // 🚀 FORZAR UPDATE DEL PREVIEW
+                                        setTimeout(() => {
+                                            try {
+                                                const processedHTML = variablesHook.processCode(newCode);
+                                                setPreviewHTML(processedHTML);
+                                                console.log('✅ Nuevo template creado y procesado');
+                                                
+                                                setTimeout(() => {
+                                                    setIsLoadingTemplate(false);
+                                                }, 100);
+                                            } catch (error) {
+                                                console.error('Error creando nuevo template:', error);
+                                                setIsLoadingTemplate(false);
+                                            }
+                                        }, 200);
+                                        
+                                        notifications.show({
+                                            title: 'Nuevo template',
+                                            message: 'Template en blanco creado',
+                                            color: 'green'
+                                        });
+                                    }}
+                                >
+                                    Nuevo Template
+                                </Button>
+                                
+                                {/* Lista de templates */}
+                                <div style={{ maxHeight: 'calc(100vh - 250px)', overflowY: 'auto' }}>
+                                    {templates.length === 0 ? (
+                                        <Box p="md" style={{ textAlign: 'center' }}>
+                                            <Text size="sm" c="dimmed">
+                                                No hay templates guardados
+                                            </Text>
+                                            <Text size="xs" c="dimmed" mt="xs">
+                                                Crea tu primer template escribiendo código y guardándolo
+                                            </Text>
+                                        </Box>
+                                    ) : (
+                                        templates.map((template, index) => (
+                                            <Box 
+                                                key={template.id || index}
+                                                p="sm"
+                                                mb="xs"
+                                                style={{
+                                                    border: `1px solid ${theme === 'dark' ? '#404040' : '#e9ecef'}`,
+                                                    borderRadius: '8px',
+                                                    cursor: 'pointer',
+                                                    backgroundColor: currentTemplate?.id === template.id ? 
+                                                        (theme === 'dark' ? '#2d2d2d' : '#f8f9fa') : 'transparent',
+                                                    borderColor: currentTemplate?.id === template.id ? 
+                                                        '#228be6' : (theme === 'dark' ? '#404040' : '#e9ecef')
+                                                }}
+                                                onClick={() => {
+                                                    // 🔧 PREVENIR CONFLICTOS CON AUTO-UPDATE
+                                                    setIsLoadingTemplate(true);
+                                                    
+                                                    // 🔧 DEBUGGING MEJORADO PARA TEMPLATES
+                                                    console.log('=== CARGANDO TEMPLATE ===');
+                                                    console.log('Template seleccionado:', template);
+                                                    console.log('Código del template:', template.code);
+                                                    console.log('Longitud del código:', template.code?.length || 0);
+                                                    
+                                                    const templateCode = template.code || '';
+                                                    
+                                                    if (!templateCode) {
+                                                        setIsLoadingTemplate(false);
+                                                        notifications.show({
+                                                            title: 'Template vacío',
+                                                            message: 'Este template no tiene código',
+                                                            color: 'yellow'
+                                                        });
+                                                        return;
+                                                    }
+                                                    
+                                                    // 🚀 SECUENCIA CONTROLADA DE CARGA
+                                                    console.log('Estableciendo template actual...');
+                                                    setCurrentTemplate(template);
+                                                    
+                                                    console.log('Estableciendo código...', templateCode.substring(0, 100) + '...');
+                                                    setCode(templateCode);
+                                                    
+                                                    console.log('Estableciendo savedCode...');
+                                                    setSavedCode(templateCode);
+                                                    
+                                                    console.log('Limpiando isDirty...');
+                                                    setIsDirty(false);
+                                                    
+                                                    // 🚀 FORZAR UPDATE DEL PREVIEW CON SECUENCIA CONTROLADA
+                                                    setTimeout(() => {
+                                                        console.log('Ejecutando update del preview...');
+                                                        try {
+                                                            const processedHTML = variablesHook.processCode(templateCode);
+                                                            console.log('HTML procesado:', processedHTML.substring(0, 200) + '...');
+                                                            setPreviewHTML(processedHTML);
+                                                            console.log('Preview actualizado exitosamente');
+                                                            
+                                                            // 🔧 REACTIVAR AUTO-UPDATE
+                                                            setTimeout(() => {
+                                                                setIsLoadingTemplate(false);
+                                                                console.log('✅ Auto-update reactivado');
+                                                            }, 100);
+                                                            
+                                                        } catch (error) {
+                                                            console.error('Error procesando template:', error);
+                                                            setIsLoadingTemplate(false);
+                                                        }
+                                                    }, 300);
+                                                    
+                                                    notifications.show({
+                                                        title: 'Template cargado',
+                                                        message: `"${template.name}" (${templateCode.length} caracteres)`,
+                                                        color: 'blue'
+                                                    });
+                                                    
+                                                    console.log('=== FIN CARGA TEMPLATE ===');
+                                                }}
+                                            >
+                                                <Group justify="space-between">
+                                                    <div style={{ flex: 1 }}>
+                                                        <Text size="sm" fw={500} c={theme === 'dark' ? 'white' : 'dark'}>
+                                                            {template.name || `Template ${index + 1}`}
+                                                        </Text>
+                                                        <Text size="xs" c="dimmed">
+                                                            {template.created_at ? 
+                                                                new Date(template.created_at).toLocaleDateString() : 
+                                                                'Fecha desconocida'
+                                                            }
+                                                        </Text>
+                                                        <Text size="xs" c="dimmed">
+                                                            {template.code ? `${template.code.length} caracteres` : 'Sin código'}
+                                                        </Text>
+                                                    </div>
+                                                    <ActionIcon 
+                                                        variant="subtle" 
+                                                        color="red"
+                                                        size="sm"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (confirm(`¿Eliminar "${template.name}"?`)) {
+                                                                setTemplates(prev => prev.filter(t => t.id !== template.id));
+                                                                if (currentTemplate?.id === template.id) {
+                                                                    setCurrentTemplate(null);
+                                                                    setCode('');
+                                                                    setSavedCode('');
+                                                                    setIsDirty(false);
+                                                                }
+                                                                notifications.show({
+                                                                    title: 'Template eliminado',
+                                                                    message: `"${template.name}" eliminado`,
+                                                                    color: 'red'
+                                                                });
+                                                            }
+                                                        }}
+                                                    >
+                                                        🗑️
+                                                    </ActionIcon>
+                                                </Group>
+                                            </Box>
+                                        ))
+                                    )}
+                                </div>
+                                
+                                {/* Info de templates con DEBUG */}
+                                <Box mt="md" p="xs" style={{ 
+                                    backgroundColor: theme === 'dark' ? '#2d2d2d' : '#f8f9fa', 
+                                    borderRadius: 4,
+                                    fontSize: '11px'
+                                }}>
+                                    <Text size="xs" c="dimmed">
+                                        📁 {templates.length} template{templates.length !== 1 ? 's' : ''}
+                                        {currentTemplate && (
+                                            <><br />✏️ Editando: {currentTemplate.name}</>
+                                        )}
+                                        <br />📝 Código actual: {code.length} caracteres
+                                        <br />🔄 Preview: {previewHTML.length} caracteres
+                                        {isLoadingTemplate && (
+                                            <><br />⏳ Cargando template...</>
+                                        )}
+                                    </Text>
+                                    
+                                    {/* 🔧 BOTÓN DEBUG */}
+                                    <Button
+                                        size="xs"
+                                        variant="subtle"
+                                        mt="xs"
+                                        onClick={() => {
+                                            console.log('=== DEBUG INFO ===');
+                                            console.log('Código actual:', code);
+                                            console.log('Preview HTML:', previewHTML);
+                                            console.log('Template actual:', currentTemplate);
+                                            console.log('Variables hook:', variablesHook);
+                                            
+                                            // Force reprocess
+                                            const reprocessed = variablesHook.processCode(code);
+                                            setPreviewHTML(reprocessed);
+                                            
+                                            notifications.show({
+                                                title: 'Debug info',
+                                                message: 'Revisa la consola del navegador',
+                                                color: 'blue'
+                                            });
+                                        }}
+                                    >
+                                        🔧 Debug
+                                    </Button>
+                                </Box>
+                            </Box>
+                        </Box>
+                    )}
+                    
+                    {/* EDITOR PANEL */}
                     <Box style={{ 
-                        width: '50%', 
+                        width: showTemplates ? 'calc(50% - 150px)' : '50%',
                         borderRight: `1px solid ${theme === 'dark' ? '#404040' : '#e9ecef'}`,
                         backgroundColor: theme === 'dark' ? '#1e1e1e' : '#ffffff'
                     }}>
@@ -439,19 +824,33 @@ export default function PageBuilder() {
                                 <Group gap="xs">
                                     <IconCode size={16} />
                                     <Text size="sm" fw={600} c={theme === 'dark' ? 'white' : 'dark'}>
-                                        CodeMirror HTML Editor
+                                        {currentTemplate ? currentTemplate.name : 'Editor HTML'}
                                     </Text>
-                                    <Text size="xs" c={theme === 'dark' ? 'gray.4' : 'blue.6'} fw={500}>
-                                        {theme === 'dark' ? '🌙 Modo Oscuro' : '☀️ Modo Claro'}
-                                    </Text>
+                                    {code && (
+                                        <Text size="xs" c="dimmed">
+                                            {variablesHook.analyzeCode(code).totalVariables} variables
+                                        </Text>
+                                    )}
                                 </Group>
-                                <Text size="xs" c="dimmed">
-                                    🎨 Alpine.js | Tailwind | Blade highlighting | Ctrl+Space autocompletado
-                                </Text>
+                                {!currentTemplate && (
+                                    <input
+                                        type="text"
+                                        placeholder="Nombre del template..."
+                                        value={templateName}
+                                        onChange={(e) => setTemplateName(e.target.value)}
+                                        style={{
+                                            padding: '4px 8px',
+                                            fontSize: '12px',
+                                            borderRadius: '4px',
+                                            border: `1px solid ${theme === 'dark' ? '#404040' : '#e9ecef'}`,
+                                            backgroundColor: theme === 'dark' ? '#1a1a1a' : '#ffffff',
+                                            color: theme === 'dark' ? '#ffffff' : '#000000'
+                                        }}
+                                    />
+                                )}
                             </Group>
                         </Box>
                         <Box style={{ height: 'calc(100% - 52px)', minHeight: '400px' }}>
-                            {/* ✅ Pasamos el tema al CodeMirrorEditor */}
                             <CodeMirrorEditor 
                                 code={code}
                                 onCodeChange={handleCodeChange}
@@ -461,9 +860,9 @@ export default function PageBuilder() {
                         </Box>
                     </Box>
 
-                    {/* Preview Panel - 50% */}
+                    {/* PREVIEW PANEL */}
                     <Box style={{ 
-                        width: '50%',
+                        width: showTemplates ? 'calc(50% - 150px)' : '50%',
                         backgroundColor: theme === 'dark' ? '#1a1a1a' : '#ffffff'
                     }}>
                         <Box p="sm" style={{ 
@@ -478,22 +877,24 @@ export default function PageBuilder() {
                                     </Text>
                                 </Group>
                                 <Text size="xs" c="dimmed">
-                                    Da clic en "Actualizar Preview" para ver cambios
+                                    Se actualiza automáticamente al escribir
                                 </Text>
                             </Group>
                         </Box>
                         <Box style={{ height: 'calc(100% - 52px)', overflow: 'auto' }}>
-                            {isUpdatingPreview ? (
+                            {!previewHTML ? (
                                 <Box 
                                     style={{ 
                                         height: '100%', 
                                         display: 'flex', 
                                         alignItems: 'center', 
                                         justifyContent: 'center',
-                                        backgroundColor: theme === 'dark' ? '#1a1a1a' : '#f8f9fa'
+                                        backgroundColor: theme === 'dark' ? '#1a1a1a' : '#f8f9fa',
+                                        flexDirection: 'column'
                                     }}
                                 >
-                                    <Text c="dimmed">Actualizando preview...</Text>
+                                    <Text c="dimmed" size="lg" mb="md">📄 Preview vacío</Text>
+                                    <Text c="dimmed" size="sm">Escribe código en el editor o carga un template</Text>
                                 </Box>
                             ) : (
                                 <iframe
@@ -510,6 +911,10 @@ export default function PageBuilder() {
                         </Box>
                     </Box>
                 </Flex>
+                
+                {/* Panel de variables */}
+                <VariablesPanel onInsertVariable={insertVariable} />
+                
             </AppShell.Main>
         </AppShell>
     );
