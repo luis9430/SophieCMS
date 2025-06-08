@@ -1,452 +1,414 @@
-import { useState, useEffect, useRef, useCallback } from 'preact/hooks';
+import { useState, useCallback, useEffect  } from 'preact/hooks';
 import {
-    AppShell, Text, Button, Group, Stack, Badge, ActionIcon, Tooltip,
-    Container, Paper, Divider, Box, Flex, SimpleGrid
+    AppShell, Text, Button, Group, Container, Flex, Box, ActionIcon, Tooltip
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
-    IconTrash, IconMenu2, IconPlus, IconDeviceFloppy,
-    IconPalette, IconCopy, IconGrid3x3, IconCode
+    IconDeviceFloppy, IconEye, IconRefresh, IconCode, IconPalette, IconSun, IconMoon
 } from '@tabler/icons-preact';
-import Sortable from 'sortablejs';
-import blockRegistry, { availableBlocks } from './blocks/BlockRegistry';
-import CodeViewer from './CodeViewer';
+
+// ✅ Import del CodeMirrorEditor mejorado
+import CodeMirrorEditor from './codemirror/CodeMirrorEditor';
 
 export default function PageBuilder() {
-    const [blocks, setBlocks] = useState([]);
-    const [isDraggingFromSidebar, setIsDraggingFromSidebar] = useState(false);
-    const [draggedBlockId, setDraggedBlockId] = useState(null);
-    const [showCodeViewer, setShowCodeViewer] = useState(false);
-    const canvasRef = useRef(null);
-    const sortableInstances = useRef(new Map());
-
-    // --- FUNCIONES AUXILIARES ---
-
-    const findBlockById = (blockArray, id) => {
-        for (const block of blockArray) {
-            if (block.id === id) return block;
-            if (block.children) {
-                const found = findBlockById(block.children, id);
-                if (found) return found;
-            }
-        }
-        return null;
-    };
-
-    // --- LÓGICA DE DRAG-AND-DROP (SORTABLEJS) ---
-
-    const destroyAllSortables = () => {
-        sortableInstances.current.forEach(instance => {
-            if (instance && typeof instance.destroy === 'function') {
-                instance.destroy();
-            }
-        });
-        sortableInstances.current.clear();
-    };
-
-    const initializeSortable = (element, options, id) => {
-        if (!element) return;
-        
-        if (sortableInstances.current.has(id)) {
-            const existingInstance = sortableInstances.current.get(id);
-            if (existingInstance && typeof existingInstance.destroy === 'function') {
-                existingInstance.destroy();
-            }
-        }
-
-        try {
-            const sortableInstance = Sortable.create(element, {
-                ...options,
-                animation: 200,
-                ghostClass: 'sortable-ghost',
-                chosenClass: 'sortable-chosen',
-                dragClass: 'sortable-drag',
-            });
-            sortableInstances.current.set(id, sortableInstance);
-        } catch (error) {
-            console.error('Error creating sortable instance:', error);
-        }
-    };
-
-    const handleSortStart = (evt) => {
-        const { from, item } = evt;
-        const isFromSidebar = from.classList.contains('sidebar-blocks-list');
-        const blockId = item.getAttribute('data-block-id');
-
-        setIsDraggingFromSidebar(isFromSidebar);
-        setDraggedBlockId(blockId);
-        
-        console.log('Drag started', { fromSidebar: isFromSidebar, blockType: blockId });
-    };
-
-    const handleSortEnd = (evt) => {
-        const { from, to, oldIndex, newIndex, item, clone } = evt;
-
-        if (from === to) {
-            console.log('Arrastre cancelado, el elemento volvió a su origen.');
-            setIsDraggingFromSidebar(false);
-            setDraggedBlockId(null);
-            return;
-        }
-
-        if (from.classList.contains('sidebar-blocks-list')) {
-            let blockId = item.getAttribute('data-block-id');
-            if (!blockId && clone) {
-                blockId = clone.getAttribute('data-block-id');
-            }
-            if (!blockId) {
-                const blockElement = item.querySelector('[data-block-id]') || clone?.querySelector('[data-block-id]');
-                if (blockElement) {
-                    blockId = blockElement.getAttribute('data-block-id');
-                }
-            }
-            
-            if (!blockId) {
-                console.error('No se pudo encontrar el block ID');
-                return;
-            }
-
-            const containerId = to.getAttribute('data-container-id') || to.getAttribute('data-sortable-id');
-            const parentId = containerId === 'main-canvas' ? null : containerId;
-
-            if (item.parentNode) {
-                item.parentNode.removeChild(item);
-            }
-            
-            addBlock(blockId, parentId, newIndex);
-        } else {
-            console.log("Reordenando bloque existente");
-        }
-    };
-
-    const initializeAllSortables = () => {
-        destroyAllSortables();
-        const sidebarOptions = {
-            group: {
-                name: 'blocks',
-                pull: 'clone',
-                put: false,
-                revertClone: true,
-            },
-            sort: false,
-            onStart: handleSortStart,
-            onEnd: handleSortEnd,
-        };
-        const dropZoneOptions = {
-            group: 'blocks',
-            onStart: handleSortStart,
-            onEnd: handleSortEnd,
-            handle: '.drag-handle',
-        };
-        document.querySelectorAll('.sidebar-blocks-list').forEach((el) => initializeSortable(el, sidebarOptions, el.dataset.sortableId));
-        if (canvasRef.current) {
-            initializeSortable(canvasRef.current, dropZoneOptions, 'main-canvas');
-        }
-        document.querySelectorAll('[data-sortable-container]').forEach(el => initializeSortable(el, dropZoneOptions, el.dataset.containerId));
-    };
+    const [theme, setTheme] = useState('light'); // Estado para el tema
 
     useEffect(() => {
-        initializeAllSortables();
-        return () => destroyAllSortables();
-    }, [blocks]);
+        console.log('El tema del editor ha cambiado a:', theme);
+    }, [theme]);
 
-    // --- MANEJO DE BLOQUES (CRUD) ---
-
-    const addBlock = useCallback((blockId, parentId = null, index = 0) => {
-        if (!blockId) {
-            console.error('Block ID is required');
-            return;
-        }
-        const blockDef = blockRegistry.get(blockId);
-        if (!blockDef) {
-            console.error('Block definition not found:', blockId);
-            return;
-        }
-
-        const newBlock = {
-            id: `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            type: blockDef.id,
-            name: blockDef.name,
-            color: blockDef.color,
-            config: { ...(blockDef.defaultConfig || {}) },
-            styles: { ...(blockDef.defaultStyles || {}) },
-            isContainer: !!blockDef.isContainer,
-            children: blockDef.id === 'grid'
-                ? Array.from({ length: blockDef.defaultConfig.columns || 2 }, (_, i) => ({
-                    id: `col_${Date.now()}_${i}`,
-                    type: 'column',
-                    children: [],
-                }))
-                : (blockDef.isContainer ? [] : undefined),
-        };
-
-        setBlocks(prevBlocks => {
-            const newBlocksState = JSON.parse(JSON.stringify(prevBlocks));
-
-            if (!parentId) {
-                newBlocksState.splice(index, 0, newBlock);
-                return newBlocksState;
-            }
-
-            const findAndInsert = (currentLevelBlocks) => {
-                for (const block of currentLevelBlocks) {
-                    if (block.id === parentId) {
-                        if (!block.children) block.children = [];
-                        block.children.splice(index, 0, newBlock);
-                        return true;
-                    }
-                    if (block.children && findAndInsert(block.children)) {
-                        return true;
-                    }
-                }
-                return false;
-            };
-
-            findAndInsert(newBlocksState);
-            return newBlocksState;
-        });
-
+    // Función para alternar tema
+    const toggleTheme = useCallback(() => {
+        const newTheme = theme === 'light' ? 'dark' : 'light';
+        setTheme(newTheme);
         notifications.show({
-            title: 'Componente agregado',
-            message: `${newBlock.name} se agregó correctamente`,
-            color: newBlock.color,
-            icon: <IconPlus size={18} />,
+            title: `Tema ${newTheme === 'dark' ? 'oscuro' : 'claro'} activado`,
+            message: `Editor cambiado a modo ${newTheme === 'dark' ? 'oscuro' : 'claro'}`,
+            color: newTheme === 'dark' ? 'dark' : 'blue',
+            icon: newTheme === 'dark' ? <IconMoon size={18} /> : <IconSun size={18} />
+        });
+    }, [theme]);
+
+    // HTML inicial de ejemplo con más ejemplos de Alpine.js, Tailwind y Blade
+    const initialHTML = `<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Página</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body>
+    <!-- Este editor soporta sintaxis Blade: {{-- comentarios --}}, @if, @foreach, etc. -->
+    <!-- Para ver Blade en acción, utiliza: @extends('layouts.app'), @section('content') -->
+    <!-- Hero Section con Alpine.js y Tailwind -->
+    <section class="bg-gradient-to-r from-blue-500 to-purple-600 text-white py-20 px-4 transition-all duration-500 hover:shadow-2xl" 
+             x-data="{ 
+                title: '¡Bienvenido a tu Página!', 
+                subtitle: 'Editor con sintaxis highlighting para Alpine.js, Tailwind CSS y Blade', 
+                showButton: true,
+                count: 0 
+             }" x-init="console.log('Alpine inicializado')">
+        <div class="max-w-4xl mx-auto text-center">
+            <h1 class="text-5xl font-bold mb-6 hover:text-yellow-300 transition-colors" 
+                x-text="title" 
+                @click="title = 'Título Clickeado!'"></h1>
+            <p class="text-xl mb-8 opacity-90 leading-relaxed" x-text="subtitle"></p>
+            
+            <!-- Botón con Alpine.js -->
+            <button x-show="showButton" 
+                    @click="showButton = false; count++; $nextTick(() => showButton = true)"
+                    class="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-gray-100 hover:scale-105 transition-all duration-300 shadow-lg">
+                Comenzar Ahora (Clicks: <span x-text="count"></span>)
+            </button>
+        </div>
+    </section>
+
+    <!-- Counter Demo con Alpine avanzado -->
+    <section class="py-12 px-4 bg-gradient-to-br from-gray-50 to-blue-50">
+        <div class="max-w-4xl mx-auto text-center">
+            <div x-data="{ 
+                    count: 0, 
+                    step: 1,
+                    history: [],
+                    get canUndo() { return this.history.length > 0 }
+                 }" 
+                 class="bg-white p-8 rounded-xl shadow-lg inline-block border-2 border-gray-100 hover:border-blue-200 transition-all">
+                    
+                    <h3 class="text-2xl font-semibold mb-6 text-gray-800">Demo Alpine.js Avanzado</h3>
+                    
+                    <!-- Controls -->
+                    <div class="mb-6 space-y-4">
+                        <div class="flex items-center justify-center space-x-4">
+                            <label class="text-sm font-medium text-gray-600">Paso:</label>
+                            <input type="number" x-model="step" min="1" max="10" 
+                                   class="w-16 px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                    </div>
+                    
+                    <!-- Counter Display -->
+                    <div class="flex items-center justify-center space-x-6 mb-6">
+                        <button @click="count = Math.max(0, count - step); history.push(count + step)" 
+                                class="bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 transition-all transform hover:scale-105 shadow-md">
+                            -<span x-text="step"></span>
+                        </button>
+                        
+                        <div class="text-center">
+                            <div x-text="count" 
+                                 class="text-4xl font-bold w-24 h-16 flex items-center justify-center bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg shadow-lg"></div>
+                            <p class="text-xs text-gray-500 mt-2">Valor actual</p>
+                        </div>
+                        
+                        <button @click="count += step; history.push(count - step)" 
+                                class="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 transition-all transform hover:scale-105 shadow-md">
+                            +<span x-text="step"></span>
+                        </button>
+                    </div>
+                    
+                    <!-- Undo button -->
+                    <button x-show="canUndo" 
+                            @click="count = history.pop()" 
+                            class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 transition-colors text-sm">
+                        ↶ Deshacer
+                    </button>
+                    
+                    <p class="text-gray-600 mt-4 text-sm">
+                        Contador interactivo con historial - 
+                        <span x-text="history.length"></span> acciones en historial
+                    </p>
+                </div>
+            </div>
+        </section>
+    @endif
+
+    {{-- Blade loop example --}}
+    @foreach(['Alpine.js', 'Tailwind CSS', 'Laravel Blade'] as $tech)
+        <!-- Features Section for {{ $tech }} -->
+    @endforeach
+    
+    <!-- Content Section -->
+    <section class="py-16 px-4 bg-white">
+        <div class="max-w-6xl mx-auto">
+            <h2 class="text-4xl font-bold text-center mb-12 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                Características Destacadas
+            </h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl shadow-lg border border-blue-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                    <div class="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center mb-4 shadow-md">
+                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-blue-900">CodeMirror Editor</h3>
+                    <p class="text-blue-700 leading-relaxed">
+                        Editor estable con autocompletado inteligente para Tailwind CSS, Alpine.js y Laravel Blade. 
+                        <strong>Sin problemas de cursor!</strong>
+                    </p>
+                </div>
+
+                <div class="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl shadow-lg border border-green-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                    <div class="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center mb-4 shadow-md">
+                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 11-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 010-2h4a1 1 0 011 1v4a1 1 0 01-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L13.586 5H12z" clip-rule="evenodd"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-green-900">Tailwind CSS</h3>
+                    <p class="text-green-700 leading-relaxed">
+                        Framework CSS utilitario con <span class="bg-green-200 px-2 py-1 rounded text-green-800 font-medium">highlighting sintáctico</span> 
+                        para crear diseños responsive rápidamente.
+                    </p>
+                </div>
+
+                <div class="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl shadow-lg border border-purple-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                    <div class="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center mb-4 shadow-md">
+                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"></path>
+                            <path fill-rule="evenodd" d="M4 5a2 2 0 012-2v1a1 1 0 001 1h6a1 1 0 001-1V3a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-purple-900">Alpine.js + Blade</h3>
+                    <p class="text-purple-700 leading-relaxed">
+                        <code class="bg-purple-200 text-purple-800 px-1 rounded">x-data</code>, 
+                        <code class="bg-purple-200 text-purple-800 px-1 rounded">@click</code>, 
+                        <code class="bg-purple-200 text-purple-800 px-1 rounded">@if</code> 
+                        con colorización específica para mejor legibilidad.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Interactive Demo with complex Alpine.js -->
+    <section class="py-12 px-4 bg-gradient-to-r from-indigo-50 to-cyan-50" 
+             x-data="{ 
+                tabs: ['Form', 'List', 'Settings'], 
+                activeTab: 'Form',
+                formData: { name: '', email: '', message: '' },
+                items: ['Item 1', 'Item 2', 'Item 3'],
+                settings: { theme: 'light', notifications: true }
+             }">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="text-3xl font-bold text-center mb-8 text-gray-800">Demo Interactivo Avanzado</h2>
+            
+            <!-- Tabs -->
+            <div class="flex justify-center mb-6">
+                <div class="bg-white rounded-lg p-1 shadow-lg border">
+                    <template x-for="tab in tabs">
+                        <button @click="activeTab = tab" 
+                                :class="activeTab === tab ? 'bg-blue-500 text-white' : 'text-gray-600 hover:text-blue-500'"
+                                class="px-6 py-2 rounded-md transition-all duration-200 font-medium"
+                                x-text="tab">
+                        </button>
+                    </template>
+                </div>
+            </div>
+            
+            <!-- Tab Content -->
+            <div class="bg-white rounded-xl shadow-lg p-6 border">
+                <!-- Form Tab -->
+                <div x-show="activeTab === 'Form'" x-transition.duration.300ms>
+                    <h3 class="text-xl font-semibold mb-4">Formulario de Contacto</h3>
+                    <div class="space-y-4">
+                        <input type="text" x-model="formData.name" placeholder="Tu nombre" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all">
+                        <input type="email" x-model="formData.email" placeholder="Tu email" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all">
+                        <textarea x-model="formData.message" placeholder="Tu mensaje" rows="4"
+                                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all resize-none"></textarea>
+                        
+                        <div x-show="formData.name && formData.email && formData.message" 
+                             x-transition
+                             class="p-4 bg-green-50 border border-green-200 rounded-lg">
+                            <h4 class="font-semibold text-green-800 mb-2">Vista previa:</h4>
+                            <p class="text-green-700">
+                                <strong>Nombre:</strong> <span x-text="formData.name"></span><br>
+                                <strong>Email:</strong> <span x-text="formData.email"></span><br>
+                                <strong>Mensaje:</strong> <span x-text="formData.message"></span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- List Tab -->
+                <div x-show="activeTab === 'List'" x-transition.duration.300ms>
+                    <h3 class="text-xl font-semibold mb-4">Lista Dinámica</h3>
+                    <div class="space-y-3">
+                        <template x-for="(item, index) in items" :key="index">
+                            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                                <span x-text="item" class="font-medium"></span>
+                                <button @click="items.splice(index, 1)" 
+                                        class="text-red-500 hover:text-red-700 font-bold">✕</button>
+                            </div>
+                        </template>
+                        <button @click="items.push('Nuevo Item ' + (items.length + 1))" 
+                                class="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium">
+                            + Agregar Item
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Settings Tab -->
+                <div x-show="activeTab === 'Settings'" x-transition.duration.300ms>
+                    <h3 class="text-xl font-semibold mb-4">Configuraciones</h3>
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <label class="font-medium">Notificaciones</label>
+                            <button @click="settings.notifications = !settings.notifications"
+                                    :class="settings.notifications ? 'bg-green-500' : 'bg-gray-300'"
+                                    class="w-12 h-6 rounded-full transition-colors relative">
+                                <div :class="settings.notifications ? 'translate-x-6' : 'translate-x-1'"
+                                     class="w-4 h-4 bg-white rounded-full transition-transform absolute top-1"></div>
+                            </button>
+                        </div>
+                        <div x-show="settings.notifications" class="text-sm text-green-600">
+                            ✓ Las notificaciones están habilitadas
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-8 px-4">
+        <div class="max-w-4xl mx-auto text-center">
+            <p class="text-lg">&copy; 2025 Page Builder con CodeMirror, Tailwind y Alpine.js</p>
+            <p class="text-gray-400 mt-2">Con highlighting sintáctico avanzado para mejor desarrollo</p>
+        </div>
+    </footer>
+</body>
+</html>`;
+
+    const [code, setCode] = useState(initialHTML);
+    const [previewHTML, setPreviewHTML] = useState(initialHTML);
+    const [isUpdatingPreview, setIsUpdatingPreview] = useState(false);
+
+    // Funciones sin cambios
+    const handleCodeChange = useCallback((newCode) => {
+        setCode(newCode);
+    }, []);
+
+    const updatePreview = useCallback(() => {
+        setIsUpdatingPreview(true);
+        
+        setTimeout(() => {
+            setPreviewHTML(code);
+            setIsUpdatingPreview(false);
+            
+            notifications.show({
+                title: 'Preview actualizado',
+                message: 'Los cambios se han aplicado correctamente',
+                color: 'green',
+                icon: <IconEye size={18} />
+            });
+        }, 300);
+    }, [code]);
+
+    const handleSave = useCallback(() => {
+        notifications.show({
+            title: 'Código guardado',
+            message: 'Tu página se ha guardado correctamente',
+            color: 'blue',
+            icon: <IconDeviceFloppy size={18} />
         });
     }, []);
 
-    const updateBlock = (blockId, newConfig, newStyles) => {
-        const updateBlockInArray = (blockArray) => {
-            return blockArray.map(block => {
-                if (block.id === blockId) {
-                    return { ...block, config: newConfig, styles: newStyles };
-                }
-                if (block.children) {
-                    return { ...block, children: updateBlockInArray(block.children) };
-                }
-                return block;
-            });
-        };
-        setBlocks(prevBlocks => updateBlockInArray(prevBlocks));
-    };
-    
-    const removeBlock = (blockId, event) => {
-        event.stopPropagation();
-        const removeRecursively = (b, id) => b.filter(block => {
-            if (block.id === id) return false;
-            if (block.children) block.children = removeRecursively(block.children, id);
-            return true;
+    const resetCode = useCallback(() => {
+        setCode(initialHTML);
+        setPreviewHTML(initialHTML);
+        notifications.show({
+            title: 'Código reseteado',
+            message: 'Se ha restaurado el código inicial',
+            color: 'orange',
+            icon: <IconRefresh size={18} />
         });
-        setBlocks(prev => removeRecursively(prev, blockId));
-        notifications.show({ 
-            title: 'Componente eliminado', 
-            color: 'red', 
-            icon: <IconTrash size={18} /> 
-        });
-    };
+    }, [initialHTML]);
 
-    const duplicateBlock = (blockId, event) => {
-        event.stopPropagation();
-        const blockToDuplicate = findBlockById(blocks, blockId);
-        if (!blockToDuplicate) return;
-
-        const newBlock = JSON.parse(JSON.stringify(blockToDuplicate));
-        newBlock.id = `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        newBlock.name = `${blockToDuplicate.name} (Copia)`;
-
-        setBlocks(prevBlocks => {
-            const newBlocksState = JSON.parse(JSON.stringify(prevBlocks));
-            
-            const findAndDuplicate = (currentLevelBlocks, targetId) => {
-                for (let i = 0; i < currentLevelBlocks.length; i++) {
-                    const block = currentLevelBlocks[i];
-                    
-                    if (block.id === targetId) {
-                        currentLevelBlocks.splice(i + 1, 0, newBlock);
-                        return true;
-                    }
-                    
-                    if (block.children && findAndDuplicate(block.children, targetId)) {
-                        return true;
-                    }
-                }
-                return false;
-            };
-
-            findAndDuplicate(newBlocksState, blockId);
-            return newBlocksState;
-        });
-
-        notifications.show({ 
-            title: 'Componente duplicado', 
-            message: `Se creó una copia debajo del original`,
-            color: 'green', 
-            icon: <IconCopy size={18} /> 
-        });
-    };
-
-    // --- FUNCIONES DE RENDERIZADO ---
-    
-    const renderBlockContent = (block) => {
-        if (block.type === 'grid') {
-            return (
-                <SimpleGrid
-                    cols={block.config.columns || 2}
-                    spacing={block.config.gap || 'md'}
-                >
-                    {block.children.map((column) => (
-                        <Box
-                            key={column.id}
-                            data-sortable-container
-                            data-container-id={column.id}
-                            style={{
-                                minHeight: '150px',
-                                backgroundColor: '#f1f3f5',
-                                borderRadius: '8px',
-                                border: '2px dashed #ced4da',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                padding: '16px',
-                                gap: '16px',
-                            }}
-                        >
-                            {column.children && column.children.length > 0
-                                ? column.children.map(childBlock => renderBlock(childBlock))
-                                : <Text c="dimmed" ta="center" style={{ margin: 'auto', fontSize: '14px' }}>
-                                    Arrastra aquí
-                                  </Text>
-                            }
-                        </Box>
-                    ))}
-                </SimpleGrid>
-            );
-        }
-
-        if (block.isContainer) {
-            return (
-                <Box
-                    data-sortable-container
-                    data-container-id={block.id}
-                    style={{ minHeight: '100px', backgroundColor: '#f8f9fa', padding: '20px', gap: '16px', border: '2px dashed #dee2e6', borderRadius: '6px' }}
-                >
-                    {block.children && block.children.length > 0 
-                        ? block.children.map(child => renderBlock(child))
-                        : <Text c="dimmed" ta="center" style={{ margin: 'auto' }}>Arrastra componentes aquí</Text>
-                    }
-                </Box>
-            );
-        }
-
-        const BlockComponent = blockRegistry.get(block.type)?.component;
-        return BlockComponent ? 
-            <BlockComponent 
-                config={block.config} 
-                styles={block.styles} 
-                color={block.color}
-                onUpdate={(newConfig) => updateBlock(block.id, newConfig, block.styles)}
-            /> : 
-            <Text c="red">Error: Componente "{block.type}" no encontrado.</Text>;
-    };
-
-    const renderBlock = (block) => {
-        return (
-            <Paper 
-                key={block.id} 
-                mb="md" 
-                p="md" 
-                withBorder 
-                data-block-id={block.id}
-                className="block-container"
-                style={{ 
-                    border: '1px solid #e9ecef', 
-                    cursor: 'pointer', 
-                    position: 'relative',
-                    transition: 'border-color 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = `var(--mantine-color-${block.color}-4)`;
-                    const actions = e.currentTarget.querySelector('.block-actions');
-                    if (actions) actions.style.opacity = '1';
-                }}
-                onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = '#e9ecef';
-                    const actions = e.currentTarget.querySelector('.block-actions');
-                    if (actions) actions.style.opacity = '0';
-                }}
-            >
-                <Group justify="space-between" mb="sm">
-                    <Group gap="sm">
-                        <div className="drag-handle" style={{ cursor: 'grab', padding: '4px' }} title="Arrastra para mover">
-                            <IconMenu2 size={16} color="#868e96" />
-                        </div>
-                        <Badge variant="light" color={block.color}>{block.name}</Badge>
-                    </Group>
-                    <Group 
-                        gap="xs" 
-                        className="block-actions"
-                        style={{ 
-                            opacity: 0,
-                            transition: 'opacity 0.2s ease'
-                        }}
-                    >
-                        <Tooltip label="Duplicar">
-                            <ActionIcon 
-                                variant="filled" 
-                                size="sm" 
-                                color="green" 
-                                onClick={(e) => duplicateBlock(block.id, e)}
-                            >
-                                <IconCopy size={14} />
-                            </ActionIcon>
-                        </Tooltip>
-                        <Tooltip label="Eliminar">
-                            <ActionIcon 
-                                variant="filled" 
-                                color="red" 
-                                size="sm" 
-                                onClick={(e) => removeBlock(block.id, e)}
-                            >
-                                <IconTrash size={14} />
-                            </ActionIcon>
-                        </Tooltip>
-                    </Group>
-                </Group>
-                {renderBlockContent(block)}
-            </Paper>
-        );
-    };
-
-    const blocksByCategory = availableBlocks.reduce((acc, block) => {
-        const category = block.category || 'general';
-        if (!acc[category]) acc[category] = [];
-        acc[category].push(block);
-        return acc;
-    }, {});
-
-    // --- JSX DEL COMPONENTE PRINCIPAL ---
     return (
         <AppShell
-            navbar={{ width: 320, breakpoint: 'sm' }}
             header={{ height: 70 }}
             padding={0}
-            style={{ height: '100vh', overflow: 'hidden' }}
+            style={{ 
+                height: '100vh', 
+                overflow: 'hidden',
+                backgroundColor: theme === 'dark' ? '#1a1a1a' : '#ffffff'
+            }}
         >
-            <AppShell.Header>
+            {/* Header */}
+            <AppShell.Header style={{ backgroundColor: theme === 'dark' ? '#2d2d2d' : '#ffffff' }}>
                 <Container size="100%" h="100%">
                     <Flex justify="space-between" align="center" h="100%" px="md">
                         <Group gap="sm">
                             <IconPalette size={28} color="#228be6" />
-                            <Text size="lg" fw={700}>Page Builder</Text>
+                            <Text size="lg" fw={700} c={theme === 'dark' ? 'white' : 'dark'}>
+                                Page Builder
+                            </Text>
+                            <Text size="sm" c="dimmed">
+                                CodeMirror + Syntax Highlighting
+                            </Text>
                         </Group>
                         <Group>
+                            {/* ✅ Botón para cambiar tema */}
+                            <Tooltip label={`Cambiar a tema ${theme === 'light' ? 'oscuro' : 'claro'}`}>
+                                <ActionIcon 
+                                    variant="light" 
+                                    color={theme === 'dark' ? 'yellow' : 'blue'}
+                                    onClick={toggleTheme}
+                                    size="lg"
+                                >
+                                    {theme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
+                                </ActionIcon>
+                            </Tooltip>
+                            
+                            <Tooltip label="Sintaxis highlighting para Alpine.js, Tailwind CSS y Blade">
+                                <ActionIcon 
+                                    variant="light" 
+                                    color="green"
+                                    onClick={() => {
+                                        notifications.show({
+                                            title: 'Syntax Highlighting Activado',
+                                            message: '🎨 Alpine.js (verde), Tailwind (azul), Blade (rosa). Ctrl+Space para autocompletado.',
+                                            color: 'green',
+                                            autoClose: 8000
+                                        });
+                                    }}
+                                >
+                                    <IconCode size={18} />
+                                </ActionIcon>
+                            </Tooltip>
+                            
+                            <Tooltip label="Resetear código">
+                                <ActionIcon 
+                                    variant="light" 
+                                    color="orange" 
+                                    onClick={resetCode}
+                                >
+                                    <IconRefresh size={18} />
+                                </ActionIcon>
+                            </Tooltip>
+                            
                             <Button 
-                                leftSection={<IconCode size={18} />} 
+                                leftSection={<IconEye size={18} />} 
                                 size="sm" 
                                 variant="light"
-                                onClick={() => setShowCodeViewer(true)}
+                                loading={isUpdatingPreview}
+                                onClick={updatePreview}
                             >
-                                Ver Código
+                                {isUpdatingPreview ? 'Actualizando...' : 'Actualizar Preview'}
                             </Button>
-                            <Button leftSection={<IconDeviceFloppy size={18} />} size="sm">
+                            
+                            <Button 
+                                leftSection={<IconDeviceFloppy size={18} />} 
+                                size="sm"
+                                onClick={handleSave}
+                            >
                                 Guardar
                             </Button>
                         </Group>
@@ -454,119 +416,101 @@ export default function PageBuilder() {
                 </Container>
             </AppShell.Header>
 
-            <AppShell.Navbar 
-                p="md" 
-                style={{ 
-                    overflow: 'auto',
-                    height: 'calc(100vh - 70px)'
-                }}
-            >
-                <Text fw={600} mb="lg">COMPONENTES</Text>
-                <Stack gap="lg">
-                    {Object.entries(blocksByCategory).map(([category, categoryBlocks]) => (
-                        <div key={category}>
-                            <Text fw={500} size="xs" c="dimmed" mb="sm" tt="uppercase">{category}</Text>
-                            <div className="sidebar-blocks-list" data-sortable-id={`sidebar-${category}`} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                {categoryBlocks.map((blockDef) => (
-                                    <Paper key={blockDef.id} p="sm" withBorder data-block-id={blockDef.id} style={{ cursor: 'grab', userSelect: 'none' }}>
-                                        <Group wrap="nowrap" position="apart">
-                                            <Group wrap="nowrap">
-                                                <blockDef.icon size={20} color={`var(--mantine-color-${blockDef.color}-6)`} />
-                                                <div>
-                                                    <Text size="sm" fw={500}>{blockDef.name}</Text>
-                                                    <Text size="xs" c="dimmed" truncate>{blockDef.description}</Text>
-                                                </div>
-                                            </Group>
-                                            <ActionIcon 
-                                                size="sm" 
-                                                color={blockDef.color} 
-                                                variant="light"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    addBlock(blockDef.id);
-                                                }}
-                                                style={{ pointerEvents: 'auto' }}
-                                            >
-                                                <IconPlus size={14} />
-                                            </ActionIcon>
-                                        </Group>
-                                    </Paper>
-                                ))}
-                            </div>
-                        </div>
-                    ))}
-                </Stack>
-            </AppShell.Navbar>
-
+            {/* Main Content */}
             <AppShell.Main 
                 style={{ 
-                    backgroundColor: '#f8f9fa', 
-                    overflow: 'auto',
                     height: 'calc(100vh - 70px)',
-                    display: 'flex',
-                    flexDirection: 'column'
+                    minHeight: '600px',
+                    overflow: 'hidden'
                 }}
             >
-                <Container 
-                    size="100%" 
-                    style={{ 
-                        flex: 1, 
-                        paddingTop: 'var(--mantine-spacing-xl)', 
-                        paddingBottom: 'var(--mantine-spacing-xl)',
-                        maxWidth: '100%',
-                        width: '100%'
-                    }}
-                >
-                    {blocks.length === 0 ? (
-                        <Paper 
-                            ref={canvasRef} 
-                            data-sortable-id="main-canvas" 
-                            p="xl" 
-                            withBorder 
-                            style={{ 
-                                textAlign: 'center', 
-                                backgroundColor: 'white', 
-                                minHeight: '60vh', 
-                                display: 'flex', 
-                                flexDirection: 'column', 
-                                justifyContent: 'center', 
-                                alignItems: 'center' 
-                            }}
-                        >
-                            <IconGrid3x3 size={64} color="#ced4da" />
-                            <Text size="xl" fw={600} mt="md">Canvas Vacío</Text>
-                            <Text c="dimmed" mt="xs">Arrastra componentes desde la izquierda para comenzar.</Text>
-                        </Paper>
-                    ) : (
-                        <div ref={canvasRef} data-sortable-id="main-canvas" style={{ minHeight: '200px' }}>
-                            {blocks.map(block => renderBlock(block))}
-                        </div>
-                    )}
-                </Container>
-            </AppShell.Main>
+                <Flex style={{ height: '100%' }}>
+                    {/* Editor Panel - 50% */}
+                    <Box style={{ 
+                        width: '50%', 
+                        borderRight: `1px solid ${theme === 'dark' ? '#404040' : '#e9ecef'}`,
+                        backgroundColor: theme === 'dark' ? '#1e1e1e' : '#ffffff'
+                    }}>
+                        <Box p="sm" style={{ 
+                            borderBottom: `1px solid ${theme === 'dark' ? '#404040' : '#e9ecef'}`, 
+                            backgroundColor: theme === 'dark' ? '#2d2d2d' : '#f8f9fa' 
+                        }}>
+                            <Group justify="space-between">
+                                <Group gap="xs">
+                                    <IconCode size={16} />
+                                    <Text size="sm" fw={600} c={theme === 'dark' ? 'white' : 'dark'}>
+                                        CodeMirror HTML Editor
+                                    </Text>
+                                    <Text size="xs" c={theme === 'dark' ? 'gray.4' : 'blue.6'} fw={500}>
+                                        {theme === 'dark' ? '🌙 Modo Oscuro' : '☀️ Modo Claro'}
+                                    </Text>
+                                </Group>
+                                <Text size="xs" c="dimmed">
+                                    🎨 Alpine.js | Tailwind | Blade highlighting | Ctrl+Space autocompletado
+                                </Text>
+                            </Group>
+                        </Box>
+                        <Box style={{ height: 'calc(100% - 52px)', minHeight: '400px' }}>
+                            {/* ✅ Pasamos el tema al CodeMirrorEditor */}
+                            <CodeMirrorEditor 
+                                code={code}
+                                onCodeChange={handleCodeChange}
+                                language="html"
+                                theme={theme}
+                            />
+                        </Box>
+                    </Box>
 
-            {/* Modal del visualizador de código */}
-            <CodeViewer 
-                opened={showCodeViewer}
-                onClose={() => setShowCodeViewer(false)}
-                blocks={blocks}
-            />
-                
-            <style>{`
-                .sortable-ghost { 
-                    opacity: 0.4; 
-                    background: #f1f3f4 !important; 
-                }
-                .drag-handle:hover { 
-                    background-color: #f8f9fa; 
-                    border-radius: 4px; 
-                }
-                
-                .mantine-AppShell-navbar,
-                .mantine-AppShell-main {
-                    overflow-y: auto !important;
-                }
-            `}</style>
+                    {/* Preview Panel - 50% */}
+                    <Box style={{ 
+                        width: '50%',
+                        backgroundColor: theme === 'dark' ? '#1a1a1a' : '#ffffff'
+                    }}>
+                        <Box p="sm" style={{ 
+                            borderBottom: `1px solid ${theme === 'dark' ? '#404040' : '#e9ecef'}`, 
+                            backgroundColor: theme === 'dark' ? '#2d2d2d' : '#f8f9fa' 
+                        }}>
+                            <Group justify="space-between">
+                                <Group gap="xs">
+                                    <IconEye size={16} />
+                                    <Text size="sm" fw={600} c={theme === 'dark' ? 'white' : 'dark'}>
+                                        Vista Previa
+                                    </Text>
+                                </Group>
+                                <Text size="xs" c="dimmed">
+                                    Da clic en "Actualizar Preview" para ver cambios
+                                </Text>
+                            </Group>
+                        </Box>
+                        <Box style={{ height: 'calc(100% - 52px)', overflow: 'auto' }}>
+                            {isUpdatingPreview ? (
+                                <Box 
+                                    style={{ 
+                                        height: '100%', 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center',
+                                        backgroundColor: theme === 'dark' ? '#1a1a1a' : '#f8f9fa'
+                                    }}
+                                >
+                                    <Text c="dimmed">Actualizando preview...</Text>
+                                </Box>
+                            ) : (
+                                <iframe
+                                    srcDoc={previewHTML}
+                                    style={{
+                                        width: '100%',
+                                        height: '100%',
+                                        border: 'none',
+                                        backgroundColor: 'white'
+                                    }}
+                                    title="Preview"
+                                />
+                            )}
+                        </Box>
+                    </Box>
+                </Flex>
+            </AppShell.Main>
         </AppShell>
     );
 }
