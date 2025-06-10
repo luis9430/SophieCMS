@@ -16,7 +16,7 @@ export const getAvailableVariables = () => {
         user: {
             title: '👤 Usuario',
             variables: {
-                'user.name': user.name || 'Nombre del usuario',
+                'user.name': user.name || 'Nombre del  susuario',
                 'user.email': user.email || 'email@ejemplo.com',
                 'user.id': user.id || 1,
                 'user.role': user.role || 'user',
@@ -186,54 +186,3 @@ export const findInvalidVariables = (htmlCode) => {
 function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
-
-// ===================================================================
-// TESTING & DEBUG UTILITIES
-// ===================================================================
-
-/**
- * Función para testing en consola
- */
-export const debugVariables = () => {
-    const variables = getAvailableVariables();
-    console.group('🔧 Debug: Variables Disponibles');
-    
-    Object.entries(variables).forEach(([categoryKey, category]) => {
-        console.group(`${category.title}`);
-        Object.entries(category.variables).forEach(([path, value]) => {
-            console.log(`{{ ${path} }} →`, value);
-        });
-        console.groupEnd();
-    });
-    
-    console.groupEnd();
-    
-    return variables;
-};
-
-/**
- * Test rápido del procesador
- */
-export const testProcessor = () => {
-    const testCode = `
-        <h1>Hola {{ user.name }}</h1>
-        <p>Email: {{ user.email }}</p>
-        <p>Fecha: {{ current.date }}</p>
-        <p>Hora: {{ current.time }}</p>
-        <footer>{{ app.name }} © {{ current.year }}</footer>
-    `;
-    
-    console.group('🧪 Test: Procesador de Variables');
-    console.log('ORIGINAL:', testCode);
-    console.log('PROCESADO:', processVariables(testCode));
-    console.log('VARIABLES USADAS:', extractVariables(testCode));
-    console.log('VARIABLES INVÁLIDAS:', findInvalidVariables(testCode));
-    console.groupEnd();
-    
-    return {
-        original: testCode,
-        processed: processVariables(testCode),
-        variables: extractVariables(testCode),
-        invalid: findInvalidVariables(testCode)
-    };
-};

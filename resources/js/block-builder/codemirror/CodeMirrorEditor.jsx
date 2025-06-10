@@ -8,7 +8,15 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { syntaxHighlighting, HighlightStyle } from '@codemirror/language';
 import { tags as t } from '@lezer/highlight';
 
-// Highlighting style optimizado para fondo gris oscuro
+// 🎯 IMPORTAR FUNCIONES ALPINE + VARIABLES UNIFICADAS
+import { 
+    getAlpineCompletions, 
+    validateAlpineSyntax,
+    analyzeAlpineCode,
+    analyzeVariableUsage
+} from '../utils/alpineEditorHelpers.js';
+
+// Highlighting style optimizado para fondo gris oscuro + Alpine
 const createCustomHighlighting = (theme) => {
   const isDark = theme === 'dark';
   
@@ -19,11 +27,24 @@ const createCustomHighlighting = (theme) => {
     // HTML Tags - Rojo brillante
     { tag: t.tagName, color: isDark ? '#ff7675' : '#e03131', fontWeight: 'bold' },
     
-    // Attributes (x-data, @click, class, etc.) - Verde brillante
-    { tag: t.attributeName, color: isDark ? '#00d084' : '#2f9e44', fontWeight: '600' },
+    // 🎯 ALPINE DIRECTIVES - Verde brillante especial
+    { 
+      tag: t.attributeName, 
+      color: isDark ? '#00d084' : '#2f9e44', 
+      fontWeight: '600',
+      // Detectar si es directiva Alpine
+      class: 'alpine-directive'
+    },
     
     // Attribute values (clases CSS, valores) - Azul brillante
     { tag: t.attributeValue, color: isDark ? '#74c0fc' : '#1971c2' },
+    
+    // 🪄 ALPINE MAGIC PROPERTIES - Amarillo dorado
+    { 
+      tag: t.variableName, 
+      color: isDark ? '#fdcb6e' : '#fab005',
+      fontWeight: 'bold'
+    },
     
     // Strings - Púrpura brillante
     { tag: t.string, color: isDark ? '#e17cff' : '#7048e8' },
@@ -57,18 +78,23 @@ const CodeMirrorEditor = ({ code, onCodeChange, language = 'html', theme = 'ligh
   const lastExternalCodeRef = useRef(code);
   const editorValueRef = useRef(code);
   const ignoreNextChangeRef = useRef(false);
+  const alpineAnalysisRef = useRef(null);
 
-  // Autocompletado mejorado pero más simple
+  // 🎯 AUTOCOMPLETADO UNIFICADO: ALPINE + VARIABLES + TAILWIND
   const createAutocompletions = useCallback((context) => {
     try {
       if (!context || !context.state) return null;
-      const word = context.matchBefore(/[\w-:@]*/);
+      const word = context.matchBefore(/[\w-:@${}.]*/);
       if (!word || (word.from === word.to && !context.explicit)) return null;
 
       const searchText = word.text.toLowerCase();
       const suggestions = [];
       
-      // Clases Tailwind CSS organizadas por categorías
+      // 🥇 1. SUGERENCIAS ALPINE + VARIABLES (PRIMERA PRIORIDAD)
+      const alpineAndVariableSuggestions = getAlpineCompletions(context);
+      suggestions.push(...alpineAndVariableSuggestions);
+      
+      // 🎨 2. CLASES TAILWIND CSS
       const tailwindClasses = [
         // Layout & Display
         'flex', 'grid', 'block', 'inline', 'inline-block', 'hidden', 'container',
@@ -138,59 +164,17 @@ const CodeMirrorEditor = ({ code, onCodeChange, language = 'html', theme = 'ligh
         'sm:hidden', 'md:block', 'lg:inline',
         'sm:text-sm', 'md:text-base', 'lg:text-lg',
       ];
-      
-      // Directivas Alpine.js
-      const alpineDirectives = [
-        'x-data', 'x-show', 'x-hide', 'x-text', 'x-html', 'x-model', 'x-for', 'x-if',
-        'x-on', 'x-bind', 'x-ref', 'x-cloak', 'x-transition', 'x-init', 'x-effect',
-        '@click', '@input', '@change', '@submit', '@keydown', '@keyup', '@focus', '@blur',
-        '@mouseenter', '@mouseleave', '@scroll', '@resize'
-      ];
-      
-      // Directivas Blade
-      const bladeDirectives = [
-        '@if', '@endif', '@else', '@elseif', '@unless', '@endunless',
-        '@for', '@endfor', '@foreach', '@endforeach', '@while', '@endwhile',
-        '@switch', '@endswitch', '@case', '@break', '@default',
-        '@include', '@extends', '@section', '@endsection', '@yield', 
-        '@push', '@endpush', '@stack', '@prepend', '@endprepend',
-        '@component', '@endcomponent', '@slot', '@endslot',
-        '@csrf', '@method', '@error', '@enderror', '@auth', '@endauth'
-      ];
 
+      // 🎨 3. SUGERENCIAS TAILWIND (menor prioridad que Alpine)
       if (searchText && searchText.length > 0) {
-        // Tailwind suggestions
         tailwindClasses.forEach(cls => {
-          if (cls.toLowerCase().includes(searchText) && suggestions.length < 15) {
+          if (cls.toLowerCase().includes(searchText) && suggestions.length < 25) {
             suggestions.push({ 
               label: cls, 
               type: 'class', 
               info: 'Tailwind CSS',
-              detail: `CSS utility: ${cls}`
-            });
-          }
-        });
-        
-        // Alpine suggestions
-        alpineDirectives.forEach(dir => {
-          if (dir.toLowerCase().includes(searchText) && suggestions.length < 20) {
-            suggestions.push({ 
-              label: dir, 
-              type: 'property', 
-              info: 'Alpine.js',
-              detail: `Alpine directive: ${dir}`
-            });
-          }
-        });
-        
-        // Blade suggestions
-        bladeDirectives.forEach(blade => {
-          if (blade.toLowerCase().includes(searchText) && suggestions.length < 25) {
-            suggestions.push({ 
-              label: blade, 
-              type: 'keyword', 
-              info: 'Laravel Blade',
-              detail: `Blade directive: ${blade}`
+              detail: `CSS utility: ${cls}`,
+              boost: 60 // Menor boost que Alpine
             });
           }
         });
@@ -203,6 +187,38 @@ const CodeMirrorEditor = ({ code, onCodeChange, language = 'html', theme = 'ligh
     }
   }, []);
 
+  // 🔍 VALIDACIÓN EN TIEMPO REAL
+  const validateCode = useCallback((code) => {
+    try {
+      const errors = validateAlpineSyntax(code);
+      
+      // Aquí podrías mostrar errores en la UI
+      if (errors.length > 0) {
+        console.log('🔍 Alpine validation errors:', errors);
+        // TODO: Mostrar errores en gutter o panel
+      }
+      
+      return errors;
+    } catch (error) {
+      console.warn('Validation error:', error);
+      return [];
+    }
+  }, []);
+
+  // 📊 ANÁLISIS DE CÓDIGO ALPINE + VARIABLES
+  const analyzeCode = useCallback((code) => {
+    try {
+      const analysis = analyzeAlpineCode(code);
+      alpineAnalysisRef.current = analysis;
+      
+      console.log('📊 Alpine + Variables analysis:', analysis);
+      return analysis;
+    } catch (error) {
+      console.warn('Analysis error:', error);
+      return null;
+    }
+  }, []);
+
   const baseExtensions = [
     html({
       matchClosingTags: false,
@@ -211,7 +227,7 @@ const CodeMirrorEditor = ({ code, onCodeChange, language = 'html', theme = 'ligh
     }),
     autocompletion({
       override: [createAutocompletions],
-      maxRenderedOptions: 20,
+      maxRenderedOptions: 30, // Aumentado para más sugerencias Alpine
       activateOnTyping: true,
       closeOnBlur: true,
       defaultKeymap: true,
@@ -222,26 +238,36 @@ const CodeMirrorEditor = ({ code, onCodeChange, language = 'html', theme = 'ligh
         fontSize: '14px',
         fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "Liberation Mono", "Courier New", monospace',
         backgroundColor: 'transparent',
-        color: theme === 'dark' ? '#ffffff' : '#000000' // ✅ Texto base blanco en modo oscuro
+        color: theme === 'dark' ? '#ffffff' : '#000000'
       },
       '.cm-content': {
         padding: '12px',
         minHeight: '400px',
         backgroundColor: 'transparent',
         lineHeight: '1.5',
-        color: theme === 'dark' ? '#ffffff' : '#000000' // ✅ Asegurar texto blanco
+        color: theme === 'dark' ? '#ffffff' : '#000000'
       },
       '.cm-focused': {
         outline: 'none',
       },
       '.cm-editor': {
         height: '100%',
-        color: theme === 'dark' ? '#ffffff' : '#000000' // ✅ Color base del editor
+        color: theme === 'dark' ? '#ffffff' : '#000000'
       },
       '.cm-scroller': {
         fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "Liberation Mono", "Courier New", monospace',
-        color: theme === 'dark' ? '#ffffff' : '#000000' // ✅ Color del scroller
+        color: theme === 'dark' ? '#ffffff' : '#000000'
       },
+      
+      // 🎯 ESTILOS ESPECÍFICOS PARA ALPINE
+      '.alpine-directive': {
+        fontWeight: '600',
+        textDecoration: 'underline',
+        textDecorationColor: theme === 'dark' ? '#00d084' : '#2f9e44',
+        textDecorationThickness: '1px',
+        textUnderlineOffset: '2px'
+      },
+      
       // Números de línea más visibles
       '.cm-lineNumbers': {
         color: theme === 'dark' ? '#888888' : '#999999',
@@ -250,35 +276,73 @@ const CodeMirrorEditor = ({ code, onCodeChange, language = 'html', theme = 'ligh
       '.cm-lineNumbers .cm-gutterElement': {
         color: theme === 'dark' ? '#888888' : '#999999'
       },
+      
       // Cursor más visible
       '.cm-cursor': {
-        borderColor: theme === 'dark' ? '#00d084' : '#000000', // Verde brillante en modo oscuro
+        borderColor: theme === 'dark' ? '#00d084' : '#000000',
         borderWidth: '2px'
       },
+      
       // Highlighting para línea actual más sutil
       '.cm-activeLine': {
-        backgroundColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.02)'
+        backgroundColor: theme === 'dark' ? 'rgba(0, 208, 132, 0.1)' : 'rgba(0, 0, 0, 0.02)'
       },
+      
       // Selección más visible
       '&.cm-focused .cm-selectionBackground': {
-        backgroundColor: theme === 'dark' ? 'rgba(0, 208, 132, 0.3)' : 'rgba(124, 179, 255, 0.2)' // Verde para modo oscuro
+        backgroundColor: theme === 'dark' ? 'rgba(0, 208, 132, 0.3)' : 'rgba(124, 179, 255, 0.2)'
       },
-      // Autocomplete con mejor contraste
+      
+      // 🎯 AUTOCOMPLETE CON MEJOR CATEGORIZACIÓN
       '.cm-tooltip-autocomplete': {
         backgroundColor: theme === 'dark' ? '#2a2a2a' : '#ffffff',
         border: `1px solid ${theme === 'dark' ? '#555555' : '#e2e8f0'}`,
-        borderRadius: '6px',
-        boxShadow: theme === 'dark' ? '0 4px 6px rgba(0, 0, 0, 0.5)' : '0 4px 6px rgba(0, 0, 0, 0.1)',
-        color: theme === 'dark' ? '#ffffff' : '#000000'
+        borderRadius: '8px',
+        boxShadow: theme === 'dark' ? '0 8px 16px rgba(0, 0, 0, 0.6)' : '0 8px 16px rgba(0, 0, 0, 0.1)',
+        color: theme === 'dark' ? '#ffffff' : '#000000',
+        maxHeight: '400px',
+        overflowY: 'auto'
       },
       '.cm-tooltip-autocomplete > ul > li': {
-        padding: '6px 10px',
-        color: theme === 'dark' ? '#ffffff' : '#2d3748'
+        padding: '8px 12px',
+        color: theme === 'dark' ? '#ffffff' : '#2d3748',
+        borderBottom: `1px solid ${theme === 'dark' ? '#444444' : '#f7fafc'}`
       },
       '.cm-tooltip-autocomplete > ul > li[aria-selected]': {
-        backgroundColor: theme === 'dark' ? '#00d084' : '#3182ce', // Verde brillante para selección
+        backgroundColor: theme === 'dark' ? '#00d084' : '#3182ce',
         color: theme === 'dark' ? '#000000' : '#ffffff'
       },
+      
+      // 🏷️ ICONOS PARA TIPOS DE COMPLETIONS (AMPLIADO)
+      '.cm-completionIcon-alpine-directive:before': {
+        content: '"⚡"',
+        marginRight: '6px'
+      },
+      '.cm-completionIcon-alpine-magic:before': {
+        content: '"🪄"',
+        marginRight: '6px'
+      },
+      '.cm-completionIcon-alpine-snippet:before': {
+        content: '"📋"',
+        marginRight: '6px'
+      },
+      '.cm-completionIcon-variable:before': {
+        content: '"🎯"',
+        marginRight: '6px'
+      },
+      '.cm-completionIcon-variable-name:before': {
+        content: '"💎"',
+        marginRight: '6px'
+      },
+      '.cm-completionIcon-template-variable:before': {
+        content: '"📝"',
+        marginRight: '6px'
+      },
+      '.cm-completionIcon-class:before': {
+        content: '"🎨"',
+        marginRight: '6px'
+      },
+      
       // Mejorar el gutter
       '.cm-gutter': {
         backgroundColor: 'transparent',
@@ -295,26 +359,38 @@ const CodeMirrorEditor = ({ code, onCodeChange, language = 'html', theme = 'ligh
     finalExtensions.push(oneDark);
   }
 
+  // 🔄 HANDLE CHANGE CON VALIDACIÓN
   const handleChange = useCallback((value) => {
     if (ignoreNextChangeRef.current) {
       ignoreNextChangeRef.current = false;
       return;
     }
+    
     isUserTypingRef.current = true;
     editorValueRef.current = value;
+    
     if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
+    
     debounceTimeoutRef.current = setTimeout(() => {
       try {
+        // 🔍 Validar Alpine en tiempo real
+        validateCode(value);
+        
+        // 📊 Analizar código Alpine
+        analyzeCode(value);
+        
+        // Notificar cambio al parent
         onCodeChange(value);
         lastExternalCodeRef.current = value;
       } catch (error) {
         console.warn('Code change error:', error);
       }
+      
       setTimeout(() => {
         isUserTypingRef.current = false;
       }, 300);
-    }, 100);
-  }, [onCodeChange]);
+    }, 150); // Debounce un poco más para validación
+  }, [onCodeChange, validateCode, analyzeCode]);
 
   const currentValue = useRef(code);
   useEffect(() => {
@@ -342,6 +418,38 @@ const CodeMirrorEditor = ({ code, onCodeChange, language = 'html', theme = 'ligh
       position: 'relative',
       backgroundColor: theme === 'dark' ? '#1a202c' : '#ffffff'
     }}>
+      {/* 🎯 INFORMACIÓN ALPINE + VARIABLES */}
+      {alpineAnalysisRef.current && (
+        <div style={{
+          position: 'absolute',
+          top: '8px',
+          right: '8px',
+          background: theme === 'dark' ? '#2d3748' : '#f7fafc',
+          color: theme === 'dark' ? '#00d084' : '#2f9e44',
+          padding: '6px 12px',
+          borderRadius: '6px',
+          fontSize: '11px',
+          fontWeight: 'bold',
+          zIndex: 10,
+          pointerEvents: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          {alpineAnalysisRef.current.components.length > 0 && (
+            <span>⚡ {alpineAnalysisRef.current.components.length}</span>
+          )}
+          {alpineAnalysisRef.current.variables?.totalVariables > 0 && (
+            <span>🎯 {alpineAnalysisRef.current.variables.totalVariables}</span>
+          )}
+          {alpineAnalysisRef.current.variables?.invalidVariables > 0 && (
+            <span style={{color: theme === 'dark' ? '#ff7675' : '#e03131'}}>
+              ❌ {alpineAnalysisRef.current.variables.invalidVariables}
+            </span>
+          )}
+        </div>
+      )}
+      
       <CodeMirror
         value={currentValue.current}
         onChange={handleChange}
