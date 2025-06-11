@@ -8,58 +8,13 @@
  * Previene XSS, inyección de scripts y otros ataques
  */
 class TemplateValidator {
-    constructor() {
-        // Configuración de seguridad
-        this.config = {
-            // Tags HTML permitidos
-            allowedTags: new Set([
-                'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                'a', 'img', 'ul', 'ol', 'li', 'br', 'hr',
-                'button', 'input', 'textarea', 'select', 'option',
-                'form', 'label', 'fieldset', 'legend',
-                'table', 'thead', 'tbody', 'tr', 'td', 'th',
-                'article', 'section', 'header', 'footer', 'nav', 'main',
-                'template' // Necesario para Alpine x-if, x-for
-            ]),
-            
-            // Atributos HTML permitidos
-            allowedAttributes: new Set([
-                'id', 'class', 'style', 'title', 'alt', 'src', 'href',
-                'type', 'name', 'value', 'placeholder', 'disabled', 'readonly',
-                'data-*', 'aria-*', // Atributos de datos y accesibilidad
-                // Alpine.js attributes
-                'x-data', 'x-init', 'x-show', 'x-if', 'x-for', 'x-text', 'x-html',
-                'x-model', 'x-bind', 'x-on', 'x-ref', 'x-cloak', 'x-ignore',
-                'x-effect', 'x-transition', 'x-modelable', 'x-teleport', 'x-id',
-                // Alpine shortcuts
-                ':', '@'
-            ]),
-            
-            // Protocolos seguros para enlaces
-            allowedProtocols: new Set(['http', 'https', 'mailto', 'tel']),
-            
-            // Patrones peligrosos a bloquear
-            dangerousPatterns: [
-                /<script[^>]*>.*?<\/script>/gis,
-                /javascript:/gi,
-                /vbscript:/gi,
-                /data:text\/html/gi,
-                /on\w+\s*=/gi, // onevent handlers
-                /<iframe[^>]*>/gi,
-                /<object[^>]*>/gi,
-                /<embed[^>]*>/gi,
-                /<form[^>]*action\s*=/gi // Forms con action (envío de datos)
-            ],
-            
-            // Límites de tamaño
-            maxTemplateSize: 500000, // 500KB máximo
-            maxNestingLevel: 20,     // Máximo 20 niveles de anidamiento
-            
-            // Modo estricto (para producción)
-            strictMode: true
+    constructor(options = {}) {
+        this.options = {
+            strictMode: false,
+            allowedTags: ['div', 'span', 'p', 'a', 'img', 'button', 'input', 'form'],
+            allowUnsafeElements: false,
+            ...options
         };
-        
-        console.log('🛡️ TemplateValidator initialized');
     }
 
     // ===================================================================
@@ -594,54 +549,68 @@ class TemplateValidator {
         const result = this.validate(template, { sanitize: false });
         return result.errors.filter(error => error.severity === 'critical');
     }
+
+    /**
+     * Validar template básico (sin opciones avanzadas)
+     */
+    validateBasic(template) {
+        try {
+            // Validaciones básicas
+            if (!template) {
+                return { valid: false, error: 'Template está vacío' };
+            }
+
+            if (typeof template !== 'string') {
+                return { valid: false, error: 'Template debe ser una cadena de texto' };
+            }
+
+            // Validar tamaño
+            if (template.length > this.config.maxTemplateSize) {
+                return { valid: false, error: `Template demasiado grande` };
+            }
+
+            // Validar patrones peligrosos
+            for (const pattern of this.config.dangerousPatterns) {
+                if (pattern.test(template)) {
+                    return { valid: false, error: 'Template contiene patrones peligrosos' };
+                }
+            }
+
+            // Validar estructura HTML básica
+            const hasValidStructure = this._validateHTMLStructure(template);
+            if (!hasValidStructure) {
+                return { valid: false, error: 'Estructura HTML inválida' };
+            }
+
+            return { valid: true };
+        } catch (error) {
+            console.error('❌ Error en validación básica:', error);
+            return { valid: false, error: 'Error en validación básica' };
+        }
+    }
+
+    /**
+     * Validar template completo (con todas las opciones)
+     */
+    validateFull(template) {
+        try {
+            // Validar template completo
+            const result = this.validate(template);
+            
+            // Validar errores críticos
+            if (!result.isValid) {
+                const criticalErrors = result.errors.filter(err => err.severity === 'critical');
+                if (criticalErrors.length > 0) {
+                    return { valid: false, errors: criticalErrors };
+                }
+            }
+
+            return { valid: true };
+        } catch (error) {
+            console.error('❌ Error en validación completa:', error);
+            return { valid: false, error: 'Error en validación completa' };
+        }
+    }
 }
 
-// ===================================================================
-// INSTANCIA SINGLETON
-// ===================================================================
-
-const templateValidator = new TemplateValidator();
-
-export default templateValidator;
-export { TemplateValidator };
-
-// ===================================================================
-// FUNCIONES DE CONVENIENCIA
-// ===================================================================
-
-/**
- * Validación rápida de template
- */
-export const validateTemplate = (template, options = {}) => {
-    return templateValidator.validate(template, options);
-};
-
-/**
- * Sanitización rápida de template
- */
-export const sanitizeTemplate = (template) => {
-    return templateValidator.sanitize(template);
-};
-
-/**
- * Verificación rápida de seguridad
- */
-export const isTemplateSafe = (template) => {
-    return templateValidator.isSafe(template);
-};
-
-// ===================================================================
-// DEBUGGING EN DESARROLLO
-// ===================================================================
-
-if (process.env.NODE_ENV === 'development') {
-    // Exponer para debugging
-    window.templateValidator = templateValidator;
-    
-    // Test básico al cargar
-    const testTemplate = '<div x-data="{ name: \'test\' }">{{ user.name }}</div>';
-    const testResult = templateValidator.validate(testTemplate);
-    console.log('🧪 TemplateValidator test:', testResult);
-    
-    console.log('🔧 TemplateValidator exposed to window for debugging');
-}
+export default TemplateValidator;

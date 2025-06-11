@@ -2,6 +2,11 @@
 
 import { alpineDirectives, alpineModifiers } from './metadata.js';
 
+export function getAlpineCompletions(context) {
+    const alpineEditor = new AlpineEditor();
+    return alpineEditor.getCompletions(context);
+}
+
 export class AlpineEditor {
     constructor() {
         this.name = 'alpine-editor';

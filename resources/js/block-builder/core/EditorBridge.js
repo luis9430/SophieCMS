@@ -164,27 +164,27 @@ class EditorBridge {
     }
 }
 
-// ✅ Instancia global
-const editorBridge = new EditorBridge();
+// Export the class as default
+export default EditorBridge;
 
-// ✅ Auto-setup cuando el DOM esté listo
-if (typeof window !== 'undefined') {
-    window.editorBridge = editorBridge;
+// Create and export a singleton instancee
+export const createEditorBridge = () => {
+    const bridge = new EditorBridge();
     
     // Auto-detectar plugins cuando el plugin manager esté listo
     if (window.pluginManager) {
-        editorBridge.autoDetectEditorPlugins();
+        bridge.autoDetectEditorPlugins();
     } else {
         // Esperar a que se inicialice el plugin manager
         window.addEventListener('pluginManagerReady', () => {
-            editorBridge.autoDetectEditorPlugins();
+            bridge.autoDetectEditorPlugins();
         });
     }
     
     // Setup CodeMirror si está disponible
     if (window.CodeMirror) {
-        editorBridge.setupCodeMirrorIntegration(window.CodeMirror);
+        bridge.setupCodeMirrorIntegration(window.CodeMirror);
     }
-}
-
-export default editorBridge;
+       
+    return bridge;
+};

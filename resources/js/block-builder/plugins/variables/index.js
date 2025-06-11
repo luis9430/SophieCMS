@@ -733,8 +733,5 @@ if (process.env.NODE_ENV === 'development') {
         }
     };
     
-    // Auto-registrar si pluginManager está disponible
-    if (window.pluginManager && !window.pluginManager.get('variables')) {
-        registerVariablesPlugin(window.pluginManager);
-    }
+
 }
