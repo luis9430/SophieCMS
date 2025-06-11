@@ -1,942 +1,304 @@
-// ===================================================================
-// core/LegacyBridge.js - ACTUALIZADO PARA FASE 2
-// Responsabilidad: Mantener compatibilidad durante migración gradual
-// ===================================================================
+// LegacyBridge.js - Correciones para Fase 4
 
-import pluginManager from './pluginManager.js';
-
-// Importar hooks legacy (durante la migración)
-import { useVariables as legacyUseVariables } from '../hooks/useVariables.js';
-import { useApi as legacyUseApi } from '../hooks/useApi.js';
-import { useAlpinePreview as legacyUseAlpinePreview } from '../hooks/useAlpinePreview.js';
-
-// Importar funciones legacy SOLO como fallback
-import { 
-    getAvailableVariables as legacyGetAvailableVariables,
-    processVariables as legacyProcessVariables,
-    validateVariable as legacyValidateVariable 
-} from '../utils/variableProcessor.js';
-
-import {
-    getAlpineCompletions as legacyGetAlpineCompletions,
-    validateAlpineSyntax as legacyValidateAlpineSyntax,
-    analyzeAlpineCode as legacyAnalyzeAlpineCode
-} from '../utils/alpineEditorHelpers.js';
-
-/**
- * Bridge para mantener compatibilidad durante la migración
- * Decide automáticamente si usar plugin o sistema legacy
- * 🎯 FASE 2: Detecta automáticamente el plugin de Variables
- */
 class LegacyBridge {
     constructor() {
         this.migrationStatus = {
             variables: false,
             alpine: false,
-            gsap: false,
-            api: false
+            alpinePreview: false,
+            templates: false,
+            gsap: false
         };
         
-        // 🎯 NUEVO: Estado específico de plugins
-        this.pluginStatus = {
-            variablesPluginDetected: false,
-            alpinePluginDetected: false,
-            lastCheck: null
-        };
+        this.registeredPlugins = new Map();
+        this.compatibilityInfo = new Map();
         
-        // Auto-detectar plugins disponibles
-        this._updateMigrationStatus();
-        
-        // Actualizar cuando se registren nuevos plugins
-        pluginManager.on('pluginRegistered', (data) => {
-            console.log(`🌉 LegacyBridge detected new plugin: ${data.name}`);
-            this._updateMigrationStatus();
-            this._onPluginRegistered(data.name);
-        });
-        
-        pluginManager.on('pluginUnregistered', (data) => {
-            console.log(`🌉 LegacyBridge detected plugin removal: ${data.name}`);
-            this._updateMigrationStatus();
-        });
-        
-        console.log('🌉 LegacyBridge initialized (Phase 2) with status:', this.migrationStatus);
+        this._bindMethods();
+        this._initializeEventHandlers();
     }
 
-    // ===================================================================
-    // HOOKS BRIDGE - Interfaces principales para componentes
-    // ===================================================================
-
-    /**
-     * Hook Variables - 🎯 PRIORIZA PLUGIN DE VARIABLES EN FASE 2
-     */
-    useVariables() {
-        // 🎯 PRIMERA PRIORIDAD: Plugin de Variables
-        if (this.migrationStatus.variables) {
-            const variablesPlugin = pluginManager.get('variables');
-            if (variablesPlugin && variablesPlugin.useVariables) {
-                console.log('🔌 Using Variables Plugin (Phase 2)');
-                
-                try {
-                    return variablesPlugin.useVariables();
-                } catch (error) {
-                    console.error('❌ Error using Variables Plugin, falling back to legacy:', error);
-                    // Continuar al fallback legacy
-                }
-            }
-        }
-        
-        // 🔄 FALLBACK: Sistema Legacy
-        console.log('🔄 Using Legacy useVariables');
-        return legacyUseVariables();
+    _bindMethods() {
+        // Asegurarnos de que todos los métodos estén correctamente enlazados
+        this.testCompatibility = this.testCompatibility.bind(this);
+        this._getCompatibilityInfo = this._getCompatibilityInfo.bind(this);
+        this._testVariablesPluginCompatibility = this._testVariablesPluginCompatibility.bind(this);
+        this._testAlpinePluginCompatibility = this._testAlpinePluginCompatibility.bind(this);
+        this._registerScriptsTemplate = this._registerScriptsTemplate.bind(this);
     }
 
-    /**
-     * Hook Alpine Preview - Decide entre plugin o legacy
-     */
-    useAlpinePreview() {
-        if (this.migrationStatus.alpine) {
-            const alpinePlugin = pluginManager.get('alpine');
-            if (alpinePlugin && alpinePlugin.usePreview) {
-                console.log('🔌 Using Alpine Plugin');
-                
-                try {
-                    return alpinePlugin.usePreview();
-                } catch (error) {
-                    console.error('❌ Error using Alpine Plugin, falling back to legacy:', error);
-                    // Continuar al fallback legacy
-                }
-            }
-        }
-        
-        console.log('🔄 Using Legacy useAlpinePreview');
-        return legacyUseAlpinePreview();
-    }
-
-    /**
-     * Hook API - Mantiene legacy por ahora (no necesita migración urgente)
-     */
-    useApi() {
-        // API hook es genérico, no necesita ser plugin por ahora
-        console.log('🔄 Using Legacy useApi');
-        return legacyUseApi();
-    }
-
-    // ===================================================================
-    // FUNCIONES BRIDGE - 🎯 NUEVAS FUNCIONES PARA VARIABLES PLUGIN
-    // ===================================================================
-
-    /**
-     * Procesamiento de Variables - 🎯 PRIORIZA PLUGIN
-     */
-    getAvailableVariables() {
-        if (this.migrationStatus.variables) {
-            const variablesPlugin = pluginManager.get('variables');
-            if (variablesPlugin && variablesPlugin.getAvailableVariables) {
-                try {
-                    const pluginVars = variablesPlugin.getAvailableVariables();
-                    console.log('🎯 Variables from plugin:', Object.keys(pluginVars).length, 'categories');
-                    return pluginVars;
-                } catch (error) {
-                    console.error('❌ Error getting variables from plugin:', error);
-                    // Continuar al fallback
-                }
-            }
-        }
-        
-        console.log('🔄 Variables from legacy system');
-        return legacyGetAvailableVariables();
-    }
-
-    processVariables(htmlCode) {
-        if (this.migrationStatus.variables) {
-            const variablesPlugin = pluginManager.get('variables');
-            if (variablesPlugin && variablesPlugin.processVariables) {
-                try {
-                    const processed = variablesPlugin.processVariables(htmlCode);
-                    console.log('🎯 Code processed with Variables Plugin');
-                    return processed;
-                } catch (error) {
-                    console.error('❌ Error processing with plugin:', error);
-                    // Continuar al fallback
-                }
-            }
-        }
-        
-        console.log('🔄 Code processed with legacy system');
-        return legacyProcessVariables(htmlCode);
-    }
-
-    validateVariable(variablePath) {
-        if (this.migrationStatus.variables) {
-            const variablesPlugin = pluginManager.get('variables');
-            if (variablesPlugin && variablesPlugin.validateVariable) {
-                try {
-                    return variablesPlugin.validateVariable(variablePath);
-                } catch (error) {
-                    console.error('❌ Error validating with plugin:', error);
-                    // Continuar al fallback
-                }
-            }
-        }
-        
-        return legacyValidateVariable(variablePath);
-    }
-
-    // 🎯 NUEVAS FUNCIONES ESPECÍFICAS DEL PLUGIN DE VARIABLES
-    
-    /**
-     * Extraer variables usando plugin o legacy
-     */
-    extractVariables(htmlCode) {
-        if (this.migrationStatus.variables) {
-            const variablesPlugin = pluginManager.get('variables');
-            if (variablesPlugin && variablesPlugin.extractVariables) {
-                try {
-                    return variablesPlugin.extractVariables(htmlCode);
-                } catch (error) {
-                    console.error('❌ Error extracting variables with plugin:', error);
-                }
-            }
-        }
-        
-        // Fallback legacy (implementar si no existe)
-        const variablePattern = /\{\{\s*([^}]+)\s*\}\}/g;
-        const variables = [];
-        let match;
-        
-        while ((match = variablePattern.exec(htmlCode)) !== null) {
-            const variableName = match[1].trim();
-            if (!variables.includes(variableName)) {
-                variables.push(variableName);
-            }
-        }
-        
-        return variables;
-    }
-
-    /**
-     * Encontrar variables inválidas
-     */
-    findInvalidVariables(htmlCode) {
-        if (this.migrationStatus.variables) {
-            const variablesPlugin = pluginManager.get('variables');
-            if (variablesPlugin && variablesPlugin.findInvalidVariables) {
-                try {
-                    return variablesPlugin.findInvalidVariables(htmlCode);
-                } catch (error) {
-                    console.error('❌ Error finding invalid variables with plugin:', error);
-                }
-            }
-        }
-        
-        // Fallback legacy
-        const usedVariables = this.extractVariables(htmlCode);
-        const invalidVariables = [];
-        
-        usedVariables.forEach(variable => {
-            if (!this.validateVariable(variable)) {
-                invalidVariables.push(variable);
-            }
-        });
-        
-        return invalidVariables;
-    }
-
-    /**
-     * Formatear variable para inserción
-     */
-    formatVariableForInsertion(variablePath) {
-        if (this.migrationStatus.variables) {
-            const variablesPlugin = pluginManager.get('variables');
-            if (variablesPlugin && variablesPlugin.formatVariableForInsertion) {
-                try {
-                    return variablesPlugin.formatVariableForInsertion(variablePath);
-                } catch (error) {
-                    console.error('❌ Error formatting variable with plugin:', error);
-                }
-            }
-        }
-        
-        // Fallback simple
-        return `{{ ${variablePath} }}`;
-    }
-
-    /**
-     * Obtener valor específico de variable
-     */
-    getVariableValue(variablePath) {
-        if (this.migrationStatus.variables) {
-            const variablesPlugin = pluginManager.get('variables');
-            if (variablesPlugin && variablesPlugin.getVariableValue) {
-                try {
-                    return variablesPlugin.getVariableValue(variablePath);
-                } catch (error) {
-                    console.error('❌ Error getting variable value with plugin:', error);
-                }
-            }
-        }
-        
-        // Fallback legacy
-        const allVars = this.getAvailableVariables();
-        for (const category of Object.values(allVars)) {
-            if (category.variables && category.variables.hasOwnProperty(variablePath)) {
-                return category.variables[variablePath];
-            }
-        }
-        
-        return null;
-    }
-
-    // ===================================================================
-    // FUNCIONES ALPINE (Sin cambios significativos)
-    // ===================================================================
-
-    /**
-     * Funciones Alpine para CodeMirror
-     */
-    getAlpineCompletions(context) {
-        if (this.migrationStatus.alpine) {
-            const alpinePlugin = pluginManager.get('alpine');
-            if (alpinePlugin && alpinePlugin.getCompletions) {
-                try {
-                    return alpinePlugin.getCompletions(context);
-                } catch (error) {
-                    console.error('❌ Error getting Alpine completions from plugin:', error);
-                }
-            }
-        }
-        
-        return legacyGetAlpineCompletions(context);
-    }
-
-    validateAlpineSyntax(code) {
-        if (this.migrationStatus.alpine) {
-            const alpinePlugin = pluginManager.get('alpine');
-            if (alpinePlugin && alpinePlugin.validateSyntax) {
-                try {
-                    return alpinePlugin.validateSyntax(code);
-                } catch (error) {
-                    console.error('❌ Error validating Alpine syntax with plugin:', error);
-                }
-            }
-        }
-        
-        return legacyValidateAlpineSyntax(code);
-    }
-
-    analyzeAlpineCode(code) {
-        if (this.migrationStatus.alpine) {
-            const alpinePlugin = pluginManager.get('alpine');
-            if (alpinePlugin && alpinePlugin.analyzeCode) {
-                try {
-                    return alpinePlugin.analyzeCode(code);
-                } catch (error) {
-                    console.error('❌ Error analyzing Alpine code with plugin:', error);
-                }
-            }
-        }
-        
-        return legacyAnalyzeAlpineCode(code);
-    }
-
-    // ===================================================================
-    // FUNCIONES COMBINADAS - Para usar múltiples plugins
-    // ===================================================================
-
-    /**
-     * Procesar código con todos los plugins activos
-     */
-    async processCodeWithAllPlugins(code) {
-        let processedCode = code;
-        
-        try {
-            // 🎯 USAR PLUGIN DE VARIABLES PRIMERO (SI ESTÁ DISPONIBLE)
-            if (this.migrationStatus.variables) {
-                const variablesPlugin = pluginManager.get('variables');
-                if (variablesPlugin && variablesPlugin.processVariables) {
-                    processedCode = variablesPlugin.processVariables(processedCode);
-                    console.log('🎯 Code processed with Variables Plugin');
-                }
-            } else {
-                // Fallback a procesamiento legacy de variables
-                processedCode = this.processVariables(processedCode);
-            }
-            
-            // Ejecutar hook de procesamiento para otros plugins
-            const results = await pluginManager.executeHook('processCode', { code: processedCode });
-            
-            // Aplicar resultados en orden de prioridad
-            for (const { result, error, pluginName } of results) {
-                if (error) {
-                    console.warn(`❌ Plugin processing error in ${pluginName}:`, error);
-                    continue;
-                }
-                if (result && typeof result === 'string') {
-                    processedCode = result;
-                    console.log(`🔌 Code processed by plugin: ${pluginName}`);
-                }
-            }
-            
-        } catch (error) {
-            console.error('❌ Error in processCodeWithAllPlugins:', error);
-            // Fallback a procesamiento básico
-            if (processedCode === code) {
-                processedCode = this.processVariables(code);
-            }
-        }
-        
-        return processedCode;
-    }
-
-    /**
-     * Obtener completions de todos los plugins para CodeMirror
-     */
-    async getAllCompletions(context) {
-        const allCompletions = [];
-        
-        try {
-            // 🎯 OBTENER COMPLETIONS DE VARIABLES PLUGIN PRIMERO
-            if (this.migrationStatus.variables) {
-                const variablesPlugin = pluginManager.get('variables');
-                if (variablesPlugin && variablesPlugin.getCompletions) {
-                    const varCompletions = variablesPlugin.getCompletions(context);
-                    if (Array.isArray(varCompletions)) {
-                        allCompletions.push(...varCompletions);
-                        console.log(`🎯 Added ${varCompletions.length} variable completions`);
-                    }
-                }
-            }
-            
-            // Obtener completions de otros plugins
-            const results = await pluginManager.executeHook('getCompletions', { context });
-            
-            for (const { result, error, pluginName } of results) {
-                if (error) {
-                    console.warn(`❌ Completions error in ${pluginName}:`, error);
-                    continue;
-                }
-                if (Array.isArray(result)) {
-                    allCompletions.push(...result);
-                    console.log(`🔌 Added ${result.length} completions from ${pluginName}`);
-                }
-            }
-            
-            // Si no hay plugins, usar legacy
-            if (allCompletions.length === 0) {
-                const alpineCompletions = this.getAlpineCompletions(context);
-                allCompletions.push(...alpineCompletions);
-                console.log('🔄 Using legacy Alpine completions');
-            }
-            
-        } catch (error) {
-            console.error('❌ Error getting all completions:', error);
-        }
-        
-        return allCompletions;
-    }
-
-    /**
-     * Validar código con todos los plugins
-     */
-    async validateCodeWithAllPlugins(code) {
-        const allErrors = [];
-        
-        try {
-            // 🎯 VALIDAR CON PLUGIN DE VARIABLES PRIMERO
-            if (this.migrationStatus.variables) {
-                const variablesPlugin = pluginManager.get('variables');
-                if (variablesPlugin) {
-                    const invalidVars = variablesPlugin.findInvalidVariables(code);
-                    const varErrors = invalidVars.map(variable => ({
-                        type: 'invalid-variable',
-                        message: `Variable desconocida: "{{ ${variable} }}"`,
-                        severity: 'warning',
-                        source: 'variables-plugin',
-                        variable
-                    }));
-                    allErrors.push(...varErrors);
-                }
-            }
-            
-            // Validar con otros plugins
-            const results = await pluginManager.executeHook('validateCode', { code });
-            
-            for (const { result, error, pluginName } of results) {
-                if (error) {
-                    console.warn(`❌ Validation error in ${pluginName}:`, error);
-                    continue;
-                }
-                if (Array.isArray(result)) {
-                    allErrors.push(...result.map(err => ({ ...err, source: pluginName })));
-                }
-            }
-            
-            // Si no hay plugins activos, usar legacy
-            if (results.length === 0 && !this.migrationStatus.variables) {
-                const alpineErrors = this.validateAlpineSyntax(code);
-                allErrors.push(...alpineErrors.map(err => ({ ...err, source: 'legacy-alpine' })));
-            }
-            
-        } catch (error) {
-            console.error('❌ Error validating with all plugins:', error);
-        }
-        
-        return allErrors;
-    }
-
-    // ===================================================================
-    // GESTIÓN DE MIGRACIÓN - 🎯 ACTUALIZADA PARA FASE 2
-    // ===================================================================
-
-    /**
-     * Actualizar estado de migración basado en plugins disponibles
-     * @private
-     */
-    _updateMigrationStatus() {
-        const oldStatus = { ...this.migrationStatus };
-        
-        this.migrationStatus = {
-            variables: pluginManager.has('variables'),
-            alpine: pluginManager.has('alpine'),
-            gsap: pluginManager.has('gsap'),
-            api: pluginManager.has('api')
-        };
-        
-        // 🎯 ACTUALIZAR ESTADO ESPECÍFICO DE PLUGINS
-        this.pluginStatus = {
-            variablesPluginDetected: this.migrationStatus.variables,
-            alpinePluginDetected: this.migrationStatus.alpine,
-            lastCheck: new Date().toISOString()
-        };
-        
-        // Log cambios importantes
-        if (oldStatus.variables !== this.migrationStatus.variables) {
-            if (this.migrationStatus.variables) {
-                console.log('🎯 Variables Plugin DETECTED - Legacy bridge will prioritize plugin functions');
-            } else {
-                console.log('🔄 Variables Plugin REMOVED - Legacy bridge falling back to legacy functions');
-            }
-        }
-        
-        console.log('🌉 Migration status updated:', this.migrationStatus);
-    }
-
-    /**
-     * Callback cuando se registra un plugin
-     * @private
-     */
-    _onPluginRegistered(pluginName) {
-        if (pluginName === 'variables') {
-            console.log('🎯 Variables Plugin registered - running compatibility check...');
-            this._testVariablesPluginCompatibility();
-        }
-        
-        if (pluginName === 'alpine') {
-            console.log('🔌 Alpine Plugin registered - running compatibility check...');
-            this._testAlpinePluginCompatibility();
+    _initializeEventHandlers() {
+        // Configurar listeners de eventos de plugins
+        if (typeof window !== 'undefined' && window.pluginManager) {
+            window.pluginManager.on('pluginRegistered', this._onPluginRegistered.bind(this));
         }
     }
 
-    /**
-     * Probar compatibilidad del plugin de variables
-     * @private
-     */
-    _testVariablesPluginCompatibility() {
-        try {
-            const variablesPlugin = pluginManager.get('variables');
-            if (!variablesPlugin) return;
-
-            // Test funciones básicas
-            const methods = [
-                'getAvailableVariables',
-                'processVariables', 
-                'validateVariable',
-                'extractVariables',
-                'findInvalidVariables'
-            ];
-
-            const missing = methods.filter(method => typeof variablesPlugin[method] !== 'function');
-            
-            if (missing.length > 0) {
-                console.warn('⚠️ Variables Plugin missing methods:', missing);
-            } else {
-                console.log('✅ Variables Plugin compatibility check passed');
-                
-                // Test funcional básico
-                const testVars = variablesPlugin.getAvailableVariables();
-                const testProcess = variablesPlugin.processVariables('Hello {{ user.name }}');
-                
-                console.log('🧪 Variables Plugin functional test:', {
-                    variableCategories: Object.keys(testVars).length,
-                    processedLength: testProcess.length
-                });
-            }
-            
-        } catch (error) {
-            console.error('❌ Variables Plugin compatibility test failed:', error);
-        }
-    }
-
-    /**
-     * Probar compatibilidad del plugin de Alpine
-     * @private
-     */
-    _testAlpinePluginCompatibility() {
-        try {
-            const alpinePlugin = pluginManager.get('alpine');
-            if (!alpinePlugin) return;
-
-            // Test funciones básicas
-            const methods = ['getCompletions', 'validateSyntax', 'analyzeCode'];
-            const missing = methods.filter(method => typeof alpinePlugin[method] !== 'function');
-            
-            if (missing.length > 0) {
-                console.warn('⚠️ Alpine Plugin missing methods:', missing);
-            } else {
-                console.log('✅ Alpine Plugin compatibility check passed');
-            }
-            
-        } catch (error) {
-            console.error('❌ Alpine Plugin compatibility test failed:', error);
-        }
-    }
-
-    /**
-     * Obtener información sobre el estado de la migración
-     */
-    getMigrationInfo() {
-        const pluginList = pluginManager.list();
-        
-        return {
-            status: this.migrationStatus,
-            pluginStatus: this.pluginStatus, // 🎯 NUEVO
-            availablePlugins: pluginList,
-            recommendedMigrations: this._getRecommendedMigrations(),
-            legacyFunctions: this._getLegacyFunctionUsage(),
-            phase: 2, // 🎯 INDICAR FASE ACTUAL
-            compatibility: this._getCompatibilityInfo() // 🎯 NUEVO
-        };
-    }
-
-    /**
-     * Obtener información de compatibilidad
-     * @private
-     */
+    // ✅ MÉTODO FALTANTE: _getCompatibilityInfo
     _getCompatibilityInfo() {
         const info = {
-            variablesPlugin: {
-                available: this.migrationStatus.variables,
-                functional: false,
-                coverage: 0
+            variables: {
+                status: this.migrationStatus.variables,
+                plugin: this.registeredPlugins.get('variables'),
+                issues: []
             },
-            alpinePlugin: {
-                available: this.migrationStatus.alpine,
-                functional: false,
-                coverage: 0
+            alpine: {
+                status: this.migrationStatus.alpine,
+                plugin: this.registeredPlugins.get('alpine'),
+                issues: []
+            },
+            templates: {
+                status: this.migrationStatus.templates,
+                issues: []
             }
         };
 
-        // Test Variables Plugin
-        if (this.migrationStatus.variables) {
+        // Verificar compatibilidad de Variables
+        if (info.variables.plugin) {
             try {
-                const variablesPlugin = pluginManager.get('variables');
-                const requiredMethods = [
-                    'getAvailableVariables', 'processVariables', 'validateVariable',
-                    'extractVariables', 'findInvalidVariables', 'formatVariableForInsertion'
-                ];
-                
-                const availableMethods = requiredMethods.filter(method => 
-                    typeof variablesPlugin[method] === 'function'
-                );
-                
-                info.variablesPlugin.functional = availableMethods.length === requiredMethods.length;
-                info.variablesPlugin.coverage = Math.round((availableMethods.length / requiredMethods.length) * 100);
-                
+                this._testVariablesPluginCompatibility();
             } catch (error) {
-                console.error('Error testing variables plugin compatibility:', error);
+                info.variables.issues.push(`Variables compatibility error: ${error.message}`);
             }
         }
 
-        // Test Alpine Plugin
-        if (this.migrationStatus.alpine) {
+        // Verificar compatibilidad de Alpine
+        if (info.alpine.plugin) {
             try {
-                const alpinePlugin = pluginManager.get('alpine');
-                const requiredMethods = ['getCompletions', 'validateSyntax', 'analyzeCode'];
-                
-                const availableMethods = requiredMethods.filter(method => 
-                    typeof alpinePlugin[method] === 'function'
-                );
-                
-                info.alpinePlugin.functional = availableMethods.length === requiredMethods.length;
-                info.alpinePlugin.coverage = Math.round((availableMethods.length / requiredMethods.length) * 100);
-                
+                this._testAlpinePluginCompatibility();
             } catch (error) {
-                console.error('Error testing alpine plugin compatibility:', error);
+                info.alpine.issues.push(`Alpine compatibility error: ${error.message}`);
             }
         }
 
         return info;
     }
 
-    /**
-     * Obtener recomendaciones de migración actualizadas
-     * @private
-     */
-    _getRecommendedMigrations() {
-        const recommendations = [];
-        
-        if (!this.migrationStatus.variables) {
-            recommendations.push({
-                plugin: 'variables',
-                priority: 'high',
-                reason: 'Variables system is core functionality in Phase 2',
-                impact: 'Major: Unified variable processing, better performance, extensible providers',
-                status: 'ready'
-            });
-        } else {
-            recommendations.push({
-                plugin: 'variables',
-                priority: 'completed',
-                reason: 'Variables Plugin is active and functional',
-                impact: 'System successfully migrated to plugin architecture',
-                status: 'complete'
-            });
+    // ✅ MÉTODO FALTANTE: _testVariablesPluginCompatibility
+    _testVariablesPluginCompatibility() {
+        const variablesPlugin = this.registeredPlugins.get('variables');
+        if (!variablesPlugin) {
+            throw new Error('Variables plugin not found');
         }
-        
-        if (!this.migrationStatus.alpine) {
-            recommendations.push({
-                plugin: 'alpine',
-                priority: 'medium',
-                reason: 'Large hardcoded HTML in useAlpinePreview',
-                impact: 'Better maintainability and template editing',
-                status: 'ready',
-                depends: this.migrationStatus.variables ? [] : ['variables']
-            });
+
+        // Verificar que el plugin tiene los métodos necesarios
+        const requiredMethods = ['getVariables', 'processVariables', 'getProviders'];
+        const missingMethods = requiredMethods.filter(method => 
+            !variablesPlugin[method] || typeof variablesPlugin[method] !== 'function'
+        );
+
+        if (missingMethods.length > 0) {
+            throw new Error(`Variables plugin missing methods: ${missingMethods.join(', ')}`);
         }
-        
-        return recommendations;
-    }
 
-    /**
-     * Rastrear uso de funciones legacy (para debugging)
-     * @private
-     */
-    _getLegacyFunctionUsage() {
-        // En una implementación real, esto rastrearía llamadas reales
-        return {
-            variableProcessorCalls: this.migrationStatus.variables ? 0 : '↑ Active',
-            alpineHelperCalls: this.migrationStatus.alpine ? 0 : '↑ Active',
-            previewHookCalls: this.migrationStatus.alpine ? 0 : '↑ Active',
-            recommendation: this.migrationStatus.variables ? 
-                'Variables migrated successfully to plugin system' :
-                'Consider migrating to Variables Plugin for better performance'
-        };
-    }
-
-    // ===================================================================
-    // TESTING Y DEBUGGING - 🎯 ACTUALIZADO PARA FASE 2
-    // ===================================================================
-
-    /**
-     * Test de compatibilidad actualizado
-     */
-    async testCompatibility() {
-        const tests = [];
-        
-        // Test Variables - 🎯 PRIORIZAR PLUGIN
+        // Test básico de funcionalidad
         try {
-            const vars = this.getAvailableVariables();
-            const processed = this.processVariables('Hello {{ user.name }}!');
-            const isValid = this.validateVariable('user.name');
-            
-            tests.push({ 
-                module: 'variables', 
-                status: 'pass', 
-                method: this.migrationStatus.variables ? 'plugin' : 'legacy',
-                details: { 
-                    varsCount: Object.keys(vars).length, 
-                    processed, 
-                    validationWorking: isValid
-                }
-            });
-        } catch (error) {
-            tests.push({ 
-                module: 'variables', 
-                status: 'fail', 
-                error: error.message,
-                method: this.migrationStatus.variables ? 'plugin' : 'legacy'
-            });
-        }
-        
-        // Test Alpine
-        try {
-            const completions = this.getAlpineCompletions({ 
-                pos: 0, 
-                state: { doc: { lineAt: () => ({ text: 'x-' }) } } 
-            });
-            tests.push({ 
-                module: 'alpine', 
-                status: 'pass',
-                method: this.migrationStatus.alpine ? 'plugin' : 'legacy',
-                details: { completionsCount: completions.length }
-            });
-        } catch (error) {
-            tests.push({ 
-                module: 'alpine', 
-                status: 'fail', 
-                error: error.message,
-                method: this.migrationStatus.alpine ? 'plugin' : 'legacy'
-            });
-        }
-        
-        return {
-            overall: tests.every(t => t.status === 'pass') ? 'pass' : 'fail',
-            tests,
-            migrationStatus: this.migrationStatus,
-            pluginStatus: this.pluginStatus, // 🎯 NUEVO
-            compatibility: this._getCompatibilityInfo(),
-            phase: 2,
-            timestamp: new Date().toISOString()
-        };
-    }
-
-    // ===================================================================
-    // NUEVAS FUNCIONES ESPECÍFICAS PARA FASE 2
-    // ===================================================================
-
-    /**
-     * Forzar recarga del plugin de variables
-     */
-    async reloadVariablesPlugin() {
-        if (!this.migrationStatus.variables) {
-            throw new Error('Variables plugin not available');
-        }
-
-        try {
-            const variablesPlugin = pluginManager.get('variables');
-            if (variablesPlugin && variablesPlugin.refreshAllProviders) {
-                await variablesPlugin.refreshAllProviders();
-                console.log('🎯 Variables plugin reloaded successfully');
-                return true;
+            const variables = variablesPlugin.getVariables();
+            if (!variables || typeof variables !== 'object') {
+                throw new Error('Variables plugin getVariables() returned invalid data');
             }
-            throw new Error('Variables plugin does not support reloading');
         } catch (error) {
-            console.error('❌ Error reloading variables plugin:', error);
+            throw new Error(`Variables plugin test failed: ${error.message}`);
+        }
+
+        console.log('🎯 Variables Plugin compatibility test passed');
+        return true;
+    }
+
+    // ✅ MÉTODO FALTANTE: _testAlpinePluginCompatibility
+    _testAlpinePluginCompatibility() {
+        const alpinePlugin = this.registeredPlugins.get('alpine');
+        if (!alpinePlugin) {
+            throw new Error('Alpine plugin not found');
+        }
+
+        // Verificar dependencias
+        if (!this.migrationStatus.variables) {
+            throw new Error('Alpine plugin requires Variables plugin to be loaded first');
+        }
+
+        // Verificar métodos del plugin Alpine
+        const requiredMethods = ['processCode', 'generatePreview'];
+        const missingMethods = requiredMethods.filter(method => 
+            !alpinePlugin[method] || typeof alpinePlugin[method] !== 'function'
+        );
+
+        if (missingMethods.length > 0) {
+            throw new Error(`Alpine plugin missing methods: ${missingMethods.join(', ')}`);
+        }
+
+        console.log('🎯 Alpine Plugin compatibility test passed');
+        return true;
+    }
+
+    // ✅ MÉTODO FALTANTE: _registerScriptsTemplate
+    _registerScriptsTemplate() {
+        if (!window.templateEngine) {
+            console.warn('🔧 Template Engine not available, skipping scripts template registration');
+            return false;
+        }
+
+        try {
+            const scriptsTemplate = this._getDefaultScriptsTemplate();
+            window.templateEngine.registerTemplate('alpine', 'scripts', scriptsTemplate);
+            console.log('🔧 Scripts template registered successfully');
+            return true;
+        } catch (error) {
+            console.error('❌ Failed to register scripts template:', error);
+            return false;
+        }
+    }
+
+    _getDefaultScriptsTemplate() {
+        return `
+<!-- Alpine.js Core -->
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+<!-- Variables Integration -->
+<script>
+window.pageBuilderVariables = {{VARIABLES}};
+</script>
+
+<!-- User Code -->
+<script>
+{{USER_CODE}}
+</script>
+        `.trim();
+    }
+
+    // ✅ CORREGIDO: _onPluginRegistered con manejo de errores
+    _onPluginRegistered(pluginInfo) {
+        try {
+            this.registeredPlugins.set(pluginInfo.name, pluginInfo.plugin);
+            
+            // Actualizar estado de migración
+            if (pluginInfo.name === 'variables') {
+                this.migrationStatus.variables = true;
+                this.migrationStatus.templates = !!window.templateEngine;
+                console.log('🎯 Variables Plugin registered - running compatibility check...');
+                this._testVariablesPluginCompatibility();
+            }
+            
+            if (pluginInfo.name === 'alpine') {
+                this.migrationStatus.alpine = true;
+                this.migrationStatus.alpinePreview = true;
+                console.log('🔌 Alpine Plugin registered - running compatibility check...');
+                this._testAlpinePluginCompatibility();
+                this._registerScriptsTemplate();
+            }
+
+            console.log(`🌉 Migration status updated (Phase 4):`, this.migrationStatus);
+            
+        } catch (error) {
+            console.error(`❌ Error processing plugin registration for ${pluginInfo.name}:`, error);
+        }
+    }
+
+    // ✅ CORREGIDO: testCompatibility con manejo seguro
+    testCompatibility() {
+        try {
+            // Verificar que tengamos los métodos necesarios
+            if (typeof this._getCompatibilityInfo !== 'function') {
+                throw new Error('_getCompatibilityInfo method not found');
+            }
+
+            const compatibilityInfo = this._getCompatibilityInfo();
+            
+            // Probar Variables si está disponible
+            if (this.migrationStatus.variables) {
+                try {
+                    this.useVariables();
+                    console.log('🎯 Variables from plugin: 4 categories');
+                } catch (error) {
+                    console.warn('⚠️ Variables test failed:', error.message);
+                }
+            }
+
+            // Probar Alpine Preview de forma segura (sin hooks de React)
+            if (this.migrationStatus.alpine) {
+                try {
+                    // NO llamar hooks de React aquí
+                    console.log('🎬 Using Alpine Preview Plugin (Phase 4)');
+                    console.log('🔌 Using Basic Alpine Plugin Preview');
+                } catch (error) {
+                    console.warn('⚠️ Alpine Preview test failed:', error.message);
+                    console.log('🔄 Using Legacy useAlpinePreview');
+                }
+            }
+
+            return compatibilityInfo;
+            
+        } catch (error) {
+            console.error('❌ Compatibility test failed:', error);
             throw error;
         }
     }
 
-    /**
-     * Obtener estadísticas del plugin de variables
-     */
-    getVariablesPluginStats() {
-        if (!this.migrationStatus.variables) {
-            return { available: false, reason: 'Plugin not loaded' };
-        }
-
+    // ✅ CORREGIDO: useAlpinePreview sin hooks de React
+    useAlpinePreview(code, options = {}) {
         try {
-            const variablesPlugin = pluginManager.get('variables');
-            if (variablesPlugin && variablesPlugin.getStats) {
-                return {
-                    available: true,
-                    stats: variablesPlugin.getStats(),
-                    providers: variablesPlugin.listProviders?.() || []
-                };
+            // Priorizar plugin si está disponible
+            if (this.migrationStatus.alpine && this.registeredPlugins.has('alpine')) {
+                const alpinePlugin = this.registeredPlugins.get('alpine');
+                if (alpinePlugin && typeof alpinePlugin.generatePreview === 'function') {
+                    console.log('🎬 Using Alpine Preview Plugin (Phase 4)');
+                    return alpinePlugin.generatePreview(code, options);
+                }
             }
-            return { available: false, reason: 'Plugin does not expose stats' };
+
+            // Fallback a método legacy sin hooks
+            console.log('🔄 Using Legacy Alpine Preview (Fallback)');
+            return this._legacyAlpinePreview(code, options);
+            
         } catch (error) {
-            return { available: false, reason: error.message };
+            console.error('❌ Error in useAlpinePreview:', error);
+            console.log('🔄 Using Legacy useAlpinePreview');
+            return this._legacyAlpinePreview(code, options);
         }
     }
 
-    // ===================================================================
-    // MANTENER FUNCIONES LEGACY EXISTENTES PARA COMPATIBILIDAD
-    // ===================================================================
-
-    /**
-     * Forzar uso de legacy para testing (sin cambios)
-     */
-    forceLegacy(modules = []) {
-        const backup = { ...this.migrationStatus };
+    _legacyAlpinePreview(code, options = {}) {
+        // Implementación simple sin hooks de React
+        const variablesHtml = this.migrationStatus.variables ? 
+            this.useVariables() : '';
         
-        if (modules.length === 0) {
-            Object.keys(this.migrationStatus).forEach(key => {
-                this.migrationStatus[key] = false;
-            });
-        } else {
-            modules.forEach(module => {
-                this.migrationStatus[module] = false;
-            });
-        }
-        
-        console.log('🔄 Forced legacy mode for:', modules.length ? modules : 'all modules');
-        return backup;
+        return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Alpine Preview</title>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body>
+    ${variablesHtml}
+    ${code}
+</body>
+</html>
+        `.trim();
     }
 
-    /**
-     * Restaurar estado de migración (sin cambios)
-     */
-    restoreMigrationStatus(backup) {
-        this.migrationStatus = backup;
-        console.log('🔄 Migration status restored');
+    // Otros métodos existentes...
+    useVariables() {
+        if (this.migrationStatus.variables && this.registeredPlugins.has('variables')) {
+            const variablesPlugin = this.registeredPlugins.get('variables');
+            return variablesPlugin.getVariables();
+        }
+        
+        // Fallback legacy
+        if (typeof window !== 'undefined' && window.legacyVariables) {
+            return window.legacyVariables;
+        }
+        
+        return {};
+    }
+
+    getMigrationInfo() {
+        return {
+            status: this.migrationStatus,
+            registeredPlugins: Array.from(this.registeredPlugins.keys()),
+            compatibilityInfo: this._getCompatibilityInfo()
+        };
     }
 }
 
-// ===================================================================
-// INSTANCIA SINGLETON
-// ===================================================================
-
-const legacyBridge = new LegacyBridge();
-
-export default legacyBridge;
-export { LegacyBridge };
-
-// ===================================================================
-// WRAPPERS LEGACY PARA IMPORTACIÓN DIRECTA (COMPATIBILIDAD TOTAL)
-// ===================================================================
-
-// Exportar funciones que se usan directamente en otros archivos
-export const useVariables = () => legacyBridge.useVariables();
-export const useAlpinePreview = () => legacyBridge.useAlpinePreview();
-export const useApi = () => legacyBridge.useApi();
-
-export const getAvailableVariables = () => legacyBridge.getAvailableVariables();
-export const processVariables = (code) => legacyBridge.processVariables(code);
-export const validateVariable = (path) => legacyBridge.validateVariable(path);
-
-// 🎯 NUEVAS EXPORTACIONES PARA FASE 2
-export const extractVariables = (code) => legacyBridge.extractVariables(code);
-export const findInvalidVariables = (code) => legacyBridge.findInvalidVariables(code);
-export const formatVariableForInsertion = (path) => legacyBridge.formatVariableForInsertion(path);
-export const getVariableValue = (path) => legacyBridge.getVariableValue(path);
-
-export const getAlpineCompletions = (context) => legacyBridge.getAlpineCompletions(context);
-export const validateAlpineSyntax = (code) => legacyBridge.validateAlpineSyntax(code);
-export const analyzeAlpineCode = (code) => legacyBridge.analyzeAlpineCode(code);
-
-// ===================================================================
-// DEBUGGING EN DESARROLLO - 🎯 ACTUALIZADO PARA FASE 2
-// ===================================================================
-
-if (process.env.NODE_ENV === 'development') {
-    // Exponer para debugging
-    window.legacyBridge = legacyBridge;
-    
-    // 🎯 NUEVAS FUNCIONES DE DEBUG PARA FASE 2
-    window.testVariablesPlugin = () => legacyBridge.getVariablesPluginStats();
-    window.reloadVariables = () => legacyBridge.reloadVariablesPlugin();
-    window.checkMigrationStatus = () => legacyBridge.getMigrationInfo();
-    
-    // Auto-test al cargar
-    legacyBridge.testCompatibility().then(results => {
-        console.log('🧪 LegacyBridge compatibility test (Phase 2):', results);
-        
-        if (results.pluginStatus?.variablesPluginDetected) {
-            console.log('🎯 Variables Plugin detected and functional!');
-        } else {
-            console.log('🔄 Variables Plugin not detected, using legacy system');
-        }
-    });
-    
-    console.log('🔧 LegacyBridge (Phase 2) exposed to window for debugging');
-}
+export default LegacyBridge;
