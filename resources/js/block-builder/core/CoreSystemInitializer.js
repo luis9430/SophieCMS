@@ -9,8 +9,25 @@ class CoreSystemInitializer {
             'TemplateValidator', 
             'TemplateEngine',
             'LegacyBridge',
+            'EditorBridge',          // ✅ NUEVO: Editor Bridge
             'PluginSystemInit'
         ];
+    }
+
+    // ✅ INICIALIZAR EDITOR BRIDGE
+    async _initEditorBridge(options) {
+        if (window.editorBridge) {
+            console.log('🔄 EditorBridge already exists');
+            return;
+        }
+
+        try {
+            const { default: EditorBridge } = await import('./EditorBridge.js');
+            window.editorBridge = EditorBridge;
+            console.log('📝 EditorBridge loaded');
+        } catch (error) {
+            console.warn('⚠️ EditorBridge not available:', error.message);
+        }
     }
 
     // ✅ INICIALIZACIÓN COMPLETA DEL SISTEMA
@@ -58,6 +75,9 @@ class CoreSystemInitializer {
                 case 'LegacyBridge':
                     await this._initLegacyBridge(options);
                     break;
+                case 'EditorBridge':
+                    await this._initEditorBridge(options);
+                    break;
                 case 'PluginSystemInit':
                     await this._initPluginSystemInit(options);
                     break;
@@ -81,16 +101,22 @@ class CoreSystemInitializer {
         }
 
         try {
-            // Usar dynamic import
-            const PluginManagerModule = await import('./PluginManager.js');
-            window.pluginManager = new PluginManagerModule.default(options);
-            console.log('🔌 PluginManager loaded from module');
+            // Intentar cargar PluginManager real
+            try {
+                const { default: PluginManager } = await import('./PluginManager.js');
+                window.pluginManager = new PluginManager(options);
+                console.log('🔌 PluginManager loaded from module');
+                return;
+            } catch (error) {
+                // Si falla, se maneja abajo
+            }
         } catch (error) {
-            console.warn('⚠️ Could not load PluginManager module, creating fallback', error);
-            // Crear PluginManager básico
-            window.pluginManager = this._createBasicPluginManager();
-            console.log('🔧 Basic PluginManager created');
+            console.warn('⚠️ Could not load PluginManager module, creating fallback');
         }
+
+        // Crear PluginManager básico
+        window.pluginManager = this._createBasicPluginManager();
+        console.log('🔧 Basic PluginManager created');
     }
 
     _createBasicPluginManager() {
@@ -171,12 +197,20 @@ class CoreSystemInitializer {
     async _initTemplateValidator(options) {
         if (window.templateValidator) {
             console.log('🔄 TemplateValidator already exists');
+            // Configurar con opciones menos restrictivas
+            window.templateValidator.updateConfig({
+                strictMode: false,
+                allowUnsafeElements: ['script', 'style'],
+                maxComplexity: 1000,
+                enableSanitization: true
+            });
             return;
         }
 
         try {
-            const ValidatorModule = await import('../security/TemplateValidator.js');
-            window.templateValidator = new ValidatorModule.default({
+            // Intentar cargar TemplateValidator
+            const { default: TemplateValidator } = await import('../security/TemplateValidator.js');
+            window.templateValidator = new TemplateValidator({
                 strictMode: false,
                 allowUnsafeElements: ['script', 'style'],
                 maxComplexity: 1000
@@ -184,6 +218,7 @@ class CoreSystemInitializer {
             console.log('🛡️ TemplateValidator loaded');
         } catch (error) {
             console.warn('⚠️ TemplateValidator not available:', error.message);
+            // Crear validator básico
             window.templateValidator = this._createBasicValidator();
         }
     }
@@ -212,11 +247,12 @@ class CoreSystemInitializer {
         }
 
         try {
-            const EngineModule = await import('./TemplateEngine.js');
-            window.templateEngine = new EngineModule.default();
+            const { default: TemplateEngine } = await import('./TemplateEngine.js');
+            window.templateEngine = new TemplateEngine();
             console.log('🏗️ TemplateEngine loaded');
         } catch (error) {
             console.warn('⚠️ TemplateEngine not available:', error.message);
+            // Crear engine básico
             window.templateEngine = this._createBasicTemplateEngine();
         }
     }
@@ -250,19 +286,35 @@ class CoreSystemInitializer {
         }
 
         try {
-            const BridgeModule = await import('./LegacyBridge.js');
-            window.legacyBridge = new BridgeModule.default();
+            const { default: LegacyBridge } = await import('./LegacyBridge.js');
+            window.legacyBridge = new LegacyBridge();
             console.log('🌉 LegacyBridge loaded');
         } catch (error) {
             console.warn('⚠️ LegacyBridge not available:', error.message);
         }
     }
 
+    // ✅ INICIALIZAR EDITOR BRIDGE
+    async _initEditorBridge(options) {
+        if (window.editorBridge) {
+            console.log('🔄 EditorBridge already exists');
+            return;
+        }
+
+        try {
+            const { default: EditorBridge } = await import('./EditorBridge.js');
+            window.editorBridge = EditorBridge;
+            console.log('📝 EditorBridge loaded');
+        } catch (error) {
+            console.warn('⚠️ EditorBridge not available:', error.message);
+        }
+    }
+
     // ✅ INICIALIZAR PLUGIN SYSTEM INIT
     async _initPluginSystemInit(options) {
         try {
-            const SystemInitModule = await import('./PluginSystemInit.js');
-            const systemInit = new SystemInitModule.PluginSystemInit();
+            const { PluginSystemInit } = await import('./PluginSystemInit.js');
+            const systemInit = new PluginSystemInit();
             await systemInit.initialize();
             window.pluginSystemInit = systemInit;
             console.log('🎯 PluginSystemInit completed');
@@ -298,6 +350,7 @@ class CoreSystemInitializer {
             console.log('LegacyBridge:', !!window.legacyBridge);
             console.log('TemplateValidator:', !!window.templateValidator);
             console.log('TemplateEngine:', !!window.templateEngine);
+            console.log('EditorBridge:', !!window.editorBridge);              // ✅ NUEVO
             console.log('PluginSystemInit:', !!window.pluginSystemInit);
             
             if (window.pluginManager) {
@@ -316,6 +369,7 @@ class CoreSystemInitializer {
                 legacyBridge: !!window.legacyBridge,
                 templateValidator: !!window.templateValidator,
                 templateEngine: !!window.templateEngine,
+                editorBridge: !!window.editorBridge,        // ✅ NUEVO
                 pluginSystemInit: !!window.pluginSystemInit
             },
             plugins: window.pluginManager ? window.pluginManager.list() : [],

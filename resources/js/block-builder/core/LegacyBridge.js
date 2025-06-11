@@ -8,13 +8,21 @@ class LegacyBridge {
             alpinePreview: false,
             templates: false,
             gsap: false
-        };
-        
+        }
+
         this.registeredPlugins = new Map();
         this.compatibilityInfo = new Map();
         
         this._bindMethods();
         this._initializeEventHandlers();
+    }
+
+    getMigrationInfo() {
+        return {
+            status: this.migrationStatus,
+            registeredPlugins: Array.from(this.registeredPlugins.keys()),
+            compatibilityInfo: this._getCompatibilityInfo()
+        };
     }
 
     _bindMethods() {
@@ -292,11 +300,49 @@ window.pageBuilderVariables = {{VARIABLES}};
         return {};
     }
 
-    getMigrationInfo() {
+    // ✅ NUEVO: Integración con EditorBridge
+    useEditorHelpers() {
+        try {
+            if (window.editorBridge) {
+                console.log('📝 Using Editor Bridge (Phase 5)');
+                return window.editorBridge;
+            }
+            
+            // Fallback a helpers legacy
+            console.log('🔄 Using Legacy Editor Helpers (Fallback)');
+            return this._getLegacyEditorHelpers();
+            
+        } catch (error) {
+            console.error('❌ Error accessing editor helpers:', error);
+            return this._getLegacyEditorHelpers();
+        }
+    }
+
+    _getLegacyEditorHelpers() {
         return {
-            status: this.migrationStatus,
-            registeredPlugins: Array.from(this.registeredPlugins.keys()),
-            compatibilityInfo: this._getCompatibilityInfo()
+            getCompletions: (context) => {
+                // Método legacy básico para autocompletado
+                const completions = [];
+                
+                if (context.token && context.token.string.startsWith('x-')) {
+                    completions.push(
+                        { text: 'x-data', displayText: 'x-data', type: 'directive' },
+                        { text: 'x-show', displayText: 'x-show', type: 'directive' },
+                        { text: 'x-if', displayText: 'x-if', type: 'directive' },
+                        { text: 'x-for', displayText: 'x-for', type: 'directive' }
+                    );
+                }
+                
+                return completions;
+            },
+            
+            validateSyntax: (code) => {
+                return { errors: [], warnings: [] };
+            },
+            
+            formatCode: (code) => {
+                return code.trim();
+            }
         };
     }
 }

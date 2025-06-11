@@ -80,9 +80,9 @@ class PluginSystemInit {
                 window.pluginManager = pluginManager;
                 console.log('🔌 PluginManager imported and initialized');
                 return;
-            } catch (e) {
-                // Si falla, se maneja abajo
-                throw e;
+            } catch (error) {
+                // Si falla el import dinámico, se maneja abajo
+                throw error;
             }
         } catch (error) {
             console.warn('⚠️ Dynamic import failed, trying fallback:', error.message);

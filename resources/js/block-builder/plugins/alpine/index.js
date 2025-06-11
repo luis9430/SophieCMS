@@ -40,6 +40,12 @@ class AlpinePlugin {
             // Configurar preview
             this._setupPreview();
             
+            // ✅ NUEVO: Configurar integración con editor
+            this._setupEditorIntegration();
+            
+            // ✅ NUEVO: Configurar integración con editor
+            this._setupEditorIntegration();
+            
             this.initialized = true;
             console.log('✅ Alpine Plugin (Phase 4) initialized successfully');
             
@@ -179,6 +185,107 @@ window.getVariable = function(path) {
         };
         
         console.log('🎬 Alpine Preview configured');
+    }
+
+    // ✅ NUEVO: Setup integración con editor
+    _setupEditorIntegration() {
+        try {
+            // Cargar editor Alpine si está disponible
+            import('./editor.js').then(({ AlpineEditor, createAlpineMode, registerAlpineHints }) => {
+                this.editor = new AlpineEditor();
+                
+                // Integrar con CodeMirror si está disponible
+                if (window.CodeMirror) {
+                    createAlpineMode(window.CodeMirror);
+                    registerAlpineHints(window.CodeMirror);
+                    console.log('🎨 Alpine CodeMirror integration loaded');
+                }
+                
+                // Registrar en EditorBridge si está disponible
+                if (window.editorBridge) {
+                    window.editorBridge.registerEditorPlugin('alpine', this);
+                }
+                
+                console.log('📝 Alpine Editor integration configured');
+            }).catch(error => {
+                console.warn('⚠️ Alpine Editor integration failed:', error);
+            });
+            
+        } catch (error) {
+            console.warn('⚠️ Editor integration setup failed:', error);
+        }
+    }
+
+    // ✅ NUEVO: Obtener completions del editor
+    getEditorCompletions(context) {
+        if (this.editor && this.editor.getCompletions) {
+            return this.editor.getCompletions(context);
+        }
+        return [];
+    }
+
+    // ✅ NUEVO: Validar sintaxis del editor
+    validateEditorSyntax(code) {
+        if (this.editor && this.editor.validateSyntax) {
+            return this.editor.validateSyntax(code);
+        }
+        return { errors: [], warnings: [] };
+    }
+
+    // ✅ NUEVO: Formatear código del editor
+    formatEditorCode(code) {
+        if (this.editor && this.editor.formatCode) {
+            return this.editor.formatCode(code);
+        }
+        return code;
+    }
+
+    // ✅ NUEVO: Setup integración con editor
+    _setupEditorIntegration() {
+        try {
+            // Cargar editor Alpine si está disponible
+            import('./editor.js').then(({ AlpineEditor, createAlpineMode, registerAlpineHints }) => {
+                this.editor = new AlpineEditor();
+                
+                // Integrar con CodeMirror si está disponible
+                if (window.CodeMirror) {
+                    createAlpineMode(window.CodeMirror);
+                    registerAlpineHints(window.CodeMirror);
+                    console.log('🎨 Alpine CodeMirror integration loaded');
+                }
+                
+                console.log('📝 Alpine Editor integration configured');
+            }).catch(error => {
+                console.warn('⚠️ Alpine Editor integration failed:', error);
+            });
+            
+        } catch (error) {
+            console.warn('⚠️ Editor integration setup failed:', error);
+        }
+    }
+
+    // ✅ NUEVO: Obtener completions del editor
+    getEditorCompletions(context) {
+        if (this.editor && this.editor.getCompletions) {
+            return this.editor.getCompletions(context);
+        }
+        return [];
+    }
+
+    // ✅ NUEVO: Validar sintaxis del editor
+    validateEditorSyntax(code) {
+        if (this.editor && this.editor.validateSyntax) {
+            return this.editor.validateSyntax(code);
+        }
+        return { errors: [], warnings: [] };
+    }
+
+    // ✅ NUEVO: Formatear código del editor
+    formatEditorCode(code) {
+        if (this.editor && this.editor.formatCode) {
+            return this.editor.formatCode(code);
+        }
+        return code;
     }
 
     // ✅ MÉTODO PRINCIPAL: processCode
