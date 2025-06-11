@@ -3,7 +3,7 @@
 // Responsabilidad: Plugin Variables para el Page Builder (Con manejo de re-registro)
 // ===================================================================
 
-import { createPlugin } from '../../core/pluginManager.js';
+import { createPlugin } from '../../core/PluginManager.js';
 import { VariableProvider, SystemProvider, UserProvider, SiteProvider, TemplatesProvider } from './providers.js';
 import { VariableProcessor } from './processor.js';
 import { getVariableCompletions, getVariableContentCompletions } from './editor.js';

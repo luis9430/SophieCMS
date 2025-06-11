@@ -8,7 +8,6 @@ class CoreSystemInitializer {
             'PluginManager',
             'TemplateValidator', 
             'TemplateEngine',
-            'LegacyBridge',
             'EditorBridge',          // ✅ NUEVO: Editor Bridge
             'PluginSystemInit'
         ];
@@ -71,9 +70,6 @@ class CoreSystemInitializer {
                     break;
                 case 'TemplateEngine':
                     await this._initTemplateEngine(options);
-                    break;
-                case 'LegacyBridge':
-                    await this._initLegacyBridge(options);
                     break;
                 case 'EditorBridge':
                     await this._initEditorBridge(options);
@@ -278,22 +274,6 @@ class CoreSystemInitializer {
         };
     }
 
-    // ✅ INICIALIZAR LEGACY BRIDGE
-    async _initLegacyBridge(options) {
-        if (window.legacyBridge) {
-            console.log('🔄 LegacyBridge already exists');
-            return;
-        }
-
-        try {
-            const { default: LegacyBridge } = await import('./LegacyBridge.js');
-            window.legacyBridge = new LegacyBridge();
-            console.log('🌉 LegacyBridge loaded');
-        } catch (error) {
-            console.warn('⚠️ LegacyBridge not available:', error.message);
-        }
-    }
-
     // ✅ INICIALIZAR EDITOR BRIDGE
     async _initEditorBridge(options) {
         if (window.editorBridge) {
@@ -347,7 +327,6 @@ class CoreSystemInitializer {
         window.debugSystem = () => {
             console.log('🔧 System Debug Info:');
             console.log('PluginManager:', !!window.pluginManager);
-            console.log('LegacyBridge:', !!window.legacyBridge);
             console.log('TemplateValidator:', !!window.templateValidator);
             console.log('TemplateEngine:', !!window.templateEngine);
             console.log('EditorBridge:', !!window.editorBridge);              // ✅ NUEVO
@@ -366,7 +345,6 @@ class CoreSystemInitializer {
             initialized: this.initialized,
             components: {
                 pluginManager: !!window.pluginManager,
-                legacyBridge: !!window.legacyBridge,
                 templateValidator: !!window.templateValidator,
                 templateEngine: !!window.templateEngine,
                 editorBridge: !!window.editorBridge,        // ✅ NUEVO

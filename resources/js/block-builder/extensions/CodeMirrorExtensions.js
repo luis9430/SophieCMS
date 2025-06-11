@@ -4,7 +4,7 @@
 // ===================================================================
 
 import { autocompletion } from '@codemirror/autocomplete';
-import { EditorView, Decoration, DecorationSet, ViewPlugin } from '@codemirror/view';
+import { EditorView, keymap, Decoration, ViewPlugin } from '@codemirror/view';
 import { StateField, StateEffect, RangeSetBuilder } from '@codemirror/state';
 import { syntaxHighlighting, HighlightStyle } from '@codemirror/language';
 import { tags as t } from '@lezer/highlight';
@@ -650,26 +650,45 @@ export const createEditorTheme = (theme = 'light', options = {}) => {
 // EXPORTACIONES AGRUPADAS
 // ===================================================================
 
+/**
+ * Creates all necessary editor extensions
+ */
+export const createEditorExtensions = (options = {}) => {
+    const {
+        theme = 'light',
+        autocompletion: autocompletionOptions = {},
+        highlighting: highlightingOptions = {},
+        themeOptions = {}
+    } = options;
+
+    return [
+        // Core extensions
+        createVisualAutocompletion(autocompletionOptions),
+        createAlpineVariableSyntaxHighlighting(theme),
+        variableHighlighter,
+        createEditorTheme(theme, themeOptions),
+
+        // Basic editor settings
+        EditorView.lineWrapping,
+        EditorView.updateListener.of((update) => {
+            if (update.docChanged) {
+                // Document changed handling
+                console.log('🔄 Document updated');
+            }
+        })
+    ];
+};
+
 export const AlpineCodeMirrorExtensions = {
-    // Autocompletado
+    createEditorExtensions,
     autocompletion: createVisualAutocompletion,
-    
-    // Syntax highlighting
     highlighting: createAlpineVariableSyntaxHighlighting,
-    
-    // Decoraciones
     variableHighlighter,
-    
-    // Tema
     theme: createEditorTheme,
-    
-    // Utilidades
     icons: {
         getCompletionIcon,
         getSectionIcon
     },
-    
-    // Filtros
     fuzzyFilter,
     calculateFuzzyScore
 };

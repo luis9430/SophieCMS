@@ -475,9 +475,19 @@ class PluginManager {
 // Crear instancia global única
 const pluginManager = new PluginManager();
 
+// Add this new export before the final exports section
+const getPlugin = (name) => {
+    return pluginManager.get(name);
+};
+
 // Exportar instancia y clase
 export default pluginManager;
-export { PluginManager };
+export { 
+    PluginManager,
+    getPlugin,  // Add this line
+    createPlugin,
+    withErrorHandling
+};
 
 // ===================================================================
 // UTILS PARA DESARROLLO DE PLUGINS
@@ -486,7 +496,7 @@ export { PluginManager };
 /**
  * Helper para crear plugins con estructura estándar
  */
-export const createPlugin = (config) => {
+const createPlugin = (config) => {
     const {
         name,
         version = '1.0.0',
@@ -516,7 +526,7 @@ export const createPlugin = (config) => {
 /**
  * Decorator para métodos de plugins con manejo de errores
  */
-export const withErrorHandling = (method, pluginName) => {
+const withErrorHandling = (method, pluginName) => {
     return async (...args) => {
         try {
             return await method(...args);
