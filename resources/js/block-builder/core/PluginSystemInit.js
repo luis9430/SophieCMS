@@ -22,9 +22,6 @@ class PluginSystemInit {
             // 3. Registrar plugins en orden correcto
             await this._registerCorePlugins();
             
-            // 4. Configurar LegacyBridge
-            await this._configureLegacyBridge();
-            
             // 5. Configurar event handlers
             this._setupEventHandlers();
             
@@ -32,7 +29,6 @@ class PluginSystemInit {
             await this._validateSystemSafely();
             
             this.initialized = true;
-            console.log('✅ Plugin System (Phase 2) initialized successfully');
             
         } catch (error) {
             console.error('❌ Plugin System initialization failed:', error);
@@ -41,8 +37,7 @@ class PluginSystemInit {
     }
 
     async _configurePluginManager() {
-        console.log('⚙️ Configuring PluginManager...');
-        
+       
         // ✅ CORREGIDO: Crear PluginManager si no existe
         if (!window.pluginManager) {
             console.log('🔌 PluginManager not found, creating new instance...');
@@ -67,7 +62,6 @@ class PluginSystemInit {
             });
         }
         
-        console.log('✅ PluginManager configured');
     }
 
     // ✅ NUEVO: Método para cargar PluginManager
@@ -156,7 +150,6 @@ class PluginSystemInit {
                 maxComplexity: 1000,
                 enableSanitization: true
             });
-            console.log('✅ TemplateValidator configured');
         } else {
             console.warn('⚠️ TemplateValidator not available');
         }
@@ -183,9 +176,7 @@ class PluginSystemInit {
 
         // Registrar en orden de dependencias
         for (const pluginInfo of pluginsToRegister) {
-            try {
-                console.log(`📌 Registering plugin: ${pluginInfo.name} - ${pluginInfo.description}`);
-                
+            try {               
                 // Verificar dependencias antes de registrar
                 await this._checkPluginDependencies(pluginInfo);
                 
@@ -214,7 +205,6 @@ class PluginSystemInit {
             }
         }
         
-        console.log(`✅ Dependencies satisfied for plugin: ${pluginInfo.name}`);
     }
 
     async _registerVariablesPlugin() {
@@ -330,21 +320,6 @@ class PluginSystemInit {
         }
     }
 
-    async _configureLegacyBridge() {
-        console.log('🌉 Configuring LegacyBridge...');
-        
-        if (window.legacyBridge) {
-            console.log('🎯 LegacyBridge will auto-detect Variables Plugin');
-            
-            // Configurar bridge para detectar automáticamente plugins
-            window.legacyBridge.autoDetectPlugins = true;
-            window.legacyBridge.fallbackToLegacy = true;
-            
-            console.log('✅ LegacyBridge configured');
-        } else {
-            console.warn('⚠️ LegacyBridge not available');
-        }
-    }
 
     _setupEventHandlers() {
         console.log('📡 Setting up event handlers...');
@@ -394,20 +369,7 @@ class PluginSystemInit {
                 console.log('✅ Alpine plugin is available');
             }
             
-            // Probar compatibilidad del LegacyBridge SIN usar hooks
-            if (window.legacyBridge) {
-                try {
-                    // NO llamar testCompatibility que usa hooks
-                    const migrationInfo = window.legacyBridge.getMigrationInfo();
-                    console.log('✅ LegacyBridge compatibility check passed');
-                    console.log('📊 Migration Info:', migrationInfo);
-                } catch (error) {
-                    console.warn('⚠️ LegacyBridge compatibility test skipped:', error.message);
-                }
-            }
-            
-            console.log('✅ System validation completed safely');
-            
+                            
         } catch (error) {
             console.error('❌ System validation failed:', error);
             // No lanzar error para mantener funcionalidad
@@ -420,7 +382,6 @@ class PluginSystemInit {
             initialized: this.initialized,
             phase: this.phase,
             plugins: window.pluginManager ? window.pluginManager.list() : [],
-            legacyBridge: !!window.legacyBridge,
             templateValidator: !!window.templateValidator,
             templateEngine: !!window.templateEngine
         };
@@ -473,7 +434,6 @@ function getSystemStatus() {
     return {
         initialized: false,
         plugins: window.pluginManager ? window.pluginManager.list() : [],
-        legacyBridge: !!window.legacyBridge,
         templateValidator: !!window.templateValidator,
         templateEngine: !!window.templateEngine,
         error: 'Plugin System not initialized'
