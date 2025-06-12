@@ -1,4 +1,4 @@
-// resources/js/block-builder/core/CoreSystemInitializer.js - CORREGIDO
+// resources/js/block-builder/core/CoreSystemInitializer.js - ACTUALIZADO
 
 class CoreSystemInitializer {
     constructor() {
@@ -72,21 +72,23 @@ class CoreSystemInitializer {
         window.editorBridge = createEditorBridge();
     }
     
-    // Importar plugins de forma dinámica
+    // ACTUALIZADO: Incluir plugin de templates
     async _init_registerPlugins() {
         try {
             console.log('🔌 Cargando plugins...');
             
-            const [variablesPlugin, alpinePlugin, tailwindPlugin] = await Promise.all([
+            const [variablesPlugin, alpinePlugin, tailwindPlugin, templatesPlugin] = await Promise.all([
                 import('../plugins/variables/index.js').then(m => m.default),
                 import('../plugins/alpine/index.js').then(m => m.default),
-                import('../plugins/tailwind/index.js').then(m => m.default)
+                import('../plugins/tailwind/index.js').then(m => m.default),
+                import('../plugins/templates/index.js').then(m => m.default) // NUEVO
             ]);
 
             const pluginsToRegister = [
                 { name: 'variables', plugin: variablesPlugin },
                 { name: 'alpine', plugin: alpinePlugin },
                 { name: 'tailwind', plugin: tailwindPlugin },
+                { name: 'templates', plugin: templatesPlugin }, // NUEVO
             ];
 
             console.log('🔌 Registrando plugins...');
