@@ -53,63 +53,7 @@ const VariablesPanel = ({ visible = false, onClose, onInsertVariable }) => {
         }
     }, []);
 
-    const createFallbackVariables = () => ({
-        system: {
-            title: '⚙️ Sistema',
-            priority: 100,
-            variables: {
-                'app.name': 'Page Builder',
-                'app.version': '2.0.0',
-                'app.environment': 'preview'
-            }
-        },
-        user: {
-            title: '👤 Usuario',
-            priority: 95,
-            variables: {
-                'user.name': 'María García',
-                'user.email': 'maria.garcia@demo.com',
-                'user.role': 'admin',
-                'user.firstName': 'María',
-                'user.lastName': 'García',
-                'user.initials': 'MG',
-                'user.isAdmin': true,
-                'user.isLoggedIn': true
-            }
-        },
-        site: {
-            title: '🎨 Sitio',
-            priority: 80,
-            variables: {
-                'site.title': 'Page Builder Pro',
-                'site.description': 'Crea páginas web increíbles',
-                'site.url': window.location.origin,
-                'site.domain': window.location.hostname,
-                'site.author': 'Equipo Development'
-            }
-        },
-        current: {
-            title: '🕒 Fecha/Hora',
-            priority: 90,
-            variables: {
-                'current.date': new Date().toLocaleDateString('es-ES'),
-                'current.time': new Date().toLocaleTimeString('es-ES'),
-                'current.datetime': new Date().toLocaleString('es-ES'),
-                'current.year': new Date().getFullYear(),
-                'current.month': new Date().toLocaleDateString('es-ES', { month: 'long' }),
-                'current.weekday': new Date().toLocaleDateString('es-ES', { weekday: 'long' })
-            }
-        },
-        templates: {
-            title: '📝 Templates',
-            priority: 70,
-            variables: {
-                'templates.count': 3,
-                'templates.latest': 'Landing Hero',
-                'templates.latestDate': new Date().toLocaleDateString('es-ES')
-            }
-        }
-    });
+ 
 
     const loadPreviewValues = async (vars) => {
         const values = {};

@@ -263,7 +263,7 @@ class SiteVariableProvider extends VariableProvider {
         const siteData = window.initialData?.site || {};
         
         this._variables = {
-            'site.title': siteData.title || 'Mi Sitio Web',
+            'site.titlea': siteData.title || 'Mi Sitio Web',
             'site.description': siteData.description || 'Descripción de mi sitio web',
             'site.keywords': siteData.keywords || 'página, web, sitio',
             'site.author': siteData.author || 'Autor del sitio',
