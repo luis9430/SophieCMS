@@ -812,6 +812,7 @@ export const alpineScriptsTemplate = `
         </div>
     </div>
 </div>
+
 `;
 
 export default alpineScriptsTemplate;

@@ -1,18 +1,18 @@
-// resources/js/block-builder/plugins/tailwind/index.js
-
-import { getTailwindCompletions } from './editor';
+// resources/js/block-builder/plugins/tailwind/index.js - SIMPLIFICADO
 
 const tailwindPlugin = {
     name: 'tailwind',
+    previewPriority: 100,
     
-    // AÑADE ESTE MÉTODO PARA CUMPLIR CON LAS REGLAS DEL MANAGER
-    init() {
+    async init(context) {
         console.log('✅ Tailwind CSS Plugin Initialized');
+        return this;
     },
 
-    editor: {
-        getCompletions: getTailwindCompletions,
-    },
+    getPreviewTemplate() {
+        // Usar CSS compilado de Laravel
+        return `<link rel="stylesheet" href="/build/assets/app-Di9zQ_Kz.css">`;
+    }
 };
 
 export default tailwindPlugin;

@@ -274,33 +274,24 @@ class PluginManager {
      * Validar estructura mínima del plugin
      * @private
      */
-    _validatePluginStructure(name, plugin) {
-        const required = ['name', 'init'];
-        const optional = ['cleanup', 'hooks', 'metadata', 'dependencies', 'version'];
+        _validatePluginStructure(name, plugin) {
+            const required = ['name']; // Solo 'name' es requerido
+            const optional = ['init', 'cleanup', 'hooks', 'metadata', 'dependencies', 'version'];
 
-        // Verificar campos requeridos
-        for (const field of required) {
-            if (!(field in plugin)) {
-                throw new Error(`Plugin "${name}" missing required field: ${field}`);
+            // Verificar campos requeridos
+            for (const field of required) {
+                if (!(field in plugin)) {
+                    throw new Error(`Plugin "${name}" missing required field: ${field}`);
+                }
             }
+
+            // init es opcional, pero si existe debe ser función
+            if (plugin.init && typeof plugin.init !== 'function') {
+                throw new Error(`Plugin "${name}": init must be a function`);
+            }
+
+            console.log(`✅ Plugin structure validation passed: ${name}`);
         }
-
-        // Verificar tipos
-        if (typeof plugin.init !== 'function') {
-            throw new Error(`Plugin "${name}": init must be a function`);
-        }
-
-        if (plugin.cleanup && typeof plugin.cleanup !== 'function') {
-            throw new Error(`Plugin "${name}": cleanup must be a function`);
-        }
-
-        if (plugin.hooks && typeof plugin.hooks !== 'object') {
-            throw new Error(`Plugin "${name}": hooks must be an object`);
-        }
-
-        console.log(`✅ Plugin structure validation passed: ${name}`);
-    }
-
     /**
      * Setup inicial del plugin
      * @private

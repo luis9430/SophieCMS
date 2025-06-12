@@ -2,7 +2,6 @@ import { defineConfig } from 'vite';
 import laravel from 'laravel-vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import preact from '@preact/preset-vite';
-import monacoEditorPlugin from 'vite-plugin-monaco-editor'; 
 
 export default defineConfig({
     plugins: [
@@ -16,7 +15,6 @@ export default defineConfig({
         }),
         tailwindcss(),
         preact(), 
-        monacoEditorPlugin.default({})
 
     ],
     resolve: {
