@@ -3,9 +3,9 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "generate-safelist": "node scripts/generate-tailwind-safelist.mjs",
-        "dev": "npm run generate-safelist && vite",
-        "build": "npm run generate-safelist && vite build"
+        "dev": "vite",
+        "safelist": "node scripts/generate-tailwind-safelist.mjs",
+        "build": "npm run safelist && vite build"
     },
       "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",

@@ -445,8 +445,9 @@ async function main() {
 }
 
 // Ejecutar solo si este archivo es el principal
-if (import.meta.url === `file://${process.argv[1]}`) {
-    main();
-}
+main().catch(error => {
+    console.error('❌ Fallo irrecuperable en la ejecución del script:', error);
+    process.exit(1);
+});
 
 export { TailwindSafelistGenerator };

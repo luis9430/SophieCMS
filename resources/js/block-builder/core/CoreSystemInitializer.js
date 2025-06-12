@@ -1,9 +1,5 @@
 // resources/js/block-builder/core/CoreSystemInitializer.js - CORREGIDO
 
-import variablesPlugin from '../plugins/variables/index.js';
-import alpinePlugin from '../plugins/alpine/index.js';
-import tailwindPlugin from '../plugins/tailwind/index.js';
-
 class CoreSystemInitializer {
     constructor() {
         this.initialized = false;
@@ -76,20 +72,34 @@ class CoreSystemInitializer {
         window.editorBridge = createEditorBridge();
     }
     
+    // Importar plugins de forma dinámica
     async _init_registerPlugins() {
-        const pluginsToRegister = [
-            { name: 'variables', plugin: variablesPlugin },
-            { name: 'alpine', plugin: alpinePlugin },
-            { name: 'tailwind', plugin: tailwindPlugin },
-        ];
+        try {
+            console.log('🔌 Cargando plugins...');
+            
+            const [variablesPlugin, alpinePlugin, tailwindPlugin] = await Promise.all([
+                import('../plugins/variables/index.js').then(m => m.default),
+                import('../plugins/alpine/index.js').then(m => m.default),
+                import('../plugins/tailwind/index.js').then(m => m.default)
+            ]);
 
-        console.log('🔌 Registrando plugins...');
-        for (const item of pluginsToRegister) {
-            try {
-                await window.pluginManager.register(item.name, item.plugin);
-            } catch (error) {
-                console.error(`❌ Error registrando ${item.name}:`, error.message);
+            const pluginsToRegister = [
+                { name: 'variables', plugin: variablesPlugin },
+                { name: 'alpine', plugin: alpinePlugin },
+                { name: 'tailwind', plugin: tailwindPlugin },
+            ];
+
+            console.log('🔌 Registrando plugins...');
+            for (const item of pluginsToRegister) {
+                try {
+                    await window.pluginManager.register(item.name, item.plugin);
+                } catch (error) {
+                    console.error(`❌ Error registrando ${item.name}:`, error.message);
+                }
             }
+        } catch (error) {
+            console.error('❌ Error cargando plugins:', error);
+            throw error;
         }
     }
 
