@@ -3,13 +3,11 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "dev": "vite",
-        "safelist": "node scripts/generate-tailwind-safelist.mjs",
-        "build": "npm run safelist && vite build"
+        "build": "vite build",
+        "dev": "vite"
     },
-      "devDependencies": {
+    "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",
-        "nodemon": "^3.0.0",
         "axios": "^1.8.2",
         "concurrently": "^9.0.1",
         "laravel-vite-plugin": "^1.2.0",
