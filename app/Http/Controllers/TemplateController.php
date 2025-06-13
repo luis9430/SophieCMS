@@ -44,6 +44,7 @@ class TemplateController extends Controller
                     'id' => $template->id,
                     'name' => $template->name,
                     'type' => $template->type,
+                    'content' => $template->content,
                     'type_name' => $template->type_name,
                     'category' => $template->category,
                     'category_name' => $template->category_name,

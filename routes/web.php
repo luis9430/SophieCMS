@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PageBuilderController;
 use App\Http\Controllers\EditorController;
+use App\Http\Controllers\TemplateController;
 
 
 
@@ -33,18 +34,6 @@ Route::get('/editor', [EditorController::class, 'index'])
 
 
     Route::prefix('api')->group(function () {
-    Route::get('/test', function() {
-        return response()->json([
-            'message' => 'API funcionando perfectamente!',
-            'timestamp' => now(),
-            'user_id' => auth()->id() ?? 'no_auth'
-        ]);
-    });
-    
-});
-
-
-
  // Templates
     Route::get('/templates', [TemplateController::class, 'index']);
     Route::get('/templates/metadata', [TemplateController::class, 'metadata']);
@@ -66,4 +55,10 @@ Route::get('/editor', [EditorController::class, 'index'])
     Route::post('/pages/{page}/unpublish', [PageController::class, 'unpublish']);
     Route::post('/pages/{page}/assign-template', [PageController::class, 'assignTemplate']);
     Route::post('/pages/{page}/remove-template', [PageController::class, 'removeTemplate']);
+
+
+    
+});
+
+
 

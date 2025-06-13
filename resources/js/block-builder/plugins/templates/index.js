@@ -1,17 +1,13 @@
 // ===================================================================
-// plugins/templates/index.js
-// Plugin de Templates usando Liquid.js
+// resources/js/block-builder/plugins/templates/index.js
+// ACTUALIZADO - Plugin de Templates con Integración Backend
 // ===================================================================
 
-import { Liquid } from 'liquidjs';
-import { TemplateValidator } from './validator.js';
-import { TemplateStorage } from './storage.js';
-import { TemplateRenderer } from './renderer.js';
-import { TemplateCompletions } from './editor.js';
+import templatesApi from '../../services/templatesApi.js';
 
 const templatesPlugin = {
     name: 'templates',
-    version: '1.0.0',
+    version: '2.0.0',
     dependencies: [], 
     previewPriority: 85,
     
@@ -20,41 +16,26 @@ const templatesPlugin = {
     // ===================================================================
     
     async init(context) {
-        console.log('📄 Initializing Templates Plugin v1.0.0...');
+        console.log('📄 Initializing Integrated Templates Plugin v2.0.0...');
         
         try {
-            // Configurar Liquid.js
-            this.liquid = new Liquid({
-                cache: true,
-                root: '/', // Base path para templates
-                extname: '.liquid',
-                strictFilters: false,
-                strictVariables: false,
-                trimTagLeft: false,
-                trimTagRight: false,
-                trimOutputLeft: false,
-                trimOutputRight: false
-            });
+            // 1. Inicializar Liquid.js para templates frontend
+            await this._initLiquidEngine();
             
-            // Inicializar componentes
-            this.validator = new TemplateValidator(this.liquid);
-            this.storage = new TemplateStorage();
-            this.renderer = new TemplateRenderer(this.liquid, this.validator);
-            this.completions = new TemplateCompletions();
+            // 2. Configurar integración con backend
+            await this._initBackendIntegration();
             
-            // Registrar filtros personalizados
+            // 3. Registrar filtros y funciones personalizadas
             this._registerCustomFilters();
-            
-            // Registrar tags personalizados
             this._registerCustomTags();
             
-            // Cargar templates predefinidos
-            await this._loadDefaultTemplates();
+            // 4. Cargar templates desde backend
+            await this._loadBackendTemplates();
             
-            // Configurar integración con otros plugins
-            this._setupPluginIntegration();
+            // 5. Configurar cache y optimizaciones
+            this._setupCaching();
             
-            console.log('✅ Templates Plugin initialized successfully');
+            console.log('✅ Integrated Templates Plugin initialized successfully');
             return this;
             
         } catch (error) {
@@ -64,437 +45,504 @@ const templatesPlugin = {
     },
 
     // ===================================================================
-    // API PÚBLICA - RENDERIZADO
+    // INICIALIZACIÓN INTERNA
+    // ===================================================================
+
+    async _initLiquidEngine() {
+        // Cargar Liquid.js dinámicamente
+        if (!window.Liquid) {
+            try {
+                // Si no está disponible globalmente, usar import dinámico
+                const { Liquid } = await import('liquidjs');
+                window.Liquid = Liquid;
+            } catch (error) {
+                console.warn('⚠️ Liquid.js not available, using fallback template engine');
+            }
+        }
+
+        if (window.Liquid) {
+            this.liquid = new window.Liquid({
+                cache: true,
+                root: '/',
+                extname: '.liquid',
+                strictFilters: false,
+                strictVariables: false,
+                trimTagLeft: false,
+                trimTagRight: false,
+                trimOutputLeft: false,
+                trimOutputRight: false
+            });
+        }
+    },
+
+    async _initBackendIntegration() {
+        // Esperar a que la API esté disponible
+        if (!window.templatesApi) {
+            await new Promise((resolve) => {
+                window.addEventListener('templatesApiReady', resolve, { once: true });
+                // Timeout fallback
+                setTimeout(resolve, 2000);
+            });
+        }
+
+        this.api = window.templatesApi || templatesApi;
+        this.backendAvailable = !!this.api;
+        
+        console.log(this.backendAvailable ? '✅ Backend integration ready' : '⚠️ Backend not available, using frontend-only mode');
+    },
+
+    async _loadBackendTemplates() {
+        if (!this.backendAvailable) return;
+
+        try {
+            const response = await this.api.getTemplates({ per_page: 100 });
+            const templates = response.data || response.templates || [];
+            
+            this.backendTemplates = new Map();
+            templates.forEach(template => {
+                this.backendTemplates.set(template.name || template.id, template);
+            });
+            
+            console.log(`📄 Loaded ${this.backendTemplates.size} templates from backend`);
+            
+        } catch (error) {
+            console.error('❌ Failed to load backend templates:', error);
+            this.backendTemplates = new Map();
+        }
+    },
+
+    _setupCaching() {
+        this.cache = new Map();
+        this.cacheTimeout = 5 * 60 * 1000; // 5 minutos
+        
+        // Limpiar cache periódicamente
+        setInterval(() => {
+            const now = Date.now();
+            for (const [key, entry] of this.cache.entries()) {
+                if (now - entry.timestamp > this.cacheTimeout) {
+                    this.cache.delete(key);
+                }
+            }
+        }, 60000); // Cada minuto
+    },
+
+    // ===================================================================
+    // API PÚBLICA - RENDERIZADO HÍBRIDO
     // ===================================================================
     
     /**
-     * Renderizar template con datos
+     * Renderizar template con detección automática de engine
      */
     async renderTemplate(templateContent, data = {}) {
-        return await this.renderer.render(templateContent, data);
+        try {
+            // Detectar tipo de template
+            const templateType = this._detectTemplateType(templateContent);
+            
+            switch (templateType) {
+                case 'blade':
+                    return await this._renderBladeTemplate(templateContent, data);
+                case 'liquid':
+                    return await this._renderLiquidTemplate(templateContent, data);
+                case 'mixed':
+                    return await this._renderMixedTemplate(templateContent, data);
+                default:
+                    return await this._renderPlainTemplate(templateContent, data);
+            }
+            
+        } catch (error) {
+            console.error('❌ Template rendering failed:', error);
+            return this._renderErrorTemplate(error, templateContent);
+        }
     },
 
     /**
-     * Renderizar template por nombre
+     * Renderizar template por nombre (backend o cache local)
      */
     async renderByName(templateName, data = {}) {
-        const template = await this.storage.getTemplate(templateName);
-        if (!template) {
-            throw new Error(`Template "${templateName}" not found`);
-        }
-        return await this.renderTemplate(template.content, data);
-    },
-
-    /**
-     * Compilar template (para uso múltiple)
-     */
-    async compileTemplate(templateContent) {
-        return await this.liquid.parse(templateContent);
-    },
-
-    // ===================================================================
-    // API PÚBLICA - GESTIÓN DE TEMPLATES
-    // ===================================================================
-    
-    /**
-     * Guardar template
-     */
-    async saveTemplate(name, content, metadata = {}) {
-        // Validar contenido
-        const validation = await this.validator.validate(content);
-        if (!validation.isValid) {
-            throw new Error(`Template validation failed: ${validation.errors.join(', ')}`);
+        // 1. Buscar en backend primero
+        if (this.backendAvailable && this.backendTemplates.has(templateName)) {
+            const template = this.backendTemplates.get(templateName);
+            return await this.renderTemplate(template.code || template.content, data);
         }
         
-        return await this.storage.saveTemplate(name, {
-            content,
-            metadata: {
-                ...metadata,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                version: '1.0.0'
+        // 2. Buscar en cache local
+        if (this.localTemplates && this.localTemplates.has(templateName)) {
+            const template = this.localTemplates.get(templateName);
+            return await this.renderTemplate(template.content, data);
+        }
+        
+        throw new Error(`Template "${templateName}" not found`);
+    },
+
+    // ===================================================================
+    // RENDERIZADO POR TIPO DE TEMPLATE
+    // ===================================================================
+
+    async _renderBladeTemplate(templateContent, data) {
+        if (!this.backendAvailable) {
+            console.warn('⚠️ Blade template detected but backend not available');
+            return this._renderBladeClientSide(templateContent, data);
+        }
+
+        // Cache key
+        const cacheKey = `blade_${btoa(templateContent).substring(0, 32)}`;
+        const cached = this.cache.get(cacheKey);
+        
+        if (cached && (Date.now() - cached.timestamp < this.cacheTimeout)) {
+            return cached.result;
+        }
+
+        try {
+            const response = await this.api.previewBlockTemplate(templateContent, data, {});
+            const result = response.html || response.rendered || templateContent;
+            
+            // Guardar en cache
+            this.cache.set(cacheKey, {
+                result,
+                timestamp: Date.now()
+            });
+            
+            return result;
+            
+        } catch (error) {
+            console.error('❌ Backend Blade rendering failed:', error);
+            return this._renderBladeClientSide(templateContent, data);
+        }
+    },
+
+    async _renderLiquidTemplate(templateContent, data) {
+        if (!this.liquid) {
+            console.warn('⚠️ Liquid.js not available, using basic variable replacement');
+            return this._renderBasicVariables(templateContent, data);
+        }
+
+        try {
+            const template = this.liquid.parse(templateContent);
+            return await this.liquid.render(template, data);
+            
+        } catch (error) {
+            console.error('❌ Liquid rendering failed:', error);
+            return this._renderBasicVariables(templateContent, data);
+        }
+    },
+
+    async _renderMixedTemplate(templateContent, data) {
+        // 1. Primero procesar Blade (backend)
+        let processed = await this._renderBladeTemplate(templateContent, data);
+        
+        // 2. Luego procesar Liquid en el resultado
+        processed = await this._renderLiquidTemplate(processed, data);
+        
+        return processed;
+    },
+
+    async _renderPlainTemplate(templateContent, data) {
+        // Solo reemplazar variables básicas
+        return this._renderBasicVariables(templateContent, data);
+    },
+
+    // ===================================================================
+    // DETECCIÓN DE TIPO DE TEMPLATE
+    // ===================================================================
+
+    _detectTemplateType(content) {
+        const hasBladeVariables = /\{\{\s*\$\w+.*?\}\}/g.test(content);
+        const hasBladeDirectives = /@\w+/g.test(content);
+        const hasLiquidTags = /\{\%.*?\%\}/g.test(content);
+        const hasLiquidVariables = /\{\{\s*\w+[\.\w]*\s*\}\}/g.test(content) && !hasBladeVariables;
+        
+        if ((hasBladeVariables || hasBladeDirectives) && (hasLiquidTags || hasLiquidVariables)) {
+            return 'mixed';
+        } else if (hasBladeVariables || hasBladeDirectives) {
+            return 'blade';
+        } else if (hasLiquidTags || hasLiquidVariables) {
+            return 'liquid';
+        } else {
+            return 'plain';
+        }
+    },
+
+    // ===================================================================
+    // RENDERIZADO FALLBACK
+    // ===================================================================
+
+    _renderBladeClientSide(templateContent, data) {
+        // Simulación básica de Blade en el cliente
+        let processed = templateContent;
+        
+        // Procesar {{ $config['key'] ?? 'default' }}
+        processed = processed.replace(/\{\{\s*\$config\[['"](\w+)['"]\]\s*\?\?\s*['"]([^'"]*)['"]\s*\}\}/g, 
+            (match, key, defaultValue) => {
+                return data[key] !== undefined ? data[key] : defaultValue;
+            }
+        );
+        
+        // Procesar {{ $config['key'] }}
+        processed = processed.replace(/\{\{\s*\$config\[['"](\w+)['"]\]\s*\}\}/g, 
+            (match, key) => {
+                return data[key] !== undefined ? data[key] : '';
+            }
+        );
+        
+        return processed;
+    },
+
+    _renderBasicVariables(templateContent, data) {
+        let processed = templateContent;
+        
+        // Procesar variables simples {{ variable }}
+        Object.entries(data).forEach(([key, value]) => {
+            const regex = new RegExp(`\\{\\{\\s*${key.replace('.', '\\.')}\\s*\\}\\}`, 'g');
+            processed = processed.replace(regex, String(value || ''));
+        });
+        
+        // Procesar variables anidadas {{ object.property }}
+        const flattenData = this._flattenObject(data);
+        Object.entries(flattenData).forEach(([key, value]) => {
+            const regex = new RegExp(`\\{\\{\\s*${key.replace(/\./g, '\\.')}\\s*\\}\\}`, 'g');
+            processed = processed.replace(regex, String(value || ''));
+        });
+        
+        return processed;
+    },
+
+    _renderErrorTemplate(error, originalContent) {
+        return `
+            <div class="template-error" style="
+                background: #fef2f2;
+                border: 1px solid #fecaca;
+                color: #dc2626;
+                padding: 1rem;
+                border-radius: 0.5rem;
+                margin: 1rem 0;
+                font-family: monospace;
+            ">
+                <strong>Template Error:</strong> ${error.message}
+                <details style="margin-top: 0.5rem;">
+                    <summary>Original Template</summary>
+                    <pre style="background: #f3f4f6; padding: 0.5rem; margin-top: 0.5rem; border-radius: 0.25rem; overflow-x: auto;">${originalContent}</pre>
+                </details>
+            </div>
+        `;
+    },
+
+    // ===================================================================
+    // GESTIÓN DE TEMPLATES
+    // ===================================================================
+
+    async saveTemplate(name, content, metadata = {}) {
+        if (!this.backendAvailable) {
+            // Guardar solo localmente
+            if (!this.localTemplates) {
+                this.localTemplates = new Map();
+            }
+            
+            this.localTemplates.set(name, {
+                name,
+                content,
+                metadata: {
+                    ...metadata,
+                    createdAt: new Date().toISOString(),
+                    type: this._detectTemplateType(content)
+                }
+            });
+            
+            return { success: true, local: true };
+        }
+
+        try {
+            // Detectar tipo automáticamente
+            const templateType = this._detectTemplateType(content);
+            
+            const response = await this.api.createTemplate({
+                name,
+                code: content,
+                type: templateType === 'blade' ? 'html' : templateType,
+                ...metadata
+            });
+
+            // Actualizar cache local
+            await this._loadBackendTemplates();
+            
+            return response;
+            
+        } catch (error) {
+            console.error('❌ Failed to save template:', error);
+            throw error;
+        }
+    },
+
+    async listTemplates() {
+        const templates = [];
+        
+        // Templates del backend
+        if (this.backendAvailable && this.backendTemplates) {
+            this.backendTemplates.forEach(template => {
+                templates.push({
+                    ...template,
+                    source: 'backend'
+                });
+            });
+        }
+        
+        // Templates locales
+        if (this.localTemplates) {
+            this.localTemplates.forEach(template => {
+                templates.push({
+                    ...template,
+                    source: 'local'
+                });
+            });
+        }
+        
+        return templates;
+    },
+
+    // ===================================================================
+    // FILTROS Y TAGS PERSONALIZADOS
+    // ===================================================================
+
+    _registerCustomFilters() {
+        if (!this.liquid) return;
+
+        // Filtro para formatear fechas
+        this.liquid.registerFilter('date_format', (date, format = 'dd/mm/yyyy') => {
+            const d = new Date(date);
+            if (isNaN(d.getTime())) return date;
+            
+            return d.toLocaleDateString('es-ES', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+        });
+
+        // Filtro para truncar texto
+        this.liquid.registerFilter('truncate', (text, length = 100) => {
+            if (!text || text.length <= length) return text;
+            return text.substring(0, length) + '...';
+        });
+
+        // Filtro para capitalizar
+        this.liquid.registerFilter('capitalize', (text) => {
+            if (!text) return text;
+            return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+        });
+    },
+
+    _registerCustomTags() {
+        if (!this.liquid) return;
+
+        // Tag personalizado para incluir templates
+        this.liquid.registerTag('include_template', {
+            parse: function(tagToken) {
+                this.templateName = tagToken.args;
+            },
+            render: async function(context) {
+                const templateName = await this.liquid.evalValue(this.templateName, context);
+                try {
+                    return await templatesPlugin.renderByName(templateName, context.getAll());
+                } catch (error) {
+                    return `<!-- Template "${templateName}" not found -->`;
+                }
             }
         });
     },
 
-    /**
-     * Obtener template
-     */
-    async getTemplate(name) {
-        return await this.storage.getTemplate(name);
-    },
-
-    /**
-     * Listar templates
-     */
-    async listTemplates() {
-        return await this.storage.listTemplates();
-    },
-
-    /**
-     * Eliminar template
-     */
-    async deleteTemplate(name) {
-        return await this.storage.deleteTemplate(name);
-    },
-
-    /**
-     * Validar template
-     */
-    async validateTemplate(content) {
-        return await this.validator.validate(content);
-    },
-
     // ===================================================================
-    // INTEGRACIÓN CON EDITOR
+    // UTILIDADES
     // ===================================================================
-    
-    /**
-     * Obtener completions para CodeMirror
-     */
-    getEditorCompletions(context) {
-        return this.completions.getCompletions(context, this.liquid);
-    },
 
-    /**
-     * Validar sintaxis para editor
-     */
-    validateEditorSyntax(code) {
-        const errors = [];
-        const warnings = [];
+    _flattenObject(obj, prefix = '') {
+        const flattened = {};
         
-        try {
-            // Validación básica de sintaxis Liquid
-            this.liquid.parse(code);
-        } catch (error) {
-            errors.push({
-                type: 'syntax-error',
-                message: error.message,
-                position: this._extractPosition(error),
-                severity: 'error'
-            });
+        for (const key in obj) {
+            if (obj.hasOwnProperty(key)) {
+                const value = obj[key];
+                const newKey = prefix ? `${prefix}.${key}` : key;
+                
+                if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+                    Object.assign(flattened, this._flattenObject(value, newKey));
+                } else {
+                    flattened[newKey] = value;
+                }
+            }
         }
         
-        return { errors, warnings };
+        return flattened;
     },
 
     // ===================================================================
-    // PREVIEW INTEGRATION
+    // PREVIEW TEMPLATE (PARA SISTEMA DE PLUGINS)
     // ===================================================================
-    
-    /**
-     * Obtener template para preview
-     */
+
     getPreviewTemplate() {
         return `
-            <!-- LIQUID.JS TEMPLATES -->
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/liquidjs/10.9.2/liquid.browser.min.js"></script>
+            <!-- LIQUID.JS CDN -->
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/liquidjs/10.7.0/liquid.browser.min.js"></script>
+            
             <script>
-                // Configurar Liquid para preview
+                // Inicializar Liquid.js en el preview
                 if (typeof Liquid !== 'undefined') {
-                    window.liquidEngine = new Liquid.Liquid({
+                    window.liquid = new Liquid({
                         cache: false,
                         strictFilters: false,
                         strictVariables: false
                     });
                     
-                    // Registrar filtros básicos para preview
-                    window.liquidEngine.registerFilter('money', (value) => {
-                        return new Intl.NumberFormat('es-ES', { 
-                            style: 'currency', 
-                            currency: 'EUR' 
-                        }).format(value);
-                    });
-                    
-                    window.liquidEngine.registerFilter('date_format', (value, format = 'short') => {
-                        const date = new Date(value);
-                        return date.toLocaleDateString('es-ES');
-                    });
-                    
-                    console.log('🔄 Liquid engine configured for preview');
+                    console.log('💧 Liquid.js loaded in preview');
                 }
             </script>
         `;
     },
 
     // ===================================================================
-    // FILTROS PERSONALIZADOS
+    // DEBUG Y DESARROLLO
     // ===================================================================
-    
-    _registerCustomFilters() {
-        // Filtro para formatear dinero
-        this.liquid.registerFilter('money', (value, currency = 'EUR') => {
-            return new Intl.NumberFormat('es-ES', { 
-                style: 'currency', 
-                currency: currency 
-            }).format(value);
-        });
 
-        // Filtro para formatear fechas
-        this.liquid.registerFilter('date_format', (value, format = 'short') => {
-            const date = new Date(value);
-            const options = {
-                'short': { year: 'numeric', month: 'short', day: 'numeric' },
-                'long': { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' },
-                'time': { hour: '2-digit', minute: '2-digit' },
-                'datetime': { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
-            };
-            return date.toLocaleDateString('es-ES', options[format] || options.short);
-        });
-
-        // Filtro para truncar texto
-        this.liquid.registerFilter('truncate', (value, length = 100, suffix = '...') => {
-            const str = String(value);
-            return str.length > length ? str.substring(0, length) + suffix : str;
-        });
-
-        // Filtro para slug
-        this.liquid.registerFilter('slugify', (value) => {
-            return String(value)
-                .toLowerCase()
-                .trim()
-                .replace(/[^\w\s-]/g, '')
-                .replace(/[\s_-]+/g, '-')
-                .replace(/^-+|-+$/g, '');
-        });
-
-        console.log('✅ Custom filters registered');
-    },
-
-    // ===================================================================
-    // TAGS PERSONALIZADOS
-    // ===================================================================
-    
-    _registerCustomTags() {
-        // Tag para incluir componentes
-        this.liquid.registerTag('component', {
-            parse: function(token) {
-                const [name, ...args] = token.args.split(' ');
-                this.name = name;
-                this.args = args;
-            },
-            render: async function(ctx) {
-                // Aquí se podría integrar con un sistema de componentes
-                return `<!-- Component: ${this.name} -->`;
-            }
-        });
-
-        // Tag para secciones condicionales
-        this.liquid.registerTag('section', {
-            parse: function(token) {
-                this.condition = token.args;
-            },
-            render: async function(ctx) {
-                return `<!-- Section: ${this.condition} -->`;
-            }
-        });
-
-        console.log('✅ Custom tags registered');
-    },
-
-    // ===================================================================
-    // TEMPLATES POR DEFECTO
-    // ===================================================================
-    
-    async _loadDefaultTemplates() {
-        const defaultTemplates = {
-            'hero-basic': {
-                content: `
-<div class="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-20">
-    <div class="container mx-auto px-4 text-center">
-        <h1 class="text-4xl md:text-6xl font-bold mb-6">
-            {{ title | default: "Bienvenido a nuestro sitio" }}
-        </h1>
-        <p class="text-xl md:text-2xl mb-8 opacity-90">
-            {{ subtitle | default: "Creamos experiencias increíbles" }}
-        </p>
-        {% if button_text %}
-        <a href="{{ button_url | default: '#' }}" 
-           class="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors">
-            {{ button_text }}
-        </a>
-        {% endif %}
-    </div>
-</div>`,
-                metadata: {
-                    category: 'hero',
-                    description: 'Hero section básico con título, subtítulo y botón',
-                    variables: ['title', 'subtitle', 'button_text', 'button_url']
-                }
-            },
-
-            'card-product': {
-                content: `
-<div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-    {% if image %}
-    <img src="{{ image }}" alt="{{ title }}" class="w-full h-48 object-cover">
-    {% endif %}
-    
-    <div class="p-6">
-        <h3 class="text-xl font-semibold mb-2">{{ title }}</h3>
-        
-        {% if description %}
-        <p class="text-gray-600 mb-4">{{ description | truncate: 100 }}</p>
-        {% endif %}
-        
-        {% if price %}
-        <div class="flex justify-between items-center">
-            <span class="text-2xl font-bold text-green-600">
-                {{ price | money }}
-            </span>
-            
-            {% if button_text %}
-            <button class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">
-                {{ button_text | default: "Comprar" }}
-            </button>
-            {% endif %}
-        </div>
-        {% endif %}
-    </div>
-</div>`,
-                metadata: {
-                    category: 'product',
-                    description: 'Tarjeta de producto con imagen, título, descripción y precio',
-                    variables: ['image', 'title', 'description', 'price', 'button_text']
-                }
-            },
-
-            'contact-form': {
-                content: `
-<div class="bg-white p-8 rounded-lg shadow-lg max-w-md mx-auto">
-    <h2 class="text-2xl font-bold mb-6 text-center">
-        {{ form_title | default: "Contáctanos" }}
-    </h2>
-    
-    <form action="{{ form_action | default: '#' }}" method="POST" class="space-y-4">
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-                {{ name_label | default: "Nombre" }}
-            </label>
-            <input type="text" name="name" required 
-                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-        </div>
-        
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-                {{ email_label | default: "Email" }}
-            </label>
-            <input type="email" name="email" required
-                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-        </div>
-        
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-                {{ message_label | default: "Mensaje" }}
-            </label>
-            <textarea name="message" rows="4" required
-                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
-        </div>
-        
-        <button type="submit" 
-                class="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition-colors">
-            {{ submit_text | default: "Enviar mensaje" }}
-        </button>
-    </form>
-</div>`,
-                metadata: {
-                    category: 'form',
-                    description: 'Formulario de contacto responsive',
-                    variables: ['form_title', 'form_action', 'name_label', 'email_label', 'message_label', 'submit_text']
-                }
-            }
-        };
-
-        // Cargar templates por defecto
-        for (const [name, template] of Object.entries(defaultTemplates)) {
-            await this.storage.saveTemplate(name, template);
-        }
-
-        console.log('✅ Default templates loaded');
-    },
-
-    // ===================================================================
-    // INTEGRACIÓN CON OTROS PLUGINS
-    // ===================================================================
-    
-    _setupPluginIntegration() {
-        // Integrar con plugin de variables
-        if (window.pluginManager?.get('variables')) {
-            const variablesPlugin = window.pluginManager.get('variables');
-            
-            // Configurar Liquid para usar variables del plugin
-            this.liquid.registerFilter('variable', (path) => {
-                return variablesPlugin.getVariableValue(path) || '';
-            });
-            
-            console.log('✅ Integrated with Variables plugin');
-        }
-
-        // Configurar funciones globales
-        window.renderLiquidTemplate = (content, data) => this.renderTemplate(content, data);
-    },
-
-    // ===================================================================
-    // UTILIDADES
-    // ===================================================================
-    
-    _extractPosition(error) {
-        // Extraer posición del error de Liquid.js
-        const match = error.message.match(/line (\d+)/);
-        return match ? parseInt(match[1]) : 0;
-    },
-
-    // ===================================================================
-    // SNIPPETS PARA EDITOR
-    // ===================================================================
-    
-    getSnippets() {
+    getDebugInfo() {
         return {
-            'liquid-if': {
-                label: 'Liquid If',
-                body: '{% if ${1:condition} %}\n  ${2:content}\n{% endif %}',
-                description: 'Condicional Liquid'
-            },
-            'liquid-for': {
-                label: 'Liquid For',
-                body: '{% for ${1:item} in ${2:collection} %}\n  ${3:content}\n{% endfor %}',
-                description: 'Loop Liquid'
-            },
-            'liquid-variable': {
-                label: 'Liquid Variable',
-                body: '{{ ${1:variable} }}',
-                description: 'Variable Liquid'
-            },
-            'liquid-filter': {
-                label: 'Liquid Filter',
-                body: '{{ ${1:variable} | ${2:filter} }}',
-                description: 'Variable con filtro'
-            }
+            version: this.version,
+            liquidAvailable: !!this.liquid,
+            backendAvailable: this.backendAvailable,
+            backendTemplatesCount: this.backendTemplates?.size || 0,
+            localTemplatesCount: this.localTemplates?.size || 0,
+            cacheSize: this.cache?.size || 0
         };
-    },
-
-    // ===================================================================
-    // CLEANUP
-    // ===================================================================
-    
-    async cleanup() {
-        try {
-            // Limpiar cache de Liquid
-            this.liquid.cache.clear();
-            
-            // Cleanup de componentes
-            if (this.storage) await this.storage.cleanup();
-            if (this.validator) await this.validator.cleanup();
-            if (this.renderer) await this.renderer.cleanup();
-            
-            // Limpiar funciones globales
-            delete window.renderLiquidTemplate;
-            
-            console.log('🧹 Templates plugin cleaned up');
-        } catch (error) {
-            console.error('Error cleaning up templates plugin:', error);
-        }
     }
 };
+
+// ===================================================================
+// DEBUG HELPERS (DEVELOPMENT)
+// ===================================================================
+
+if (process.env.NODE_ENV === 'development') {
+    window.debugTemplatesPlugin = {
+        async testRender(content = '{{ title }} - {% if user.name %}Hello {{ user.name }}!{% endif %}') {
+            const data = {
+                title: 'Test Template',
+                user: { name: 'Test User' }
+            };
+            
+            const result = await templatesPlugin.renderTemplate(content, data);
+            console.log('🎨 Template result:', result);
+            return result;
+        },
+        
+        detectType(content) {
+            const type = templatesPlugin._detectTemplateType(content);
+            console.log('🔍 Template type:', type);
+            return type;
+        },
+        
+        showDebugInfo() {
+            console.table(templatesPlugin.getDebugInfo());
+        },
+        
+        listTemplates() {
+            return templatesPlugin.listTemplates();
+        }
+    };
+}
 
 export default templatesPlugin;

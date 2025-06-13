@@ -1,14 +1,21 @@
-// resources/js/block-builder/components/IntegratedPageBuilderEditor.jsx - ACTUALIZADO
+// ===================================================================
+// resources/js/block-builder/components/IntegratedPageBuilderEditor.jsx 
+// CORREGIDO - handleLoad funcionando
+// ===================================================================
 
-import { useCallback, useRef } from 'preact/hooks';
+import { useCallback, useRef, useState } from 'preact/hooks';
 import FinalVisualEditor from './FinalVisualEditor';
 import TemplateManager from './TemplateManager';
-import usePluginPreview from '../hooks/usePluginPreview'; // CAMBIADO
+import usePluginPreview from '../hooks/usePluginPreview';
 
 const IntegratedPageBuilderEditor = ({ initialContent, onContentChange, onSaveTemplate }) => {
     
-    const { previewRef, updatePreview } = usePluginPreview(); // CAMBIADO
+    const { previewRef, updatePreview } = usePluginPreview();
     const lastNotifiedContentRef = useRef(initialContent);
+    
+    // Estados para el TemplateManager
+    const [currentContent, setCurrentContent] = useState(initialContent || '');
+    const [currentType, setCurrentType] = useState('html');
 
     const handleContentChange = useCallback((newContent) => {
         if (newContent === lastNotifiedContentRef.current) {
@@ -16,6 +23,7 @@ const IntegratedPageBuilderEditor = ({ initialContent, onContentChange, onSaveTe
         }
 
         lastNotifiedContentRef.current = newContent;
+        setCurrentContent(newContent); // Actualizar estado local
 
         if (onContentChange) {
             onContentChange(newContent);
@@ -29,12 +37,41 @@ const IntegratedPageBuilderEditor = ({ initialContent, onContentChange, onSaveTe
         onSaveTemplate?.();
     }, [onSaveTemplate]);
 
-    const handleLoad = useCallback((templateName) => {
-        console.log(`Cargando plantilla: ${templateName}`);
-    }, []);
+    // ✅ CORREGIDO: Recibe el objeto template completo
+    const handleLoad = useCallback((template) => {
+        console.log('🔍 Template recibido:', {
+            id: template.id,
+            name: template.name,
+            type: template.type,
+            hasCode: !!template.code,
+            hasContent: !!template.content,
+            codeLength: template.code?.length || 0,
+            contentLength: template.content?.length || 0
+        });
+        
+        // Obtener el contenido del template
+        const templateContent = template.code || template.content || '';
+        
+        if (templateContent) {
+            console.log('📄 Cargando contenido en editor:', templateContent.substring(0, 100) + '...');
+            
+            // Actualizar el contenido del editor
+            handleContentChange(templateContent);
+            
+            // Actualizar tipo si está disponible
+            if (template.type) {
+                setCurrentType(template.type);
+            }
+            
+            console.log('✅ Template cargado exitosamente:', template.name);
+        } else {
+            console.warn('⚠️ Template sin contenido:', template.name);
+        }
+    }, [handleContentChange]);
     
-    const handleDelete = useCallback(() => {
-        console.log("Eliminando plantilla...");
+    const handleDelete = useCallback((templateId) => {
+        console.log("🗑️ Eliminando plantilla:", templateId);
+        // Aquí podrías agregar lógica adicional si es necesario
     }, []);
 
     return (
@@ -49,6 +86,8 @@ const IntegratedPageBuilderEditor = ({ initialContent, onContentChange, onSaveTe
                 onSave={handleSave}
                 onLoad={handleLoad}
                 onDelete={handleDelete}
+                currentContent={currentContent}
+                currentType={currentType}
             />
 
             <div style={{ 
