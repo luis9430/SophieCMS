@@ -41,8 +41,35 @@ Route::get('/editor', [EditorController::class, 'index'])
         ]);
     });
     
-    Route::get('/templates', [EditorController::class, 'getTemplates']);
-    Route::post('/templates', [EditorController::class, 'storeTemplate']);
-    Route::put('/templates/{template}', [EditorController::class, 'updateTemplate']);
-    Route::delete('/templates/{template}', [EditorController::class, 'deleteTemplate']);
+});
+
+
+
+ // Templates
+    Route::get('/templates', [TemplateController::class, 'index']);
+    Route::get('/templates/metadata', [TemplateController::class, 'metadata']);
+    Route::get('/templates/type/{type}', [TemplateController::class, 'byType']);
+    Route::post('/templates', [TemplateController::class, 'store']);
+    Route::get('/templates/{template}', [TemplateController::class, 'show']);
+    Route::put('/templates/{template}', [TemplateController::class, 'update']);
+    Route::delete('/templates/{template}', [TemplateController::class, 'destroy']);
+    Route::post('/templates/{template}/clone', [TemplateController::class, 'clone']);
+
+    // Pages
+    Route::get('/pages', [PageController::class, 'index']);
+    Route::post('/pages', [PageController::class, 'store']);
+    Route::get('/pages/{page}', [PageController::class, 'show']);
+    Route::put('/pages/{page}', [PageController::class, 'update']);
+    Route::delete('/pages/{page}', [PageController::class, 'destroy']);
+    Route::get('/pages/{page}/render', [PageController::class, 'render']);
+    Route::post('/pages/{page}/publish', [PageController::class, 'publish']);
+    Route::post('/pages/{page}/unpublish', [PageController::class, 'unpublish']);
+    Route::post('/pages/{page}/assign-template', [PageController::class, 'assignTemplate']);
+    Route::post('/pages/{page}/remove-template', [PageController::class, 'removeTemplate']);
+
+
+    Route::get('/test-page', function () {
+    $page = App\Models\Page::find(1);
+    $renderer = app(\App\Services\PageRenderer::class);
+    return response($renderer->render($page));
 });
