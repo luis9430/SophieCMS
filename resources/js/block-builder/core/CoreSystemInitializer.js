@@ -1,4 +1,4 @@
-// resources/js/block-builder/core/CoreSystemInitializer.js - ACTUALIZADO
+// resources/js/block-builder/core/CoreSystemInitializer.js - UPDATED
 
 class CoreSystemInitializer {
     constructor() {
@@ -7,7 +7,7 @@ class CoreSystemInitializer {
             'PluginManager',
             'TemplateValidator', 
             'TemplateEngine',
-            'registerPlugins',
+            'registerPlugins', // UPDATED: Incluye DatabaseProvider
             'EditorBridge',
         ];
     }
@@ -72,7 +72,7 @@ class CoreSystemInitializer {
         window.editorBridge = createEditorBridge();
     }
     
-    // ACTUALIZADO: Incluir plugin de templates
+    // UPDATED: Incluir DatabaseProvider en el sistema de variables
     async _init_registerPlugins() {
         try {
             console.log('🔌 Cargando plugins...');
@@ -81,14 +81,14 @@ class CoreSystemInitializer {
                 import('../plugins/variables/index.js').then(m => m.default),
                 import('../plugins/alpine/index.js').then(m => m.default),
                 import('../plugins/tailwind/index.js').then(m => m.default),
-                import('../plugins/templates/index.js').then(m => m.default) // NUEVO
+                import('../plugins/templates/index.js').then(m => m.default)
             ]);
 
             const pluginsToRegister = [
                 { name: 'variables', plugin: variablesPlugin },
                 { name: 'alpine', plugin: alpinePlugin },
                 { name: 'tailwind', plugin: tailwindPlugin },
-                { name: 'templates', plugin: templatesPlugin }, // NUEVO
+                { name: 'templates', plugin: templatesPlugin }
             ];
 
             console.log('🔌 Registrando plugins...');
@@ -99,9 +99,34 @@ class CoreSystemInitializer {
                     console.error(`❌ Error registrando ${item.name}:`, error.message);
                 }
             }
+
+            // NUEVO: Verificar que DatabaseProvider se haya cargado correctamente
+            await this._verifyDatabaseProvider();
+            
         } catch (error) {
             console.error('❌ Error cargando plugins:', error);
             throw error;
+        }
+    }
+
+    // NUEVO: Verificar DatabaseProvider
+    async _verifyDatabaseProvider() {
+        try {
+            const variablesPlugin = window.pluginManager.get('variables');
+            if (variablesPlugin && variablesPlugin.processor) {
+                const databaseProvider = variablesPlugin.processor.getProvider('database');
+                if (databaseProvider) {
+                    console.log('✅ DatabaseProvider integrado correctamente');
+                    
+                    // Cargar variables iniciales
+                    await databaseProvider.refresh();
+                    console.log('✅ Variables de BD cargadas');
+                } else {
+                    console.warn('⚠️ DatabaseProvider no encontrado');
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error verificando DatabaseProvider:', error);
         }
     }
 
@@ -114,8 +139,29 @@ class CoreSystemInitializer {
             templateEngine: !!window.templateEngine,
             editorBridge: !!window.editorBridge,
         });
+        
         if (window.pluginManager) {
             console.log('Plugins:', window.pluginManager.list());
+            
+            // NUEVO: Status específico de variables
+            const variablesPlugin = window.pluginManager.get('variables');
+            if (variablesPlugin && variablesPlugin.processor) {
+                console.log('--- 🔧 Variables System ---');
+                console.log('Providers:', Array.from(variablesPlugin.processor.providers.keys()));
+                
+                const databaseProvider = variablesPlugin.processor.getProvider('database');
+                if (databaseProvider) {
+                    console.log('Database Provider:', {
+                        loading: databaseProvider.loading,
+                        lastFetch: new Date(databaseProvider.lastFetch || 0).toLocaleString(),
+                        variablesCount: Object.keys(databaseProvider._variables || {}).length
+                    });
+                }
+            }
+        }
+        
+        if (window.variablesAdmin) {
+            console.log('Variables Admin API: ✅ Disponible');
         }
     }
 }

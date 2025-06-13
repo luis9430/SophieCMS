@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PageBuilderController;
 use App\Http\Controllers\EditorController;
 use App\Http\Controllers\TemplateController;
-
+use App\Http\Controllers\VariableController;
 
 
 Route::get('/', function () {
@@ -32,7 +32,6 @@ Route::get('/editor', [EditorController::class, 'index'])
     ->middleware('auth')
     ->name('editor');
 
-
     Route::prefix('api')->group(function () {
  // Templates
     Route::get('/templates', [TemplateController::class, 'index']);
@@ -56,9 +55,32 @@ Route::get('/editor', [EditorController::class, 'index'])
     Route::post('/pages/{page}/assign-template', [PageController::class, 'assignTemplate']);
     Route::post('/pages/{page}/remove-template', [PageController::class, 'removeTemplate']);
 
-
     
+
+        // Variables
+        Route::prefix('variables')->group(function () {
+    Route::get('/', [VariableController::class, 'index']);
+    Route::post('/', [VariableController::class, 'store']);
+    Route::get('/{id}', [VariableController::class, 'show']);
+    Route::put('/{id}', [VariableController::class, 'update']);
+    Route::delete('/{id}', [VariableController::class, 'destroy']);
+    
+    // Endpoints especiales
+    Route::get('/categories/list', [VariableController::class, 'categories']);
+    Route::post('/test', [VariableController::class, 'test']);
+    Route::post('/{id}/refresh', [VariableController::class, 'refresh']);
+    Route::get('/resolve/{key}', [VariableController::class, 'resolve']);
+    Route::get('/resolved/all', [VariableController::class, 'resolved']);
+
+            });
+
 });
 
+
+
+// Variables API Routes
+
+    // CRUD básico
+  
 
 

@@ -1,6 +1,4 @@
-// ===================================================================
-// resources/js/block-builder/plugins/variables/index.js - VERSIÓN COMPLETA
-// ===================================================================
+// resources/js/block-builder/plugins/variables/index.js - UPDATED
 
 import { 
     SystemProvider, 
@@ -9,6 +7,11 @@ import {
     TemplatesProvider,
     createCustomProvider 
 } from './providers.js';
+
+// NUEVO: Import DatabaseProvider
+import DatabaseProvider from './database/DatabaseProvider.js';
+import variableAPI from './api/VariableAPI.js';
+
 import { VariableProcessor, VariableAnalyzer } from './processor.js';
 import { 
     getVariableCompletions,
@@ -20,7 +23,7 @@ import {
 
 const variablesPlugin = {
     name: 'variables',
-    version: '2.0.0',
+    version: '2.1.0', // Updated version
     dependencies: [],
     previewPriority: 95,
     
@@ -29,27 +32,37 @@ const variablesPlugin = {
     // ===================================================================
     
     async init(context) {
-        console.log('🎯 Initializing Variables Plugin v2.0.0...');
+        console.log('🎯 Initializing Variables Plugin v2.1.0...');
         
         try {
             // Inicializar el procesador con providers
             this.processor = new VariableProcessor();
             this.analyzer = new VariableAnalyzer(this.processor);
             
-            // Registrar providers por defecto
+            // NUEVO: Registrar DatabaseProvider primero (mayor prioridad)
+            this.processor.addProvider('database', DatabaseProvider);
+            
+            // Registrar providers existentes
             this.processor.addProvider('system', SystemProvider);
             this.processor.addProvider('user', UserProvider);
             this.processor.addProvider('site', SiteProvider);
             this.processor.addProvider('templates', TemplatesProvider);
             
+            // NUEVO: Inicializar API wrapper
+            this.api = variableAPI;
+            
             // Iniciar auto-refresh donde sea necesario
             SystemProvider.startAutoRefresh();
+            DatabaseProvider.startAutoRefresh(); // NUEVO
             
             // Configurar el procesador global
             window.processVariables = (content) => this.processVariables(content);
             
             // Configurar funciones de CodeMirror
             this._setupEditorIntegration();
+            
+            // NUEVO: Exponer API para interfaces de administración
+            this._setupAdminAPI();
             
             console.log('✅ Variables Plugin initialized successfully');
             return this;
@@ -60,231 +73,282 @@ const variablesPlugin = {
         }
     },
 
-
+    // ===================================================================
+    // NUEVA: CONFIGURACIÓN DE API PARA ADMIN
+    // ===================================================================
+    
+    _setupAdminAPI() {
+        // Exponer API para interfaces de administración
+        window.variablesAdmin = {
+            // CRUD operations
+            create: (data) => this.api.create(data),
+            update: (id, data) => this.api.update(id, data),
+            delete: (id) => this.api.delete(id),
+            getAll: (filters) => this.api.getAll(filters),
+            getById: (id) => this.api.getById(id),
+            
+            // Special operations
+            test: (data) => this.api.test(data),
+            refresh: (id) => this.api.refresh(id),
+            getCategories: () => this.api.getCategories(),
+            
+            // Bulk operations
+            createMultiple: (variables) => this.api.createMultiple(variables),
+            updateMultiple: (updates) => this.api.updateMultiple(updates),
+            deleteMultiple: (ids) => this.api.deleteMultiple(ids),
+            refreshMultiple: (ids) => this.api.refreshMultiple(ids),
+            
+            // Utilities
+            validateKey: (key) => this.api.validateKey(key),
+            validateConfig: (type, config) => this.api.validateConfig(type, config),
+            formatVariable: (variable) => this.api.formatVariable(variable),
+            
+            // Events
+            onVariableChange: (callback) => this._addVariableChangeListener(callback),
+            refreshProvider: (providerName) => this._refreshProvider(providerName)
+        };
+        
+        console.log('🔧 Variables Admin API exposed to window.variablesAdmin');
+    },
 
     // ===================================================================
-    // API PÚBLICA DEL PLUGIN
+    // NUEVOS: MÉTODOS DE GESTIÓN AVANZADA
     // ===================================================================
     
     /**
-     * Procesar variables en contenido HTML
+     * Refrescar un provider específico
      */
-    processVariables(content) {
-        return this.processor.processCode(content);
+    async _refreshProvider(providerName) {
+        const provider = this.processor.getProvider(providerName);
+        if (provider && provider.refresh) {
+            await provider.refresh();
+            this._emit('providerRefreshed', { provider: providerName });
+        }
     },
 
     /**
-     * Obtener todas las variables disponibles
+     * Agregar listener para cambios en variables
      */
-    getAvailableVariables() {
+    _addVariableChangeListener(callback) {
+        if (!this._changeListeners) {
+            this._changeListeners = [];
+        }
+        this._changeListeners.push(callback);
+    },
+
+    /**
+     * Emitir evento de cambio en variables
+     */
+    _emit(event, data) {
+        if (this._changeListeners) {
+            this._changeListeners.forEach(callback => {
+                try {
+                    callback(event, data);
+                } catch (error) {
+                    console.error('Error in variable change listener:', error);
+                }
+            });
+        }
+    },
+
+    /**
+     * NUEVO: Crear variable desde interfaz
+     */
+    async createVariable(data) {
+        try {
+            const result = await this.api.create(data);
+            
+            // Refrescar DatabaseProvider para obtener la nueva variable
+            await this._refreshProvider('database');
+            
+            this._emit('variableCreated', result);
+            return result;
+            
+        } catch (error) {
+            console.error('❌ Error creating variable:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * NUEVO: Actualizar variable desde interfaz
+     */
+    async updateVariable(id, data) {
+        try {
+            const result = await this.api.update(id, data);
+            
+            // Refrescar DatabaseProvider para obtener cambios
+            await this._refreshProvider('database');
+            
+            this._emit('variableUpdated', result);
+            return result;
+            
+        } catch (error) {
+            console.error('❌ Error updating variable:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * NUEVO: Eliminar variable desde interfaz
+     */
+    async deleteVariable(id) {
+        try {
+            const result = await this.api.delete(id);
+            
+            // Refrescar DatabaseProvider para remover la variable
+            await this._refreshProvider('database');
+            
+            this._emit('variableDeleted', { id });
+            return result;
+            
+        } catch (error) {
+            console.error('❌ Error deleting variable:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * NUEVO: Probar configuración de variable
+     */
+    async testVariable(data) {
+        try {
+            return await this.api.test(data);
+        } catch (error) {
+            console.error('❌ Error testing variable:', error);
+            throw error;
+        }
+    },
+
+    // ===================================================================
+    // MÉTODOS EXISTENTES (sin cambios)
+    // ===================================================================
+    
+    _setupEditorIntegration() {
+        if (window.editorBridge) {
+            window.editorBridge.onVariableRequest = (context) => {
+                return getVariableCompletions(context, this);
+            };
+            
+            window.editorBridge.onVariableValidation = (content) => {
+                return validateVariablesInCode(content, this);
+            };
+            
+            console.log('🔧 Variables editor integration configured');
+        }
+    },
+
+    processVariables(content) {
+        if (!content || typeof content !== 'string') {
+            return content;
+        }
+
+        try {
+            return this.processor.process(content);
+        } catch (error) {
+            console.error('❌ Error processing variables:', error);
+            return content;
+        }
+    },
+
+    getVariable(path) {
+        return this.processor.getVariable(path);
+    },
+
+    getAllVariables() {
         return this.processor.getAllVariables();
     },
 
-    /**
-     * Validar una variable específica
-     */
-    validateVariable(variablePath) {
-        return this.processor.validateVariable(variablePath);
+    getProviderVariables(providerName) {
+        return this.processor.getProviderVariables(providerName);
     },
 
-    /**
-     * Extraer variables de código HTML
-     */
-    extractVariables(htmlCode) {
-        return this.processor.extractVariables(htmlCode);
-    },
-
-    /**
-     * Encontrar variables inválidas
-     */
-    findInvalidVariables(htmlCode) {
-        return this.processor.findInvalidVariables(htmlCode);
-    },
-
-    /**
-     * Formatear variable para inserción
-     */
-    formatVariableForInsertion(variablePath) {
-        return `{{ \${variablePath} }}`;
-    },
-
-    /**
-     * Analizar uso de variables en código
-     */
-    analyzeCode(htmlCode) {
-        return this.analyzer.analyzeCode(htmlCode);
-    },
-
-    /**
-     * Obtener completions para CodeMirror
-     */
-    getCompletions(context) {
-        try {
-            const completions = getVariableCompletions(context, this);
-            
-            // Registrar variables usadas para estadísticas
-            completions.forEach(completion => {
-                if (completion.type === 'variable') {
-                    const variable = completion.label.replace(/\{\{\s*|\s*\}\}/g, '');
-                    recordRecentVariable(variable);
-                }
-            });
-            
-            return completions;
-        } catch (error) {
-            console.error('Error getting variable completions:', error);
-            return [];
-        }
-    },
-
-    /**
-     * Validar sintaxis para CodeMirror
-     */
-    validateSyntax(code) {
-        try {
-            const errors = validateVariablesInCode(code, this);
-            const warnings = [];
-            
-            // Añadir análisis adicional
-            const analysis = this.analyzeCode(code);
-            
-            if (analysis.invalidVariables > 0) {
-                warnings.push({
-                    type: 'invalid-variables',
-                    message: `\${analysis.invalidVariables} variable(s) inválida(s) encontrada(s)`,
-                    severity: 'warning'
-                });
+    getVariablesByCategory(category) {
+        const allVars = this.getAllVariables();
+        const filtered = {};
+        
+        Object.entries(allVars).forEach(([providerKey, providerData]) => {
+            if (providerData.metadata?.category === category) {
+                Object.assign(filtered, providerData.variables);
             }
-            
-            return { errors, warnings };
-        } catch (error) {
-            console.error('Error validating variables:', error);
-            return { errors: [], warnings: [] };
-        }
+        });
+        
+        return filtered;
     },
 
-    /**
-     * Añadir provider personalizado
-     */
+    analyzeContent(content) {
+        return this.analyzer.analyze(content);
+    },
+
+    validateVariable(path) {
+        return this.processor.hasVariable(path);
+    },
+
+    formatVariableForInsertion(path) {
+        return `{{${path}}}`;
+    },
+
     addProvider(name, provider) {
         this.processor.addProvider(name, provider);
+        console.log(`➕ Variable provider added: ${name}`);
     },
 
-    /**
-     * Remover provider
-     */
     removeProvider(name) {
-        return this.processor.removeProvider(name);
-    },
-
-    /**
-     * Obtener estadísticas del plugin
-     */
-    getStats() {
-        return {
-            processor: this.processor.getStats(),
-            performance: this.analyzer.getPerformanceMetrics(),
-            providers: Array.from(this.processor.providers.keys())
-        };
+        this.processor.removeProvider(name);
+        console.log(`➖ Variable provider removed: ${name}`);
     },
 
     // ===================================================================
-    // INTEGRACIÓN CON EDITOR
+    // DEBUG HELPERS (UPDATED)
     // ===================================================================
     
-    /**
-     * Configurar integración con CodeMirror
-     * @private
-     */
-    _setupEditorIntegration() {
-        // Configurar window.editorBridge si existe
-        if (window.editorBridge) {
-            const originalGetCompletions = window.editorBridge.getCompletions;
-            
-            window.editorBridge.getCompletions = async (context) => {
-                let completions = [];
-                
-                // Obtener completions originales
-                if (originalGetCompletions) {
-                    try {
-                        completions = await originalGetCompletions.call(window.editorBridge, context);
-                    } catch (error) {
-                        console.warn('Error getting original completions:', error);
-                    }
-                }
-                
-                // Añadir completions de variables
-                try {
-                    const variableCompletions = this.getCompletions(context);
-                    completions.push(...variableCompletions);
-                } catch (error) {
-                    console.warn('Error getting variable completions:', error);
-                }
-                
-                return completions;
-            };
-            
-            const originalValidateSyntax = window.editorBridge.validateSyntax;
-            
-            window.editorBridge.validateSyntax = async (code) => {
-                let result = { errors: [], warnings: [] };
-                
-                // Obtener validación original
-                if (originalValidateSyntax) {
-                    try {
-                        result = await originalValidateSyntax.call(window.editorBridge, code);
-                    } catch (error) {
-                        console.warn('Error in original validation:', error);
-                    }
-                }
-                
-                // Añadir validación de variables
-                try {
-                    const variableValidation = this.validateSyntax(code);
-                    result.errors.push(...variableValidation.errors);
-                    result.warnings.push(...variableValidation.warnings);
-                } catch (error) {
-                    console.warn('Error validating variables:', error);
-                }
-                
-                return result;
-            };
-            
-            console.log('✅ Variables plugin integrated with EditorBridge');
-        }
-        
-        // Configurar funciones globales para debugging
+    _setupDebugHelpers() {
         if (process.env.NODE_ENV === 'development') {
             window.debugVariables = {
-                showAvailable: () => {
-                    console.table(this.getAvailableVariables());
+                // Existing methods...
+                listProviders: () => {
+                    console.table(Array.from(this.processor.providers.entries()).map(([name, provider]) => ({
+                        name,
+                        title: provider.title,
+                        category: provider.category,
+                        priority: provider.priority,
+                        variables: Object.keys(provider.getVariables()).length,
+                        lastUpdated: provider.lastUpdated
+                    })));
                 },
-                analyzeCode: (code) => {
-                    console.log('Analysis:', this.analyzeCode(code));
+                
+                // NUEVO: Debug para DatabaseProvider
+                debugDatabase: async () => {
+                    console.log('💾 Database Provider Status:');
+                    console.log('Loading:', DatabaseProvider.loading);
+                    console.log('Last Fetch:', new Date(DatabaseProvider.lastFetch));
+                    console.log('Variables Count:', Object.keys(await DatabaseProvider.getVariables()).length);
+                    console.log('Cache:', DatabaseProvider.cache);
                 },
-                getStats: () => {
-                    console.log('Stats:', this.getStats());
-                },
-                testVariable: (variable) => {
-                    console.log(`Variable "${variable}" is ${this.validateVariable(variable) ? 'valid' : 'invalid'}`);
+                
+                // NUEVO: Test API connection
+                testAPI: async () => {
+                    try {
+                        const categories = await this.api.getCategories();
+                        console.log('✅ API Connection OK');
+                        console.log('Categories:', categories);
+                    } catch (error) {
+                        console.error('❌ API Connection Failed:', error);
+                    }
                 }
             };
-            
-            console.log('🔧 Variables debug helpers: window.debugVariables');
         }
     },
 
     // ===================================================================
-    // CLEANUP
+    // CLEANUP (UPDATED)
     // ===================================================================
     
-    /**
-     * Limpiar recursos del plugin
-     */
     async cleanup() {
         try {
             // Detener auto-refresh de providers
             SystemProvider.stopAutoRefresh();
+            DatabaseProvider.stopAutoRefresh(); // NUEVO
             
             // Limpiar providers
             for (const [name, provider] of this.processor.providers.entries()) {
@@ -299,6 +363,10 @@ const variablesPlugin = {
             // Limpiar funciones globales
             delete window.processVariables;
             delete window.debugVariables;
+            delete window.variablesAdmin; // NUEVO
+            
+            // Limpiar listeners
+            this._changeListeners = [];
             
             console.log('🧹 Variables plugin cleaned up');
         } catch (error) {
@@ -308,14 +376,16 @@ const variablesPlugin = {
 };
 
 // ===================================================================
-// DEBUGGING Y DESARROLLO
+// DEBUGGING Y DESARROLLO (UPDATED)
 // ===================================================================
 
 if (process.env.NODE_ENV === 'development') {
     // Exponer plugin para debugging
     window.variablesPlugin = variablesPlugin;
+    window.DatabaseProvider = DatabaseProvider;
+    window.variableAPI = variableAPI;
     
-    console.log('🔧 Variables plugin exposed to window for debugging');
+    console.log('🔧 Variables plugin (v2.1.0) exposed to window for debugging');
 }
 
 export default variablesPlugin;

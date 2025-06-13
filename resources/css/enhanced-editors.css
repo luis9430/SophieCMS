@@ -1,0 +1,541 @@
+/* 
+ * resources/css/enhanced-editors.css
+ * Estilos completos para EnhancedCodeMirrorEditor y FinalVisualEditor con Variables
+ */
+
+/* ===================================================================
+   CONTENEDORES PRINCIPALES
+   ================================================================= */
+
+.enhanced-editor-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+    background: white;
+}
+
+.final-visual-editor-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+    background: white;
+}
+
+/* ===================================================================
+   HEADERS DE EDITORES
+   ================================================================= */
+
+.editor-header {
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    color: #374151;
+    min-height: 40px;
+}
+
+.editor-variables-header {
+    background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+    border-bottom: 1px solid #0ea5e9;
+    padding: 6px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #0c4a6e;
+}
+
+/* ===================================================================
+   STATUS INDICATORS
+   ================================================================= */
+
+.status-info {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.variables-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.status-dot,
+.status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+}
+
+.status-dot.online,
+.status-indicator.online {
+    background: #10b981;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.status-dot.offline,
+.status-indicator.offline {
+    background: #ef4444;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+}
+
+.completion-info {
+    font-size: 11px;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.variable-stats {
+    font-size: 11px;
+    color: #0369a1;
+    font-weight: 500;
+}
+
+.variables-help {
+    display: flex;
+    align-items: center;
+}
+
+.help-text {
+    font-size: 11px;
+    color: #0369a1;
+    font-style: italic;
+}
+
+/* ===================================================================
+   VARIABLES EN EDITOR - HIGHLIGHTING
+   ================================================================= */
+
+.cm-variable-highlight {
+    background: rgba(139, 92, 246, 0.1) !important;
+    color: #8b5cf6 !important;
+    font-weight: 600;
+    border-radius: 3px;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    padding: 1px 2px;
+    transition: all 0.2s ease;
+}
+
+.cm-variable-highlight:hover {
+    background: rgba(139, 92, 246, 0.2) !important;
+    border-color: rgba(139, 92, 246, 0.5);
+    cursor: pointer;
+}
+
+/* ===================================================================
+   AUTOCOMPLETADO DE VARIABLES
+   ================================================================= */
+
+.cm-tooltip-autocomplete {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    max-height: 300px;
+    min-width: 250px;
+    font-size: 13px;
+}
+
+.cm-tooltip-autocomplete .cm-completionLabel {
+    font-family: 'JetBrains Mono', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+}
+
+.cm-tooltip-autocomplete .cm-completionLabel[data-type="variable"] {
+    color: #8b5cf6;
+    font-weight: 600;
+}
+
+.cm-tooltip-autocomplete .cm-completionLabel[data-type="variable"]::before {
+    content: "🎯 ";
+    margin-right: 4px;
+}
+
+.cm-tooltip-autocomplete .cm-completionInfo {
+    font-size: 11px;
+    color: #6b7280;
+    font-style: italic;
+}
+
+.cm-tooltip-autocomplete .cm-completionDetail {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    background: #f3f4f6;
+    padding: 2px 4px;
+    border-radius: 2px;
+    color: #374151;
+}
+
+.cm-tooltip-autocomplete .cm-completionMatchType {
+    background: #f3f4f6;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.cm-tooltip-autocomplete li[aria-selected] {
+    background: #3b82f6 !important;
+    color: white;
+}
+
+/* ===================================================================
+   TOOLTIPS DE VARIABLES
+   ================================================================= */
+
+.variable-tooltip {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 
+        0 4px 6px -1px rgba(0, 0, 0, 0.1),
+        0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    font-size: 13px;
+    max-width: 280px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 1000;
+}
+
+.variable-tooltip:hover {
+    box-shadow: 
+        0 10px 15px -3px rgba(0, 0, 0, 0.1),
+        0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    transform: translateY(-1px);
+}
+
+.variable-tooltip-header {
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 6px;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.variable-tooltip-value {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #475569;
+    margin-bottom: 6px;
+    word-break: break-all;
+}
+
+.variable-tooltip-type {
+    font-size: 11px;
+    color: #64748b;
+    text-align: right;
+    font-style: italic;
+}
+
+.variable-tooltip-error {
+    color: #dc2626;
+    font-weight: 600;
+}
+
+.variable-tooltip-help {
+    font-size: 11px;
+    color: #6b7280;
+    font-style: italic;
+    margin-top: 4px;
+    border-top: 1px solid #f3f4f6;
+    padding-top: 4px;
+}
+
+/* ===================================================================
+   QUICK ACCESS BUTTONS PARA VARIABLES
+   ================================================================= */
+
+.variable-quick-access {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 16px;
+}
+
+.variable-quick-button {
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+    color: #1e40af;
+    border: 1px solid #93c5fd;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 500;
+}
+
+.variable-quick-button:hover {
+    background: linear-gradient(135deg, #bfdbfe, #93c5fd);
+    border-color: #60a5fa;
+    transform: translateY(-1px);
+}
+
+.variable-quick-button:active {
+    transform: translateY(0);
+}
+
+/* ===================================================================
+   INDICADORES DE ESTADO DE VARIABLES
+   ================================================================= */
+
+.variable-status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.variable-status-indicator:hover {
+    background: #f3f4f6;
+}
+
+.variable-count {
+    font-weight: 600;
+    color: #8b5cf6;
+}
+
+/* ===================================================================
+   RESPONSIVE DESIGN
+   ================================================================= */
+
+@media (max-width: 768px) {
+    .editor-header {
+        flex-direction: column;
+        gap: 8px;
+        align-items: flex-start;
+        padding: 12px 16px;
+    }
+    
+    .editor-variables-header {
+        flex-direction: column;
+        gap: 6px;
+        align-items: flex-start;
+        padding: 8px 16px;
+    }
+    
+    .status-info {
+        gap: 12px;
+        font-size: 12px;
+        flex-wrap: wrap;
+    }
+    
+    .variable-quick-access {
+        margin-left: 0;
+        margin-top: 4px;
+    }
+    
+    .variable-tooltip {
+        max-width: 240px;
+        font-size: 12px;
+    }
+    
+    .completion-info {
+        margin-top: 4px;
+    }
+}
+
+/* ===================================================================
+   TEMAS - MODO OSCURO
+   ================================================================= */
+
+[data-theme="dark"] .enhanced-editor-container,
+[data-theme="dark"] .final-visual-editor-container {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+[data-theme="dark"] .editor-header {
+    background: #1f2937;
+    border-color: #374151;
+    color: #f9fafb;
+}
+
+[data-theme="dark"] .editor-variables-header {
+    background: linear-gradient(135deg, #1e293b, #0f172a);
+    border-color: #0ea5e9;
+    color: #0ea5e9;
+}
+
+[data-theme="dark"] .variable-tooltip {
+    background: #374151;
+    border-color: #4b5563;
+    color: #f9fafb;
+}
+
+[data-theme="dark"] .variable-tooltip-header {
+    color: #f9fafb;
+}
+
+[data-theme="dark"] .variable-tooltip-value {
+    background: #1f2937;
+    border-color: #374151;
+    color: #d1d5db;
+}
+
+[data-theme="dark"] .variable-tooltip-type {
+    color: #9ca3af;
+}
+
+[data-theme="dark"] .variable-tooltip-error {
+    color: #fca5a5;
+}
+
+[data-theme="dark"] .status-info {
+    color: #d1d5db;
+}
+
+[data-theme="dark"] .completion-info {
+    color: #9ca3af;
+}
+
+[data-theme="dark"] .variable-quick-button {
+    background: linear-gradient(135deg, #1e40af, #1d4ed8);
+    color: #dbeafe;
+    border-color: #3b82f6;
+}
+
+[data-theme="dark"] .variable-quick-button:hover {
+    background: linear-gradient(135deg, #1d4ed8, #2563eb);
+    border-color: #60a5fa;
+}
+
+[data-theme="dark"] .variable-status-indicator:hover {
+    background: #374151;
+}
+
+[data-theme="dark"] .cm-variable-highlight {
+    background: rgba(139, 92, 246, 0.2) !important;
+    border-color: rgba(139, 92, 246, 0.4);
+}
+
+[data-theme="dark"] .cm-variable-highlight:hover {
+    background: rgba(139, 92, 246, 0.3) !important;
+    border-color: rgba(139, 92, 246, 0.6);
+}
+
+[data-theme="dark"] .cm-tooltip-autocomplete {
+    background: #374151;
+    border-color: #4b5563;
+    color: #f9fafb;
+}
+
+[data-theme="dark"] .cm-completionMatchType {
+    background: #1f2937;
+    color: #9ca3af;
+}
+
+[data-theme="dark"] .cm-completionDetail {
+    background: #1f2937;
+    color: #d1d5db;
+}
+
+[data-theme="dark"] .variable-stats {
+    color: #0ea5e9;
+}
+
+[data-theme="dark"] .help-text {
+    color: #0ea5e9;
+}
+
+/* ===================================================================
+   ANIMACIONES Y TRANSICIONES
+   ================================================================= */
+
+@keyframes variable-highlight {
+    0% { background: rgba(139, 92, 246, 0.3); }
+    50% { background: rgba(139, 92, 246, 0.1); }
+    100% { background: rgba(139, 92, 246, 0.3); }
+}
+
+.cm-variable-highlight.newly-added {
+    animation: variable-highlight 1s ease-in-out 2;
+}
+
+.variable-tooltip {
+    animation: tooltipSlideIn 0.2s ease-out;
+}
+
+@keyframes tooltipSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes statusPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.status-dot.loading,
+.status-indicator.loading {
+    animation: statusPulse 1.5s ease-in-out infinite;
+}
+
+/* ===================================================================
+   UTILIDADES
+   ================================================================= */
+
+.text-variable {
+    color: #8b5cf6;
+    font-weight: 600;
+}
+
+.bg-variable {
+    background: rgba(139, 92, 246, 0.1);
+    border-radius: 3px;
+    padding: 1px 3px;
+}
+
+.border-variable {
+    border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+/* ===================================================================
+   PRINT STYLES
+   ================================================================= */
+
+@media print {
+    .editor-header,
+    .editor-variables-header {
+        display: none;
+    }
+    
+    .enhanced-editor-container,
+    .final-visual-editor-container {
+        border: none;
+        box-shadow: none;
+    }
+    
+    .variable-tooltip {
+        display: none;
+    }
+}

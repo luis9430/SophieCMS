@@ -75,78 +75,108 @@ const EnhancedCodeMirrorEditor = ({
      * Función de autocompletado unificada que usa EditorBridge
      */
     const createAutocompletionSystem = useCallback(() => {
+        if (!autocompletionEnabled) return [];
+
         return autocompletion({
             override: [
-                async (context) => {
-                    try {
-                        let suggestions = [];
-                        let source = 'legacy';
-
-                        // 🔌 USAR EDITOR BRIDGE SI ESTÁ DISPONIBLE
-                        if (systemStatus.editorBridge && window.editorBridge) {
-                            try {
-                                suggestions = await window.editorBridge.getCompletions(context);
-                                source = 'plugins';
-                                console.log(`📝 Got ${suggestions.length} suggestions from EditorBridge`);
-                            } catch (error) {
-                                console.warn('⚠️ EditorBridge completions failed:', error);
-                                suggestions = getLegacyCompletions(context);
-                            }
-                        } else {
-                            suggestions = getLegacyCompletions(context);
-                        }
-
-                        // Actualizar estadísticas
+                // ✅ FUNCIÓN UNIFICADA QUE MANEJA TODO
+                (context) => {
+                    // 🎯 1. PRIMERO: Intentar variables
+                    const variableCompletions = tryGetVariableCompletions(context);
+                    if (variableCompletions) {
                         setCompletionStats({
-                            totalSuggestions: suggestions.length,
-                            lastTriggered: new Date().toLocaleTimeString(),
-                            source
+                            totalSuggestions: variableCompletions.options.length,
+                            lastTriggered: new Date(),
+                            source: 'variables'
                         });
-
-                        if (suggestions.length === 0) return null;
-
-                        const word = context.matchBefore(/[\w-:@${}.]*/);
-                        if (!word || (word.from === word.to && !context.explicit)) return null;
-
-                        return {
-                            from: word.from,
-                            options: suggestions.map(suggestion => ({
-                                ...suggestion,
-                                apply: suggestion.apply || ((view, completion, from, to) => {
-                                    view.dispatch({
-                                        changes: { from, to, insert: completion.label }
-                                    });
-                                })
-                            }))
-                        };
-
-                    } catch (error) {
-                        console.error('❌ Autocompletion error:', error);
-                        return null;
+                        return variableCompletions;
                     }
+
+                    // 🔌 2. SEGUNDO: Intentar plugins
+                    if (systemStatus.editorBridge && window.editorBridge) {
+                        try {
+                            const pluginCompletions = window.editorBridge.getCompletions(context);
+                            if (pluginCompletions && pluginCompletions.length > 0) {
+                                setCompletionStats({
+                                    totalSuggestions: pluginCompletions.length,
+                                    lastTriggered: new Date(),
+                                    source: 'plugins'
+                                });
+                                return {
+                                    from: context.pos,
+                                    options: pluginCompletions
+                                };
+                            }
+                        } catch (error) {
+                            console.warn('Plugin completions error:', error);
+                        }
+                    }
+
+                    // 🎨 3. TERCERO: Intentar Tailwind
+                    const tailwindCompletions = tryGetTailwindCompletions(context);
+                    if (tailwindCompletions) {
+                        setCompletionStats({
+                            totalSuggestions: tailwindCompletions.options.length,
+                            lastTriggered: new Date(),
+                            source: 'tailwind'
+                        });
+                        return tailwindCompletions;
+                    }
+
+                    return null;
                 }
             ],
+            closeOnBlur: false,
             activateOnTyping: true,
-            maxRenderedOptions: 50,
-            closeOnBlur: true,
-            defaultKeymap: true,
-            interactionDelay: 75,
-            override: {
-                // Configuración visual del autocompletado
-                optionClass: (completion) => {
-                    const typeClasses = {
-                        'variable': 'cm-completion-variable',
-                        'alpine-directive': 'cm-completion-alpine-directive',
-                        'alpine-magic': 'cm-completion-alpine-magic',
-                        'alpine-event': 'cm-completion-alpine-event',
-                        'plugin': 'cm-completion-plugin',
-                        'class': 'cm-completion-css-class'
-                    };
-                    return typeClasses[completion.type] || 'cm-completion-default';
-                }
-            }
+            selectOnOpen: false,
+            maxRenderedOptions: 50
         });
-    }, [systemStatus.editorBridge]);
+    }, [autocompletionEnabled, systemStatus]);
+
+
+    const tryGetVariableCompletions = (context) => {
+        if (!systemStatus.variables) return null;
+        
+        try {
+            // Detectar si estamos escribiendo variables
+            const beforeCursor = context.state.doc.sliceString(
+                Math.max(0, context.pos - 50), 
+                context.pos
+            );
+            
+            const variableMatch = beforeCursor.match(/\{\{[\w.]*$/);
+            if (!variableMatch) return null;
+
+            // Usar la función importada
+            return getVariableCompletions(context);
+        } catch (error) {
+            console.warn('Variable completions error:', error);
+            return null;
+        }
+    };
+
+    
+    const tryGetTailwindCompletions = (context) => {
+        const word = context.matchBefore(/class\s*=\s*["'][^"']*$/);
+        if (!word) return null;
+
+        const tailwindClasses = [
+            'bg-blue-500', 'text-white', 'p-4', 'm-4', 'flex', 'grid', 
+            'w-full', 'h-full', 'rounded', 'shadow', 'border'
+        ];
+
+        const options = tailwindClasses.map(className => ({
+            label: className,
+            type: 'keyword',
+            info: 'Tailwind CSS class'
+        }));
+
+        return {
+            from: word.from,
+            options,
+            validFor: /^[\w-]*$/
+        };
+    };
 
     /**
      * Autocompletado legacy como fallback

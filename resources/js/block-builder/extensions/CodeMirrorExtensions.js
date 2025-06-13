@@ -255,6 +255,29 @@ const getLiquidCompletions = (context) => {
     };
 };
 
+
+const tryVariableCompletions = async (context) => {
+    const beforeCursor = context.state.doc.sliceString(
+        Math.max(0, context.pos - 50), 
+        context.pos
+    );
+    
+    const variableMatch = beforeCursor.match(/\{\{[\w.]*$/);
+    if (!variableMatch) return null;
+
+    const variablesPlugin = window.pluginManager?.get('variables');
+    if (!variablesPlugin) return null;
+
+    // Usar la función de VariableAutoComplete.js
+    try {
+        const { getVariableCompletions } = await import('../codemirror/VariableAutoComplete.js');
+        return getVariableCompletions(context);
+    } catch (error) {
+        console.warn('Error importing variable completions:', error);
+        return null;
+    }
+};
+
 // Crear extensiones principales
 export const createCodeMirrorExtensions = (
     extensions = [],
