@@ -67,9 +67,3 @@ Route::get('/editor', [EditorController::class, 'index'])
     Route::post('/pages/{page}/assign-template', [PageController::class, 'assignTemplate']);
     Route::post('/pages/{page}/remove-template', [PageController::class, 'removeTemplate']);
 
-
-    Route::get('/test-page', function () {
-    $page = App\Models\Page::find(1);
-    $renderer = app(\App\Services\PageRenderer::class);
-    return response($renderer->render($page));
-});
