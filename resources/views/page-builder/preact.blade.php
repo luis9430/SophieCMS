@@ -22,7 +22,6 @@
             overflow: hidden;
         }
         
-        /* Loading placeholder */
         .loading-placeholder {
             display: flex;
             align-items: center;

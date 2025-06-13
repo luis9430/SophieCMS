@@ -11,10 +11,18 @@ return new class extends Migration
         Schema::create('templates', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->longText('code'); // HTML/CSS/JS code
-            $table->string('type')->default('html'); // html, css, js
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->string('type'); // 'layout', 'header', 'footer', etc.
+            $table->longText('content'); // 📝 HTML/Liquid como texto plano
+            $table->json('variables')->nullable(); // 📋 Documentación de variables
+            $table->text('description')->nullable(); // 📝 Descripción del template
+            $table->string('category')->nullable(); // 📁 Categoría
+            $table->boolean('is_global')->default(false);
+            $table->boolean('is_active')->default(true);
+            $table->unsignedBigInteger('user_id')->nullable();
             $table->timestamps();
+            $table->index(['type', 'is_global']);
+            $table->index(['category', 'is_active']);
+            $table->foreign('user_id')->references('id')->on('users');
         });
     }
 
