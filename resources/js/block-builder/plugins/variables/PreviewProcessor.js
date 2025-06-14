@@ -1,6 +1,6 @@
 // ===================================================================
 // resources/js/block-builder/plugins/variables/PreviewProcessor.js
-// NUEVO ARCHIVO - Procesador específico para preview con cache inteligente
+// CORREGIDO: Manejo adecuado de variables de BD y objetos complejos
 // ===================================================================
 
 export class VariablesPreviewProcessor {
@@ -32,7 +32,7 @@ export class VariablesPreviewProcessor {
 
             console.log('🔄 Processing content with fresh variables...');
             
-            // Obtener variables actualizadas
+            // Obtener variables actualizadas y normalizadas
             const allVariables = await this.getUpdatedVariables();
             
             // Procesar el contenido
@@ -56,6 +56,7 @@ export class VariablesPreviewProcessor {
 
     /**
      * Obtener variables actualizadas de todos los providers
+     * CORREGIDO: Manejo adecuado de variables de BD
      */
     async getUpdatedVariables() {
         const allVariables = {};
@@ -72,16 +73,95 @@ export class VariablesPreviewProcessor {
         for (const [name, provider] of this.plugin.processor.providers.entries()) {
             try {
                 const variables = await provider.getVariables();
+                
                 if (variables && typeof variables === 'object') {
-                    Object.assign(allVariables, variables);
-                    console.log(`📦 Loaded ${Object.keys(variables).length} variables from ${name}`);
+                    // Normalizar variables de BD que vienen en formato especial
+                    const normalizedVariables = this.normalizeVariables(variables, name);
+                    Object.assign(allVariables, normalizedVariables);
+                    
+                    console.log(`📦 Loaded ${Object.keys(normalizedVariables).length} variables from ${name}`);
                 }
             } catch (error) {
                 console.error(`❌ Error loading variables from ${name}:`, error);
             }
         }
         
+        console.log('🎯 Total variables loaded:', Object.keys(allVariables).length);
         return allVariables;
+    }
+
+    /**
+     * NUEVO: Normalizar variables de diferentes providers
+     */
+    normalizeVariables(variables, providerName) {
+        const normalized = {};
+        
+        Object.entries(variables).forEach(([key, value]) => {
+            // Detectar si viene de BD (formato especial con metadata)
+            if (providerName === 'database' && value && typeof value === 'object' && value.value !== undefined) {
+                // Variables de BD vienen como: { value: "actual_value", type: "static", category: "site" }
+                normalized[key] = this.extractVariableValue(value);
+                console.log(`🔧 Normalized DB variable ${key}:`, normalized[key]);
+            } else {
+                // Variables de otros providers (system, user, etc.)
+                normalized[key] = this.extractVariableValue(value);
+            }
+        });
+        
+        return normalized;
+    }
+
+    /**
+     * NUEVO: Extraer valor real de variables complejas
+     */
+    extractVariableValue(value) {
+        // Si es un objeto con propiedad 'value', extraer esa propiedad
+        if (value && typeof value === 'object' && value.hasOwnProperty('value')) {
+            return this.convertToString(value.value);
+        }
+        
+        // Si es un objeto plano, intentar JSON string
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            // Verificar si es un objeto "real" o solo metadatos
+            const keys = Object.keys(value);
+            if (keys.includes('type') && keys.includes('category') && keys.includes('value')) {
+                // Es metadatos de BD, usar solo el valor
+                return this.convertToString(value.value);
+            }
+            
+            // Es un objeto complejo, convertir a JSON legible
+            try {
+                return JSON.stringify(value, null, 2);
+            } catch (error) {
+                return '[Complex Object]';
+            }
+        }
+        
+        // Para valores primitivos
+        return this.convertToString(value);
+    }
+
+    /**
+     * NUEVO: Convertir cualquier valor a string de forma segura
+     */
+    convertToString(value) {
+        if (value === null) return '';
+        if (value === undefined) return '';
+        if (typeof value === 'string') return value;
+        if (typeof value === 'number') return String(value);
+        if (typeof value === 'boolean') return value ? 'true' : 'false';
+        if (Array.isArray(value)) {
+            return value.map(item => this.convertToString(item)).join(', ');
+        }
+        if (typeof value === 'object') {
+            try {
+                return JSON.stringify(value);
+            } catch (error) {
+                return '[Object]';
+            }
+        }
+        
+        return String(value);
     }
 
     /**
@@ -113,9 +193,11 @@ export class VariablesPreviewProcessor {
 
     /**
      * Reemplazar variables en el contenido
+     * MEJORADO: Mejor logging y manejo de errores
      */
     replaceVariables(content, variables) {
         let processed = content;
+        let replacementCount = 0;
         
         // Procesar variables con sintaxis {{variable.path}}
         Object.entries(variables).forEach(([key, value]) => {
@@ -130,14 +212,19 @@ export class VariablesPreviewProcessor {
             ];
             
             patterns.forEach(pattern => {
-                processed = processed.replace(pattern, (match) => {
-                    const stringValue = String(value !== undefined ? value : '');
-                    console.log(`🔄 Replacing ${match} with "${stringValue}"`);
-                    return stringValue;
-                });
+                const matches = processed.match(pattern);
+                if (matches) {
+                    processed = processed.replace(pattern, (match) => {
+                        const stringValue = this.convertToString(value);
+                        console.log(`🔄 Replacing ${match} with "${stringValue}" (from ${key})`);
+                        replacementCount++;
+                        return stringValue;
+                    });
+                }
             });
         });
         
+        console.log(`✅ Completed ${replacementCount} variable replacements`);
         return processed;
     }
 
@@ -246,7 +333,7 @@ export class VariablesPreviewProcessor {
 }
 
 // ===================================================================
-// Función utilitaria para debugging
+// Función utilitaria para debugging MEJORADA
 // ===================================================================
 
 export const createVariablesDebugger = (processor) => {
@@ -266,6 +353,27 @@ export const createVariablesDebugger = (processor) => {
             const variables = await processor.getUpdatedVariables();
             console.log('🎯 Current variables:', variables);
             return variables;
+        },
+        
+        async testDatabaseVariables() {
+            const dbProvider = processor.plugin.processor.getProvider('database');
+            if (dbProvider) {
+                const raw = await dbProvider.getVariables();
+                console.log('💾 Raw database variables:', raw);
+                
+                const normalized = processor.normalizeVariables(raw, 'database');
+                console.log('🔧 Normalized database variables:', normalized);
+                
+                return { raw, normalized };
+            }
+            console.warn('❌ Database provider not found');
+        },
+        
+        testVariableConversion(value) {
+            const converted = processor.extractVariableValue(value);
+            console.log('Input:', value);
+            console.log('Output:', converted);
+            return converted;
         },
         
         invalidateCache() {

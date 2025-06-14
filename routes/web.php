@@ -5,12 +5,11 @@ use App\Http\Controllers\PageBuilderController;
 use App\Http\Controllers\EditorController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\VariableController;
-
+use App\Http\Controllers\PageController;
 
 Route::get('/', function () {
     return view('welcome');
 });
-
 
 Route::prefix('admin')->group(function () {
     Route::get('/page-builder', [PageBuilderController::class, 'index'])->name('page-builder.index');
@@ -27,67 +26,113 @@ Route::prefix('admin')->group(function () {
     })->name('page-builder.preact');
 });
 
-
 Route::get('/editor', [EditorController::class, 'index'])
     ->middleware('auth')
     ->name('editor');
 
-    Route::prefix('api')->group(function () {
- // Templates
-    Route::get('/templates', [TemplateController::class, 'index']);
-    Route::get('/templates/metadata', [TemplateController::class, 'metadata']);
-    Route::get('/templates/type/{type}', [TemplateController::class, 'byType']);
-    Route::post('/templates', [TemplateController::class, 'store']);
-    Route::get('/templates/{template}', [TemplateController::class, 'show']);
-    Route::put('/templates/{template}', [TemplateController::class, 'update']);
-    Route::delete('/templates/{template}', [TemplateController::class, 'destroy']);
-    Route::post('/templates/{template}/clone', [TemplateController::class, 'clone']);
+// ===================================================================
+// API ROUTES - ORGANIZADAS Y COMPLETAS
+// ===================================================================
 
-    // Pages
-    Route::get('/pages', [PageController::class, 'index']);
-    Route::post('/pages', [PageController::class, 'store']);
-    Route::get('/pages/{page}', [PageController::class, 'show']);
-    Route::put('/pages/{page}', [PageController::class, 'update']);
-    Route::delete('/pages/{page}', [PageController::class, 'destroy']);
-    Route::get('/pages/{page}/render', [PageController::class, 'render']);
-    Route::post('/pages/{page}/publish', [PageController::class, 'publish']);
-    Route::post('/pages/{page}/unpublish', [PageController::class, 'unpublish']);
-    Route::post('/pages/{page}/assign-template', [PageController::class, 'assignTemplate']);
-    Route::post('/pages/{page}/remove-template', [PageController::class, 'removeTemplate']);
-
+Route::prefix('api')->group(function () {
     
-        // Variables
-        Route::prefix('variables')->group(function () {
-    Route::get('/', [VariableController::class, 'index']);
-    Route::post('/', [VariableController::class, 'store']);
-    Route::get('/{id}', [VariableController::class, 'show']);
-    Route::put('/{id}', [VariableController::class, 'update']);
-    Route::delete('/{id}', [VariableController::class, 'destroy']);
-    
-    // Endpoints especiales
-    Route::get('/categories/list', [VariableController::class, 'categories']);
-    Route::post('/test', [VariableController::class, 'test']);
-    Route::post('/{id}/refresh', [VariableController::class, 'refresh']);
-    Route::get('/resolve/{key}', [VariableController::class, 'resolve']);
-    Route::get('/resolved/all', [VariableController::class, 'resolved']);
+    // ===================================================================
+    // VARIABLES API - TODAS LAS RUTAS NECESARIAS
+    // ===================================================================
+    Route::prefix('variables')->group(function () {
+        // CRUD básico
+        Route::get('/', [VariableController::class, 'index']);
+        Route::post('/', [VariableController::class, 'store']);
+        Route::get('/{id}', [VariableController::class, 'show']);
+        Route::put('/{id}', [VariableController::class, 'update']);
+        Route::delete('/{id}', [VariableController::class, 'destroy']);
+        
+        // Endpoints especiales
+        Route::get('/categories/list', [VariableController::class, 'categories']);
+        Route::post('/test', [VariableController::class, 'test']);
+        Route::post('/{id}/refresh', [VariableController::class, 'refresh']);
+        Route::get('/resolve/{key}', [VariableController::class, 'resolve']);
+        Route::get('/resolved/all', [VariableController::class, 'resolved']);
+        
+        // Cache management
+        Route::delete('/cache/clear', [VariableController::class, 'clearCache']);
+        Route::get('/cache/info', [VariableController::class, 'cacheInfo']);
+    });
 
-     });
+    // ===================================================================
+    // TEMPLATES API
+    // ===================================================================
+    Route::prefix('templates')->group(function () {
+        Route::get('/', [TemplateController::class, 'index']);
+        Route::get('/metadata', [TemplateController::class, 'metadata']);
+        Route::get('/type/{type}', [TemplateController::class, 'byType']);
+        Route::post('/', [TemplateController::class, 'store']);
+        Route::get('/{template}', [TemplateController::class, 'show']);
+        Route::put('/{template}', [TemplateController::class, 'update']);
+        Route::delete('/{template}', [TemplateController::class, 'destroy']);
+        Route::post('/{template}/clone', [TemplateController::class, 'clone']);
+    });
 
+    // ===================================================================
+    // PAGES API
+    // ===================================================================
+    Route::prefix('pages')->group(function () {
+        Route::get('/', [PageController::class, 'index']);
+        Route::post('/', [PageController::class, 'store']);
+        Route::get('/{page}', [PageController::class, 'show']);
+        Route::put('/{page}', [PageController::class, 'update']);
+        Route::delete('/{page}', [PageController::class, 'destroy']);
+        Route::get('/{page}/render', [PageController::class, 'render']);
+        Route::post('/{page}/publish', [PageController::class, 'publish']);
+        Route::post('/{page}/unpublish', [PageController::class, 'unpublish']);
+        Route::post('/{page}/assign-template', [PageController::class, 'assignTemplate']);
+        Route::post('/{page}/remove-template', [PageController::class, 'removeTemplate']);
+    });
+
+    // ===================================================================
+    // PAGE BUILDER API ADICIONAL
+    // ===================================================================
+    Route::prefix('admin')->group(function () {
+        // Ruta para preview de templates en API
+        Route::post('/page-builder/preview-template', [PageBuilderController::class, 'previewTemplate'])
+            ->name('api.page-builder.preview-template');
+    });
 });
 
-
-
-// O si prefieres que esté en las rutas API:
-Route::prefix('api/admin')->group(function () {
-    // NUEVA: Ruta para preview de templates en API
-    Route::post('/page-builder/preview-template', [PageBuilderController::class, 'previewTemplate'])
-        ->name('api.page-builder.preview-template');
-});
-
-
-// Variables API Routes
-
-    // CRUD básico
-  
-
-
+// ===================================================================
+// RUTAS DE DESARROLLO Y DEBUG (Solo en desarrollo)
+// ===================================================================
+if (app()->environment('local', 'development')) {
+    Route::prefix('debug')->group(function () {
+        Route::get('/variables', function () {
+            return response()->json([
+                'message' => 'Variables debug endpoint',
+                'routes' => [
+                    'GET /api/variables' => 'List all variables',
+                    'GET /api/variables/categories/list' => 'Get categories',
+                    'GET /api/variables/resolved/all' => 'Get resolved variables',
+                    'POST /api/variables' => 'Create variable',
+                    'PUT /api/variables/{id}' => 'Update variable',
+                    'DELETE /api/variables/{id}' => 'Delete variable'
+                ],
+                'total_variables' => \App\Models\Variable::count(),
+                'timestamp' => now()->toISOString()
+            ]);
+        });
+        
+        Route::get('/routes', function () {
+            $routes = collect(\Illuminate\Support\Facades\Route::getRoutes())->map(function ($route) {
+                return [
+                    'method' => implode('|', $route->methods()),
+                    'uri' => $route->uri(),
+                    'name' => $route->getName(),
+                    'action' => $route->getActionName()
+                ];
+            })->filter(function ($route) {
+                return str_contains($route['uri'], 'api/variables');
+            });
+            
+            return response()->json($routes);
+        });
+    });
+}

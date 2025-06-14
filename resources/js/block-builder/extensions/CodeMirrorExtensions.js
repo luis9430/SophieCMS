@@ -1,4 +1,7 @@
+// ===================================================================
 // resources/js/block-builder/extensions/CodeMirrorExtensions.js
+// SOLUCIONADO: Sistema unificado de autocompletado sin conflictos
+// ===================================================================
 
 import { basicSetup } from 'codemirror';
 import { html } from '@codemirror/lang-html';
@@ -6,7 +9,10 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { EditorView } from '@codemirror/view';
 import { autocompletion, snippetCompletion } from '@codemirror/autocomplete';
 
-// Temas
+// ===================================================================
+// TEMAS
+// ===================================================================
+
 const lightTheme = EditorView.theme({
     '&': {
         color: '#333',
@@ -42,7 +48,7 @@ const lightTheme = EditorView.theme({
         fontSize: '13px'
     },
     
-    // NUEVO: Estilos para sintaxis Liquid
+    // Estilos para sintaxis Liquid y Variables
     '.cm-liquid-tag': {
         backgroundColor: 'rgba(16, 185, 129, 0.1)',
         color: '#059669',
@@ -61,6 +67,17 @@ const lightTheme = EditorView.theme({
         fontWeight: '500'
     },
     
+    // Variables válidas/inválidas
+    '.cm-variable-valid': {
+        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        borderRadius: '3px'
+    },
+    '.cm-variable-invalid': {
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        borderRadius: '3px',
+        textDecoration: 'underline wavy red'
+    },
+    
     // Autocompletado mejorado
     '.cm-tooltip-autocomplete': {
         backgroundColor: '#ffffff',
@@ -72,11 +89,36 @@ const lightTheme = EditorView.theme({
         fontSize: '13px'
     },
     
+    // Tooltip para variables
+    '.cm-tooltip-variable': {
+        background: 'white',
+        border: '1px solid #e5e7eb',
+        borderRadius: '8px',
+        padding: '8px',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+        maxWidth: '300px'
+    },
+    '.cm-tooltip-variable.error': {
+        borderColor: '#ef4444',
+        background: '#fef2f2'
+    },
+    '.variable-tooltip-header': {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        marginBottom: '4px',
+        fontWeight: '600'
+    },
+    '.variable-tooltip-content': {
+        fontSize: '12px',
+        color: '#6b7280'
+    },
+    
     // Iconos para tipos de completions
     '.cm-completion-template:before': { content: '"📄"', marginRight: '4px' },
     '.cm-completion-liquid-tag:before': { content: '"🏷️"', marginRight: '4px' },
     '.cm-completion-liquid-filter:before': { content: '"🔧"', marginRight: '4px' },
-    '.cm-completion-liquid-variable:before': { content: '"🎯"', marginRight: '4px' },
+    '.cm-completion-variable:before': { content: '"🎯"', marginRight: '4px' },
     '.cm-completion-snippet:before': { content: '"⚡"', marginRight: '4px' }
 }, { dark: false });
 
@@ -90,7 +132,7 @@ const darkTheme = [oneDark, EditorView.theme({
         minHeight: '200px'
     },
     
-    // Estilos para Liquid en tema oscuro
+    // Estilos para tema oscuro
     '.cm-liquid-tag': {
         backgroundColor: 'rgba(16, 185, 129, 0.2)',
         color: '#10b981',
@@ -107,35 +149,25 @@ const darkTheme = [oneDark, EditorView.theme({
         backgroundColor: 'rgba(245, 158, 11, 0.2)',
         color: '#f59e0b',
         fontWeight: '500'
+    },
+    '.cm-variable-valid': {
+        backgroundColor: 'rgba(34, 197, 94, 0.2)',
+        borderRadius: '3px'
+    },
+    '.cm-variable-invalid': {
+        backgroundColor: 'rgba(239, 68, 68, 0.2)',
+        borderRadius: '3px',
+        textDecoration: 'underline wavy red'
     }
 })];
 
-// Update listener para cambios de documento
-const updateListener = EditorView.updateListener.of((update) => {
-    if (update.docChanged) {
-        console.log('📝 Document updated');
-    }
-});
+// ===================================================================
+// SISTEMA UNIFICADO DE AUTOCOMPLETADO
+// ===================================================================
 
-// NUEVO: Función para obtener completions de templates
-const getTemplateCompletions = (context) => {
-    const completions = [];
-    
-    // Obtener plugin de templates
-    const templatesPlugin = window.pluginManager?.get('templates');
-    if (templatesPlugin && templatesPlugin.getEditorCompletions) {
-        try {
-            const templateCompletions = templatesPlugin.getEditorCompletions(context);
-            completions.push(...templateCompletions);
-        } catch (error) {
-            console.warn('⚠️ Error getting template completions:', error);
-        }
-    }
-    
-    return completions;
-};
-
-// Obtener snippets de plugins
+/**
+ * Obtener snippets de plugins
+ */
 const getPluginSnippets = () => {
     const snippets = [];
     
@@ -143,17 +175,22 @@ const getPluginSnippets = () => {
         const plugins = window.pluginManager.list();
         
         plugins.forEach(pluginInfo => {
-            const plugin = window.pluginManager.get(pluginInfo.name);
-            if (plugin?.getSnippets) {
-                const pluginSnippets = plugin.getSnippets();
-                Object.entries(pluginSnippets).forEach(([key, snippet]) => {
-                    snippets.push(snippetCompletion(snippet.body, {
-                        label: snippet.label,
-                        detail: snippet.detail || `${pluginInfo.name} snippet`,
-                        type: 'snippet',
-                        boost: 10 // Prioridad alta para snippets
-                    }));
-                });
+            try {
+                const plugin = window.pluginManager.get(pluginInfo.name);
+                if (plugin && plugin.getSnippets) {
+                    const pluginSnippets = plugin.getSnippets();
+                    Object.entries(pluginSnippets).forEach(([key, snippet]) => {
+                        snippets.push(snippetCompletion(snippet.body, {
+                            label: key,
+                            detail: snippet.description || 'Plugin snippet',
+                            type: 'snippet',
+                            info: `${pluginInfo.name} snippet`,
+                            boost: 80
+                        }));
+                    });
+                }
+            } catch (error) {
+                console.warn(`Error loading snippets from plugin ${pluginInfo.name}:`, error);
             }
         });
     }
@@ -161,102 +198,43 @@ const getPluginSnippets = () => {
     return snippets;
 };
 
-// Completions de directivas Alpine/HTML
-const getHTMLCompletions = (context) => {
-    const word = context.matchBefore(/[\w:-]*/);
-    if (!word) return null;
-
-    const completions = [
-        // Directivas Alpine básicas
-        { label: 'x-data', detail: 'Alpine.js component data', insertText: 'x-data="${1:{}}"' },
-        { label: 'x-show', detail: 'Show/hide element', insertText: 'x-show="${1:condition}"' },
-        { label: 'x-if', detail: 'Conditional rendering', insertText: 'x-if="${1:condition}"' },
-        { label: 'x-for', detail: 'Loop directive', insertText: 'x-for="${1:item} in ${2:items}"' },
-        { label: 'x-on:click', detail: 'Click event handler', insertText: 'x-on:click="${1:handler}"' },
-        { label: '@click', detail: 'Click event (shorthand)', insertText: '@click="${1:handler}"' },
-        { label: 'x-bind:', detail: 'Bind attribute', insertText: 'x-bind:${1:attr}="${2:value}"' },
-        { label: ':class', detail: 'Bind class (shorthand)', insertText: ':class="${1:classes}"' },
-        { label: 'x-text', detail: 'Set text content', insertText: 'x-text="${1:expression}"' },
-        { label: 'x-html', detail: 'Set HTML content', insertText: 'x-html="${1:expression}"' },
-        { label: 'x-model', detail: 'Two-way binding', insertText: 'x-model="${1:property}"' },
-        { label: 'x-ref', detail: 'Element reference', insertText: 'x-ref="${1:name}"' },
-        { label: 'x-cloak', detail: 'Hide until Alpine loads', insertText: 'x-cloak' },
-        { label: 'x-transition', detail: 'CSS transitions', insertText: 'x-transition' },
-        
-        // Clases Tailwind comunes
-        { label: 'class="flex"', detail: 'Flexbox container', insertText: 'class="flex ${1:items-center justify-center}"' },
-        { label: 'class="grid"', detail: 'Grid container', insertText: 'class="grid ${1:grid-cols-2 gap-4}"' },
-        { label: 'class="bg-"', detail: 'Background color', insertText: 'class="bg-${1:blue-500}"' },
-        { label: 'class="text-"', detail: 'Text color', insertText: 'class="text-${1:gray-800}"' },
-        { label: 'class="p-"', detail: 'Padding', insertText: 'class="p-${1:4}"' },
-        { label: 'class="m-"', detail: 'Margin', insertText: 'class="m-${1:4}"' },
-        { label: 'class="w-"', detail: 'Width', insertText: 'class="w-${1:full}"' },
-        { label: 'class="h-"', detail: 'Height', insertText: 'class="h-${1:full}"' }
-    ];
-
-    // Agregar completions de plugins (no templates, para evitar duplicados)
-    if (window.pluginManager) {
-        const plugins = window.pluginManager.list();
-        plugins.forEach(pluginInfo => {
-            const plugin = window.pluginManager.get(pluginInfo.name);
-            if (plugin?.getCompletions && pluginInfo.name !== 'templates') {
-                completions.push(...plugin.getCompletions());
-            }
-        });
-    }
-
-    return {
-        from: word.from,
-        options: completions.map(comp => ({
-            label: comp.label,
-            detail: comp.detail,
-            insertText: comp.insertText || comp.label,
-            type: comp.type || 'keyword'
-        }))
-    };
-};
-
-// NUEVO: Completions específicos para Liquid Templates
+/**
+ * Completions para templates Liquid
+ */
 const getLiquidCompletions = (context) => {
-    // Detectar si estamos en contexto Liquid
-    const beforeCursor = context.state.doc.sliceString(Math.max(0, context.pos - 20), context.pos);
-    const afterCursor = context.state.doc.sliceString(context.pos, Math.min(context.state.doc.length, context.pos + 10));
-    
-    // Patrones Liquid
-    const isInLiquidTag = /\{%\s*\w*$/.test(beforeCursor);
-    const isInLiquidOutput = /\{\{\s*[\w.]*$/.test(beforeCursor);
-    const needsClosingTag = /\{%\s*\w+/.test(beforeCursor) && !/\s*%\}/.test(afterCursor);
-    const needsClosingOutput = /\{\{\s*[\w.]+/.test(beforeCursor) && !/\s*\}\}/.test(afterCursor);
-    
-    if (!isInLiquidTag && !isInLiquidOutput && !needsClosingTag && !needsClosingOutput) {
+    const templatesPlugin = window.pluginManager?.get('templates');
+    if (!templatesPlugin || !templatesPlugin.getEditorCompletions) {
         return null;
     }
-    
-    // Obtener completions del plugin de templates
-    const templateCompletions = getTemplateCompletions(context);
-    
-    if (templateCompletions.length === 0) {
+
+    try {
+        const templateCompletions = templatesPlugin.getEditorCompletions(context);
+        
+        if (templateCompletions.length === 0) {
+            return null;
+        }
+        
+        return {
+            from: context.pos,
+            options: templateCompletions.map(completion => ({
+                label: completion.label,
+                type: completion.type || 'template',
+                info: completion.info || 'Template',
+                detail: completion.detail || '',
+                apply: completion.apply || completion.label,
+                boost: completion.boost || 70
+            }))
+        };
+    } catch (error) {
+        console.warn('Error getting template completions:', error);
         return null;
     }
-    
-    // Encontrar el inicio de la palabra Liquid
-    const liquidWord = context.matchBefore(/\{%[\s\w]*|%\}|\{\{[\s\w.]*|\}\}/);
-    
-    return {
-        from: liquidWord ? liquidWord.from : context.pos,
-        options: templateCompletions.map(completion => ({
-            label: completion.label,
-            type: completion.type || 'template',
-            info: completion.info || 'Template',
-            detail: completion.detail || '',
-            apply: completion.apply || completion.label,
-            boost: completion.boost || 70
-        }))
-    };
 };
 
-
-const tryVariableCompletions = async (context) => {
+/**
+ * Completions para variables (importar dinámicamente para evitar conflictos)
+ */
+const getVariableCompletions = async (context) => {
     const beforeCursor = context.state.doc.sliceString(
         Math.max(0, context.pos - 50), 
         context.pos
@@ -268,53 +246,123 @@ const tryVariableCompletions = async (context) => {
     const variablesPlugin = window.pluginManager?.get('variables');
     if (!variablesPlugin) return null;
 
-    // Usar la función de VariableAutoComplete.js
     try {
-        const { getVariableCompletions } = await import('../codemirror/VariableAutoComplete.js');
-        return getVariableCompletions(context);
+        // Usar la función optimizada del sistema de autocompletado
+        const { variableCompletionSource } = await import('../codemirror/VariableAutoComplete.js');
+        return await variableCompletionSource(context);
     } catch (error) {
         console.warn('Error importing variable completions:', error);
         return null;
     }
 };
 
-// Crear extensiones principales
+/**
+ * Completions básicas para HTML/Alpine
+ */
+const getHTMLCompletions = (context) => {
+    const word = context.matchBefore(/[\w-]*/);
+    if (!word) return null;
+
+    const htmlCompletions = [
+        { label: 'div', type: 'element', info: 'HTML div element' },
+        { label: 'span', type: 'element', info: 'HTML span element' },
+        { label: 'p', type: 'element', info: 'HTML paragraph element' },
+        { label: 'x-data', type: 'attribute', info: 'Alpine.js data directive' },
+        { label: 'x-show', type: 'attribute', info: 'Alpine.js show directive' },
+        { label: 'x-if', type: 'attribute', info: 'Alpine.js conditional directive' }
+    ];
+
+    return {
+        from: word.from,
+        options: htmlCompletions.map(completion => ({
+            ...completion,
+            boost: 60
+        }))
+    };
+};
+
+/**
+ * SISTEMA UNIFICADO: Función principal de autocompletado que maneja todas las fuentes
+ */
+const unifiedCompletionSource = async (context) => {
+    // 1. Intentar completions de variables primero (mayor prioridad)
+    try {
+        const variableResult = await getVariableCompletions(context);
+        if (variableResult) {
+            console.log('🎯 Variable completions found:', variableResult.options.length);
+            return variableResult;
+        }
+    } catch (error) {
+        console.warn('Error in variable completions:', error);
+    }
+
+    // 2. Completions de templates Liquid
+    try {
+        const liquidResult = getLiquidCompletions(context);
+        if (liquidResult) {
+            console.log('🏷️ Template completions found:', liquidResult.options.length);
+            return liquidResult;
+        }
+    } catch (error) {
+        console.warn('Error in template completions:', error);
+    }
+
+    // 3. Snippets de plugins
+    const word = context.matchBefore(/\w*/);
+    if (word && word.from < word.to) {
+        const pluginSnippets = getPluginSnippets();
+        if (pluginSnippets.length > 0) {
+            console.log('⚡ Plugin snippets found:', pluginSnippets.length);
+            return {
+                from: word.from,
+                options: pluginSnippets
+            };
+        }
+    }
+
+    // 4. Completions HTML básicas (fallback)
+    const htmlResult = getHTMLCompletions(context);
+    if (htmlResult) {
+        console.log('🏗️ HTML completions found:', htmlResult.options.length);
+        return htmlResult;
+    }
+
+    return null;
+};
+
+// ===================================================================
+// FUNCIÓN PRINCIPAL PARA CREAR EXTENSIONES
+// ===================================================================
+
+/**
+ * Crear extensiones de CodeMirror con sistema unificado de autocompletado
+ */
 export const createCodeMirrorExtensions = (
     extensions = [],
     completionSources = [],
     theme = 'light'
 ) => {
-    const pluginSnippets = getPluginSnippets();
     const selectedTheme = theme === 'dark' ? darkTheme : lightTheme;
+    
+    // Update listener para cambios de documento
+    const updateListener = EditorView.updateListener.of((update) => {
+        if (update.docChanged) {
+            console.log('📝 Document updated');
+        }
+    });
     
     return [
         basicSetup,
         html(),
         selectedTheme,
+        // SISTEMA UNIFICADO DE AUTOCOMPLETADO (sin conflictos)
         autocompletion({
-            maxOptions: 25,
+            maxOptions: 20,
             activateOnTyping: true,
+            closeOnBlur: true,
             override: [
-                // 1. Snippets de plugins (prioridad alta)
-                (context) => {
-                    const word = context.matchBefore(/\w*/);
-                    if (word && word.from < word.to) {
-                        return {
-                            from: word.from,
-                            options: pluginSnippets
-                        };
-                    }
-                    return null;
-                },
-                
-                // 2. NUEVO: Completions para Liquid Templates
-                getLiquidCompletions,
-                
-                // 3. Completions HTML/Alpine
-                getHTMLCompletions,
-                
-                // 4. Fuentes adicionales
-                ...completionSources
+                unifiedCompletionSource,
+                ...completionSources // Fuentes adicionales si se proporcionan
             ]
         }),
         updateListener,
@@ -322,7 +370,10 @@ export const createCodeMirrorExtensions = (
     ];
 };
 
-// Extensiones específicas para diferentes contextos
+// ===================================================================
+// EXTENSIONES ESPECÍFICAS PARA DIFERENTES CONTEXTOS
+// ===================================================================
+
 export const createEditorExtensions = (options = {}) => {
     return createCodeMirrorExtensions(
         options.extensions || [],
@@ -331,28 +382,41 @@ export const createEditorExtensions = (options = {}) => {
     );
 };
 
-// NUEVO: Helper para detectar contexto de templates
+// Helper para detectar contexto de templates
 export const isInTemplateContext = (state, pos) => {
     const beforeCursor = state.doc.sliceString(Math.max(0, pos - 50), pos);
     return /\{%|\{\{/.test(beforeCursor);
 };
 
-// Debug helper actualizado
-if (process.env.NODE_ENV === 'development') {
+// ===================================================================
+// DEBUG HELPERS
+// ===================================================================
+
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
     window.debugExtensions = {
         listSnippets() {
             const snippets = getPluginSnippets();
             console.log('📝 Available snippets:', snippets.map(s => s.label));
+            return snippets;
         },
         
-        testCompletion() {
-            const completions = getHTMLCompletions({ 
-                matchBefore: () => ({ from: 0, to: 2 }) 
-            });
-            console.log('🔧 HTML completions:', completions?.options?.slice(0, 10));
+        async testVariableCompletion() {
+            const context = {
+                pos: 2,
+                state: {
+                    doc: {
+                        sliceString: (from, to) => '{{',
+                        length: 100
+                    }
+                },
+                matchBefore: () => ({ from: 0, to: 2 })
+            };
+            
+            const result = await getVariableCompletions(context);
+            console.log('🎯 Variable completions test:', result);
+            return result;
         },
         
-        // NUEVO: Debug para templates
         testTemplateCompletions() {
             const context = {
                 pos: 10,
@@ -365,22 +429,45 @@ if (process.env.NODE_ENV === 'development') {
                 matchBefore: () => ({ from: 0, to: 10 })
             };
             
-            const templateCompletions = getLiquidCompletions(context);
-            console.log('📄 Template completions:', templateCompletions);
+            const result = getLiquidCompletions(context);
+            console.log('📄 Template completions test:', result);
+            return result;
         },
         
-        showTemplatesPlugin() {
+        async testUnifiedCompletion() {
+            const context = {
+                pos: 2,
+                state: {
+                    doc: {
+                        sliceString: (from, to) => '{{',
+                        length: 100
+                    }
+                },
+                matchBefore: () => ({ from: 0, to: 2 })
+            };
+            
+            const result = await unifiedCompletionSource(context);
+            console.log('🔄 Unified completion test:', result);
+            return result;
+        },
+        
+        showPluginStatus() {
+            const variablesPlugin = window.pluginManager?.get('variables');
             const templatesPlugin = window.pluginManager?.get('templates');
-            if (templatesPlugin) {
-                console.log('📄 Templates plugin found:', {
-                    name: templatesPlugin.name,
-                    version: templatesPlugin.version,
-                    hasEditorCompletions: !!templatesPlugin.getEditorCompletions,
-                    hasSnippets: !!templatesPlugin.getSnippets
-                });
-            } else {
-                console.log('❌ Templates plugin not found');
-            }
+            
+            console.log('🔌 Plugin Status:', {
+                variables: {
+                    found: !!variablesPlugin,
+                    hasGetAllVariables: !!(variablesPlugin?.getAllVariables)
+                },
+                templates: {
+                    found: !!templatesPlugin,
+                    hasEditorCompletions: !!(templatesPlugin?.getEditorCompletions)
+                },
+                pluginManager: !!window.pluginManager
+            });
         }
     };
+    
+    console.log('🔧 Debug extensions available: window.debugExtensions');
 }

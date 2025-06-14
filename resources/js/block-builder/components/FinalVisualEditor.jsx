@@ -1,6 +1,6 @@
 // ===================================================================
 // resources/js/block-builder/components/FinalVisualEditor.jsx
-// Editor avanzado con sistema de snippets, plugins y VARIABLES
+// Editor avanzado con sistema de snippets, plugins y VARIABLES OPTIMIZADO
 // ===================================================================
 
 import { useCallback, useMemo, useRef, useEffect, useState } from 'preact/hooks';
@@ -12,11 +12,10 @@ import { hoverTooltip } from '@codemirror/view';
 import { syntaxHighlighting, HighlightStyle } from '@codemirror/language';
 import { tags as t } from '@lezer/highlight';
 
-// NUEVO: Importar funciones de variables existentes
+// IMPORTAR SISTEMA OPTIMIZADO DE VARIABLES (solo para tooltips)
 import { 
-    getVariableCompletions, 
-    createVariableTooltip, 
-    createVariableDecorations 
+    createVariableTooltip,
+    invalidateVariableCache
 } from '../codemirror/VariableAutoComplete.js';
 
 const FinalVisualEditor = ({
@@ -33,20 +32,56 @@ const FinalVisualEditor = ({
     const isExternalUpdateRef = useRef(false);
     const viewRef = useRef(null);
     const [variablesEnabled, setVariablesEnabled] = useState(false);
+    const [variableStats, setVariableStats] = useState({ count: 0, providers: 0 });
 
     // ===================================================================
-    // VERIFICAR ESTADO DE VARIABLES
+    // VERIFICAR ESTADO DE VARIABLES Y STATS
     // ===================================================================
 
     useEffect(() => {
         const checkVariables = () => {
             const hasVariables = !!(window.pluginManager && window.pluginManager.get('variables'));
             setVariablesEnabled(hasVariables);
+            
+            if (hasVariables) {
+                updateVariableStats();
+            }
+        };
+
+        const updateVariableStats = () => {
+            try {
+                const variablesPlugin = window.pluginManager?.get('variables');
+                if (variablesPlugin) {
+                    const allVars = variablesPlugin.getAllVariables();
+                    const count = Object.values(allVars).reduce((acc, provider) => {
+                        return acc + Object.keys(provider.variables || {}).length;
+                    }, 0);
+                    const providers = Object.keys(allVars).length;
+                    
+                    setVariableStats({ count, providers });
+                }
+            } catch (error) {
+                console.error('Error updating variable stats:', error);
+            }
         };
 
         checkVariables();
-        const interval = setInterval(checkVariables, 5000);
-        return () => clearInterval(interval);
+        const interval = setInterval(checkVariables, 10000); // Check cada 10 segundos
+        
+        // Escuchar eventos de cambio de variables
+        const handleVariableChange = () => {
+            invalidateVariableCache();
+            updateVariableStats();
+        };
+        
+        window.addEventListener('variablesChanged', handleVariableChange);
+        window.addEventListener('variablesForceRefresh', handleVariableChange);
+        
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('variablesChanged', handleVariableChange);
+            window.removeEventListener('variablesForceRefresh', handleVariableChange);
+        };
     }, []);
 
     // ===================================================================
@@ -73,17 +108,16 @@ const FinalVisualEditor = ({
     }, [onContentChange, initialContent]);
 
     // ===================================================================
-    // NUEVA: EXTENSIÓN DE VARIABLES PARA FINAL EDITOR
+    // EXTENSIÓN DE VARIABLES OPTIMIZADA (SIN CONFLICTOS)
     // ===================================================================
 
     const createVariablesExtension = useCallback(() => {
         if (!variablesEnabled) return [];
 
-        return [
-            // Autocompletado de variables usando tu función existente
-        
+        const extensions = [];
 
-            // Highlighting de variables
+        // 1. Solo highlighting y tooltips (NO autocompletado - se maneja en CodeMirrorExtensions)
+        extensions.push(
             syntaxHighlighting(HighlightStyle.define([
                 {
                     tag: t.special(t.string),
@@ -93,9 +127,11 @@ const FinalVisualEditor = ({
                     borderRadius: '3px',
                     padding: '1px 3px'
                 }
-            ])),
+            ]))
+        );
 
-            // Tooltips usando tu función existente
+        // 2. Tooltips mejorados
+        extensions.push(
             hoverTooltip((view, pos, side) => {
                 const { from, to, text } = view.state.doc.lineAt(pos);
                 const variableRegex = /\{\{([^}]+)\}\}/g;
@@ -106,13 +142,12 @@ const FinalVisualEditor = ({
                     const end = start + match[0].length;
                     
                     if (pos >= start && pos <= end) {
-                        const variableKey = match[1];
+                        const variableKey = match[1].trim();
                         return {
                             pos: start,
                             end: end,
                             above: true,
                             create() {
-                                // Usar tu función existente
                                 return createVariableTooltip(variableKey);
                             }
                         };
@@ -120,52 +155,66 @@ const FinalVisualEditor = ({
                 }
                 return null;
             })
-        ];
+        );
+
+        return extensions;
     }, [variablesEnabled]);
 
     // ===================================================================
-    // EXTENSIONES COMBINADAS (SNIPPETS + VARIABLES)
+    // EXTENSIONES COMBINADAS
     // ===================================================================
 
     const extensions = useMemo(() => {
-        // Obtener extensiones base (tu sistema existente)
-        const baseExtensions = createCodeMirrorExtensions([], [], theme);
-        
-        // Agregar extensiones de variables
-        const variableExtensions = createVariablesExtension();
-        
-        // Combinar todas las extensiones
-        return [...baseExtensions, ...variableExtensions];
-    }, [theme, variablesEnabled]);
+        try {
+            // Obtener extensiones base
+            const baseExtensions = createCodeMirrorExtensions([], [], theme);
+            
+            // Agregar extensiones de variables
+            const variableExtensions = createVariablesExtension();
+            
+            console.log(`🔧 CodeMirror extensions loaded: base(${baseExtensions.length}) + variables(${variableExtensions.length}) [unified autocomplete]`);
+            
+            // Combinar todas las extensiones
+            return [...baseExtensions, ...variableExtensions];
+        } catch (error) {
+            console.error('Error creating CodeMirror extensions:', error);
+            // Fallback a extensiones básicas
+            return createCodeMirrorExtensions([], [], theme);
+        }
+    }, [theme, variablesEnabled, createVariablesExtension]);
 
     // ===================================================================
-    // ACTUALIZAR EXTENSIONES DINÁMICAMENTE
+    // ACTUALIZACIÓN DINÁMICA DE EXTENSIONES
     // ===================================================================
 
     useEffect(() => {
         const updateExtensions = () => {
             if (viewRef.current) {
-                const baseExtensions = createCodeMirrorExtensions([], [], theme);
-                const variableExtensions = createVariablesExtension();
-                const newExtensions = [...baseExtensions, ...variableExtensions];
-                
-                viewRef.current.dispatch({
-                    effects: StateEffect.reconfigure.of(newExtensions)
-                });
-                console.log('🔄 Editor extensions updated with variables support');
+                try {
+                    const baseExtensions = createCodeMirrorExtensions([], [], theme);
+                    const variableExtensions = createVariablesExtension();
+                    const newExtensions = [...baseExtensions, ...variableExtensions];
+                    
+                    viewRef.current.dispatch({
+                        effects: StateEffect.reconfigure.of(newExtensions)
+                    });
+                    console.log('🔄 Editor extensions updated with variables support');
+                } catch (error) {
+                    console.error('Error updating extensions:', error);
+                }
             }
         };
 
         // Escuchar eventos de plugins
         if (window.pluginManager) {
-            window.pluginManager.on('plugin:registered', updateExtensions);
-            window.pluginManager.on('plugin:unregistered', updateExtensions);
+            window.pluginManager.on?.('plugin:registered', updateExtensions);
+            window.pluginManager.on?.('plugin:unregistered', updateExtensions);
         }
 
         return () => {
             if (window.pluginManager) {
-                window.pluginManager.off('plugin:registered', updateExtensions);
-                window.pluginManager.off('plugin:unregistered', updateExtensions);
+                window.pluginManager.off?.('plugin:registered', updateExtensions);
+                window.pluginManager.off?.('plugin:unregistered', updateExtensions);
             }
         };
     }, [theme, createVariablesExtension]);
@@ -200,7 +249,29 @@ const FinalVisualEditor = ({
     const onCreateEditor = useCallback((view) => {
         viewRef.current = view;
         window.currentEditor = view; // Para debug
-        console.log('🎯 FinalVisualEditor initialized with variables support');
+        console.log('🎯 FinalVisualEditor initialized with unified autocomplete system');
+        
+        // Invalidar cache de variables al crear editor
+        if (variablesEnabled) {
+            invalidateVariableCache();
+        }
+    }, [variablesEnabled]);
+
+    // ===================================================================
+    // HANDLERS PARA VARIABLES
+    // ===================================================================
+
+    const handleRefreshVariables = useCallback(async () => {
+        try {
+            invalidateVariableCache();
+            
+            // Disparar evento para que otros componentes se actualicen
+            window.dispatchEvent(new CustomEvent('variablesForceRefresh'));
+            
+            console.log('🔄 Variables cache refreshed from editor');
+        } catch (error) {
+            console.error('Error refreshing variables:', error);
+        }
     }, []);
 
     // ===================================================================
@@ -211,145 +282,70 @@ const FinalVisualEditor = ({
         <div className="final-visual-editor-container">
             {/* Header con información de variables */}
             {variablesEnabled && (
-                <div className="editor-variables-header">
-                    <div className="variables-status">
-                        <span className="status-indicator online"></span>
-                        <span>Variables activas</span>
-                        <VariableQuickStats />
+                <div className="editor-variables-header bg-blue-50 border-b border-blue-200 px-4 py-2 flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                        <div className="flex items-center space-x-2">
+                            <span className="inline-block w-2 h-2 bg-green-500 rounded-full"></span>
+                            <span className="text-sm font-medium text-blue-900">Variables Activas</span>
+                        </div>
+                        <div className="flex items-center space-x-1 text-xs text-blue-700">
+                            <span>📦 {variableStats.count} variables</span>
+                            <span>•</span>
+                            <span>🔌 {variableStats.providers} providers</span>
+                        </div>
                     </div>
-                    <div className="variables-help">
-                        <span className="help-text">💡 Escribe {'{{'} para ver variables disponibles</span>
+                    <div className="flex items-center space-x-3">
+                        <span className="text-xs text-blue-600">💡 Escribe <code className="bg-blue-100 px-1 rounded">{'{{'}</code> para ver variables</span>
+                        <button 
+                            onClick={handleRefreshVariables}
+                            className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition-colors"
+                            title="Refrescar variables"
+                        >
+                            🔄 Refresh
+                        </button>
                     </div>
                 </div>
             )}
             
             {/* Editor principal */}
-            <CodeMirror
-                value={currentValue.current}
-                height="100%"
-                style={{ height: '100%', fontSize: '14px' }}
-                extensions={extensions}
-                onChange={handleChange}
-                onCreateEditor={onCreateEditor}
-                basicSetup={{
-                    lineNumbers: true,
-                    foldGutter: true,
-                    dropCursor: true,
-                    allowMultipleSelections: false,
-                    indentOnInput: true,
-                    bracketMatching: true,
-                    closeBrackets: true,
-                    autocompletion: true,
-                    highlightActiveLine: true,
-                    highlightSelectionMatches: false,
-                    searchKeymap: true,
-                    tabSize: 2
-                }}
-            />
+            <div className="editor-content" style={{ height: variablesEnabled ? 'calc(100% - 50px)' : '100%' }}>
+                <CodeMirror
+                    value={currentValue.current}
+                    height="100%"
+                    style={{ height: '100%', fontSize: '14px' }}
+                    extensions={extensions}
+                    onChange={handleChange}
+                    onCreateEditor={onCreateEditor}
+                    basicSetup={{
+                        lineNumbers: true,
+                        foldGutter: true,
+                        dropCursor: true,
+                        allowMultipleSelections: false,
+                        indentOnInput: true,
+                        bracketMatching: true,
+                        closeBrackets: true,
+                        autocompletion: true,
+                        highlightActiveLine: true,
+                        highlightSelectionMatches: false,
+                        searchKeymap: true,
+                        tabSize: 2
+                    }}
+                />
+            </div>
         </div>
     );
 };
 
 // ===================================================================
-// COMPONENTE: STATS RÁPIDAS DE VARIABLES
+// DEBUG HELPERS MEJORADOS
 // ===================================================================
 
-function VariableQuickStats() {
-    const [stats, setStats] = useState({ count: 0, providers: 0 });
-
-    useEffect(() => {
-        const updateStats = () => {
-            try {
-                const variablesPlugin = window.pluginManager?.get('variables');
-                if (variablesPlugin) {
-                    const allVars = variablesPlugin.getAllVariables();
-                    const count = Object.values(allVars).reduce((acc, provider) => {
-                        return acc + Object.keys(provider.variables || {}).length;
-                    }, 0);
-                    const providers = Object.keys(allVars).length;
-                    
-                    setStats({ count, providers });
-                }
-            } catch (error) {
-                console.error('Error updating variable stats:', error);
-            }
-        };
-
-        updateStats();
-        const interval = setInterval(updateStats, 30000);
-        return () => clearInterval(interval);
-    }, []);
-
-    return (
-        <span className="variable-stats">
-            📦 {stats.count} variables • 🔌 {stats.providers} providers
-        </span>
-    );
-}
-
-// ===================================================================
-// DEBUG HELPERS EXTENDIDOS
-// ===================================================================
-
-if (process.env.NODE_ENV === 'development') {
-    // Extender debug existente con funciones de variables
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    // Extender debug existente con funciones optimizadas
     window.debugEditor = {
-        // Funciones existentes de tu sistema
-        insertSnippet(snippetKey = 'accordion') {
-            if (!window.currentEditor || !window.pluginManager) {
-                console.log('❌ Editor o PluginManager no disponible');
-                return;
-            }
-
-            const plugins = window.pluginManager.list();
-            let snippet = null;
-
-            for (const pluginInfo of plugins) {
-                const plugin = window.pluginManager.get(pluginInfo.name);
-                if (plugin?.getSnippets) {
-                    const snippets = plugin.getSnippets();
-                    if (snippets[snippetKey]) {
-                        snippet = snippets[snippetKey];
-                        break;
-                    }
-                }
-            }
-
-            if (snippet) {
-                const view = window.currentEditor;
-                const cursor = view.state.selection.main.head;
-                
-                view.dispatch({
-                    changes: {
-                        from: cursor,
-                        insert: snippet.body
-                    },
-                    selection: { anchor: cursor + snippet.body.length }
-                });
-                
-                console.log(`✅ Snippet "${snippetKey}" insertado`);
-            } else {
-                console.log(`❌ Snippet "${snippetKey}" no encontrado`);
-            }
-        },
-
-        listSnippets() {
-            if (!window.pluginManager) return console.log('❌ No PluginManager');
-            
-            const plugins = window.pluginManager.list();
-            const allSnippets = {};
-            
-            plugins.forEach(pluginInfo => {
-                const plugin = window.pluginManager.get(pluginInfo.name);
-                if (plugin?.getSnippets) {
-                    allSnippets[pluginInfo.name] = Object.keys(plugin.getSnippets());
-                }
-            });
-            
-            console.log('📝 Snippets disponibles:', allSnippets);
-        },
-
-        // NUEVAS: Funciones de debug para variables
+        ...window.debugEditor, // Mantener funciones existentes
+        
+        // VARIABLES - Funciones mejoradas
         showVariables() {
             const variablesPlugin = window.pluginManager?.get('variables');
             if (!variablesPlugin) {
@@ -360,6 +356,7 @@ if (process.env.NODE_ENV === 'development') {
             const allVars = variablesPlugin.getAllVariables();
             console.log('🎯 Variables disponibles:');
             console.table(allVars);
+            return allVars;
         },
 
         insertTestVariable() {
@@ -376,44 +373,7 @@ if (process.env.NODE_ENV === 'development') {
             console.log('✅ Variable de prueba insertada');
         },
 
-        validateVariables() {
-            const view = window.currentEditor;
-            if (!view) {
-                console.log('❌ Editor no disponible');
-                return;
-            }
-            
-            const code = view.state.doc.toString();
-            const variableRegex = /\{\{([^}]*)\}\}/g;
-            const variables = [];
-            let match;
-            
-            while ((match = variableRegex.exec(code)) !== null) {
-                variables.push(match[1]);
-            }
-            
-            console.log('🔍 Variables encontradas en el código:', variables);
-            
-            const variablesPlugin = window.pluginManager?.get('variables');
-            if (variablesPlugin) {
-                const allVars = variablesPlugin.getAllVariables();
-                const available = [];
-                Object.values(allVars).forEach(provider => {
-                    available.push(...Object.keys(provider.variables || {}));
-                });
-                console.log('✅ Variables disponibles en el sistema:', available);
-                
-                // Verificar qué variables del código no están disponibles
-                const missing = variables.filter(v => !available.includes(v.trim()));
-                if (missing.length > 0) {
-                    console.warn('⚠️ Variables no encontradas:', missing);
-                } else {
-                    console.log('✅ Todas las variables están disponibles');
-                }
-            }
-        },
-
-        testVariableCompletion() {
+        testAutoComplete() {
             if (!window.currentEditor) {
                 console.log('❌ Editor no disponible');
                 return;
@@ -427,10 +387,16 @@ if (process.env.NODE_ENV === 'development') {
                 changes: { from: pos, insert: '{{' }
             });
             
-            console.log('✅ Autocompletado de variables activado - escribe para ver sugerencias');
+            console.log('✅ Autocompletado activado - escribe para ver sugerencias');
         },
 
-        getVariableStats() {
+        refreshVariables() {
+            invalidateVariableCache();
+            window.dispatchEvent(new CustomEvent('variablesForceRefresh'));
+            console.log('🔄 Cache de variables refrescado');
+        },
+
+        variableStats() {
             const variablesPlugin = window.pluginManager?.get('variables');
             if (!variablesPlugin) {
                 console.log('❌ Variables plugin no encontrado');
@@ -456,10 +422,51 @@ if (process.env.NODE_ENV === 'development') {
 
             console.log('📊 Estadísticas de variables:', stats);
             return stats;
+        },
+
+        validateVariablesInEditor() {
+            const view = window.currentEditor;
+            if (!view) {
+                console.log('❌ Editor no disponible');
+                return;
+            }
+            
+            const code = view.state.doc.toString();
+            const variableRegex = /\{\{([^}]*)\}\}/g;
+            const variables = [];
+            let match;
+            
+            while ((match = variableRegex.exec(code)) !== null) {
+                variables.push(match[1].trim());
+            }
+            
+            console.log('🔍 Variables encontradas en el código:', variables);
+            
+            const variablesPlugin = window.pluginManager?.get('variables');
+            if (variablesPlugin) {
+                const allVars = variablesPlugin.getAllVariables();
+                const available = [];
+                Object.values(allVars).forEach(provider => {
+                    available.push(...Object.keys(provider.variables || {}));
+                });
+                console.log('✅ Variables disponibles:', available);
+                
+                const missing = variables.filter(v => !available.includes(v));
+                const valid = variables.filter(v => available.includes(v));
+                
+                console.log('✅ Variables válidas:', valid);
+                if (missing.length > 0) {
+                    console.warn('⚠️ Variables no encontradas:', missing);
+                } else {
+                    console.log('🎉 Todas las variables están disponibles');
+                }
+                
+                return { valid, missing, total: variables.length };
+            }
         }
     };
 
-    console.log('🔧 Debug editor con variables: window.debugEditor');
+    console.log('🔧 Debug editor optimizado disponible: window.debugEditor');
 }
 
 export default FinalVisualEditor;

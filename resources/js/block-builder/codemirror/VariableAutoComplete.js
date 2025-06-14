@@ -1,308 +1,367 @@
 // ===================================================================
-// resources/js/block-builder/codemirror/VariableAutoComplete.js
-// Sistema completo de autocompletado y manejo de variables en CodeMirror
+// SOLUCIÓN PARA EL AUTOCOMPLETADO DE VARIABLES EN CODEMIRROR
+// Archivo: resources/js/block-builder/codemirror/VariableAutoComplete.js
 // ===================================================================
 
+import { autocompletion } from '@codemirror/autocomplete';
 import { Decoration } from '@codemirror/view';
 
 /**
- * Obtener sugerencias de variables para CodeMirror
- * @param {Object} context - Contexto de CodeMirror
- * @returns {Object|null} Completions de variables
+ * Sistema de autocompletado mejorado para variables
  */
-export const getVariableCompletions = (context) => {
-    try {
-        const beforeCursor = context.state.doc.sliceString(
-            Math.max(0, context.pos - 50), 
-            context.pos
-        );
+export class VariableAutoCompleteSystem {
+    constructor() {
+        this.cachedVariables = new Map();
+        this.lastCacheTime = 0;
+        this.cacheTimeout = 30000; // 30 segundos
+        this.debug = true;
+    }
+
+    /**
+     * Obtener variables del plugin con cache inteligente
+     */
+    async getVariables() {
+        const now = Date.now();
         
-        // Detectar si estamos escribiendo una variable {{
-        const variableMatch = beforeCursor.match(/\{\{[\w.]*$/);
-        if (!variableMatch) return null;
+        // Verificar cache
+        if (this.cachedVariables.size > 0 && (now - this.lastCacheTime) < this.cacheTimeout) {
+            if (this.debug) console.log('💾 Using cached variables for autocomplete');
+            return this.cachedVariables;
+        }
 
-        // Obtener variables del plugin
+        // Obtener variables frescas
         const variablesPlugin = window.pluginManager?.get('variables');
-        if (!variablesPlugin) return null;
+        if (!variablesPlugin) {
+            console.warn('⚠️ Variables plugin not found for autocomplete');
+            return new Map();
+        }
 
-        const allVariables = variablesPlugin.getAllVariables();
-        const completions = [];
+        try {
+            const allVariables = variablesPlugin.getAllVariables();
+            const processedVariables = new Map();
 
-        // Procesar variables de todos los providers
-        Object.entries(allVariables).forEach(([providerKey, providerData]) => {
-            const variables = providerData.variables || {};
-            const metadata = providerData.metadata || {};
-            
-            Object.entries(variables).forEach(([key, value]) => {
-                completions.push({
-                    label: key,
-                    type: 'variable',
-                    info: `${metadata.title || providerKey}: ${key}`,
-                    detail: formatVariableValue(value),
-                    apply: (view, completion, from, to) => {
-                        // Insertar la variable completa con llaves
-                        const insert = `{{${key}}}`;
-                        view.dispatch({
-                            changes: { from: from - 2, to, insert } // -2 para incluir las {{
-                        });
-                    },
-                    section: {
-                        name: metadata.title || providerKey,
-                        rank: metadata.priority || 50
-                    }
+            // Procesar variables por provider
+            Object.entries(allVariables).forEach(([providerKey, providerData]) => {
+                const variables = providerData.variables || {};
+                const metadata = providerData.metadata || {};
+                
+                Object.entries(variables).forEach(([key, value]) => {
+                    processedVariables.set(key, {
+                        key,
+                        value,
+                        provider: providerKey,
+                        title: metadata.title || providerKey,
+                        priority: metadata.priority || 50,
+                        type: this.determineVariableType(value)
+                    });
                 });
             });
-        });
 
-        if (completions.length === 0) return null;
+            this.cachedVariables = processedVariables;
+            this.lastCacheTime = now;
+            
+            if (this.debug) {
+                console.log(`✅ Cached ${processedVariables.size} variables for autocomplete`);
+            }
+            
+            return processedVariables;
+        } catch (error) {
+            console.error('❌ Error getting variables for autocomplete:', error);
+            return this.cachedVariables; // Fallback al cache
+        }
+    }
 
-        return {
-            from: context.pos - variableMatch[0].length + 2, // +2 para después de {{
-            options: completions.sort((a, b) => b.section.rank - a.section.rank),
-            validFor: /^[\w.]*$/
-        };
+    /**
+     * Determinar el tipo de variable
+     */
+    determineVariableType(value) {
+        if (typeof value === 'string') return 'text';
+        if (typeof value === 'number') return 'number';
+        if (typeof value === 'boolean') return 'boolean';
+        if (Array.isArray(value)) return 'array';
+        if (typeof value === 'object') return 'object';
+        return 'unknown';
+    }
+
+    /**
+     * Formatear valor para mostrar en el autocompletado
+     */
+    formatValue(value, maxLength = 50) {
+        if (value === null || value === undefined) return 'null';
+        
+        let formatted = String(value);
+        if (formatted.length > maxLength) {
+            formatted = formatted.substring(0, maxLength - 3) + '...';
+        }
+        
+        return formatted;
+    }
+
+    /**
+     * Función principal de autocompletado
+     */
+    async getCompletions(context) {
+        try {
+            // Detectar contexto de variable
+            const beforeCursor = context.state.doc.sliceString(
+                Math.max(0, context.pos - 50), 
+                context.pos
+            );
+            
+            // Buscar patrones de variables: {{ variable }}
+            const variableMatch = beforeCursor.match(/\{\{[\w\s.]*$/);
+            if (!variableMatch) return null;
+
+            const variables = await this.getVariables();
+            if (variables.size === 0) return null;
+
+            // Extraer término de búsqueda
+            const searchTerm = variableMatch[0].replace('{{', '').trim().toLowerCase();
+            
+            // Filtrar y ordenar variables
+            const completions = [];
+            
+            for (const [key, varData] of variables) {
+                if (key.toLowerCase().includes(searchTerm) || searchTerm === '') {
+                    completions.push({
+                        label: key,
+                        type: 'variable',
+                        info: `${varData.title}: ${varData.type}`,
+                        detail: this.formatValue(varData.value),
+                        apply: (view, completion, from, to) => {
+                            // Calcular posición correcta
+                            const insertFrom = from - variableMatch[0].length + 2; // +2 para saltar {{
+                            const insertText = `${key}}}`;
+                            
+                            view.dispatch({
+                                changes: { 
+                                    from: insertFrom, 
+                                    to, 
+                                    insert: insertText 
+                                }
+                            });
+                        },
+                        boost: varData.priority,
+                        section: {
+                            name: varData.title,
+                            rank: varData.priority
+                        }
+                    });
+                }
+            }
+
+            // Limitar resultados
+            const maxResults = 15;
+            const sortedCompletions = completions
+                .sort((a, b) => b.boost - a.boost)
+                .slice(0, maxResults);
+
+            if (sortedCompletions.length === 0) return null;
+
+            return {
+                from: context.pos - variableMatch[0].length + 2,
+                options: sortedCompletions,
+                validFor: /^[\w.]*$/
+            };
+
+        } catch (error) {
+            console.error('❌ Error in variable autocomplete:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Invalidar cache
+     */
+    invalidateCache() {
+        this.cachedVariables.clear();
+        this.lastCacheTime = 0;
+        if (this.debug) console.log('🗑️ Variable autocomplete cache invalidated');
+    }
+}
+
+// Instancia global del sistema
+
+// Instancia global del sistema
+const autoCompleteSystem = new VariableAutoCompleteSystem();
+
+/**
+ * Función de autocompletado para CodeMirror
+ */
+export const variableCompletionSource = async (context) => {
+    return await autoCompleteSystem.getCompletions(context);
+};
+
+/**
+ * Extensión completa de autocompletado de variables
+ */
+export const createVariableAutoComplete = () => {
+    return autocompletion({
+        override: [variableCompletionSource],
+        maxOptions: 15,
+        activateOnTyping: true,
+        closeOnBlur: true
+    });
+};
+
+/**
+ * Crear tooltip para variables (para compatibilidad con FinalVisualEditor)
+ */
+export const createVariableTooltip = (variableKey) => {
+    const variablesPlugin = window.pluginManager?.get('variables');
+    if (!variablesPlugin) {
+        return null;
+    }
+
+    try {
+        const allVariables = variablesPlugin.getAllVariables();
+        let foundVariable = null;
+        let providerInfo = null;
+
+        // Buscar la variable en todos los providers
+        for (const [providerKey, providerData] of Object.entries(allVariables)) {
+            if (providerData.variables && providerData.variables[variableKey]) {
+                foundVariable = providerData.variables[variableKey];
+                providerInfo = {
+                    key: providerKey,
+                    title: providerData.metadata?.title || providerKey
+                };
+                break;
+            }
+        }
+
+        if (!foundVariable) {
+            const tooltip = document.createElement('div');
+            tooltip.className = 'cm-tooltip-variable error';
+            tooltip.innerHTML = `
+                <div class="variable-tooltip-header">
+                    <span class="variable-icon">⚠️</span>
+                    <strong>Variable no encontrada</strong>
+                </div>
+                <div class="variable-tooltip-content">
+                    <code>{{${variableKey}}}</code>
+                    <p>Esta variable no está definida</p>
+                </div>
+            `;
+            return tooltip;
+        }
+
+        const tooltip = document.createElement('div');
+        tooltip.className = 'cm-tooltip-variable';
+        tooltip.innerHTML = `
+            <div class="variable-tooltip-header">
+                <span class="variable-icon">🔧</span>
+                <strong>${variableKey}</strong>
+            </div>
+            <div class="variable-tooltip-content">
+                <div class="variable-provider">📦 ${providerInfo.title}</div>
+                <div class="variable-value">
+                    <strong>Valor:</strong>
+                    <code>${autoCompleteSystem.formatValue(foundVariable, 100)}</code>
+                </div>
+            </div>
+        `;
+        return tooltip;
 
     } catch (error) {
-        console.error('Error getting variable completions:', error);
+        console.error('Error creating variable tooltip:', error);
         return null;
     }
 };
 
 /**
- * Crear decoraciones para resaltar variables en el editor
- * @param {EditorState} state - Estado del editor
- * @returns {DecorationSet} Set de decoraciones
+ * Crear decoraciones para variables (para compatibilidad con FinalVisualEditor)
  */
 export const createVariableDecorations = (state) => {
     const decorations = [];
-    const text = state.doc.toString();
-    const variableRegex = /\{\{([^}]+)\}\}/g;
-    let match;
-
-    while ((match = variableRegex.exec(text)) !== null) {
-        const from = match.index;
-        const to = match.index + match[0].length;
-        
-        decorations.push(
-            Decoration.mark({
-                class: 'cm-variable-highlight',
-                attributes: {
-                    title: `Variable: ${match[1]}`
-                }
-            }).range(from, to)
-        );
-    }
-
-    return Decoration.set(decorations);
-};
-
-/**
- * Crear tooltip para mostrar información de una variable
- * @param {string} variableKey - Clave de la variable
- * @returns {Object} Elemento DOM del tooltip
- */
-export const createVariableTooltip = (variableKey) => {
-    const dom = document.createElement('div');
-    dom.className = 'variable-tooltip';
-    
-    try {
-        const variablesPlugin = window.pluginManager?.get('variables');
-        const value = variablesPlugin?.getVariable(variableKey);
-        
-        if (value !== undefined) {
-            dom.innerHTML = `
-                <div class="variable-tooltip-header">
-                    <strong>${variableKey}</strong>
-                </div>
-                <div class="variable-tooltip-value">
-                    <code>${formatVariableValue(value)}</code>
-                </div>
-                <div class="variable-tooltip-type">
-                    ${typeof value} • Click para debug
-                </div>
-            `;
-            
-            // Hacer clickeable para debug
-            dom.onclick = () => {
-                console.log(`🎯 Variable Debug: ${variableKey}`, value);
-                if (window.variablesAdmin) {
-                    console.log('Available actions:', Object.keys(window.variablesAdmin));
-                }
-            };
-        } else {
-            dom.innerHTML = `
-                <div class="variable-tooltip-error">
-                    Variable "${variableKey}" no encontrada
-                </div>
-                <div class="variable-tooltip-help">
-                    Usa F1 para ver variables disponibles
-                </div>
-            `;
-        }
-    } catch (error) {
-        dom.innerHTML = `
-            <div class="variable-tooltip-error">
-                Error cargando variable: ${error.message}
-            </div>
-        `;
-    }
-    
-    return { dom };
-};
-
-/**
- * Formatear valor de variable para mostrar
- * @param {any} value - Valor de la variable
- * @returns {string} Valor formateado
- */
-const formatVariableValue = (value) => {
-    if (value === null || value === undefined) {
-        return 'null';
-    }
-    
-    if (typeof value === 'boolean') {
-        return value ? 'true' : 'false';
-    }
-    
-    if (typeof value === 'object') {
-        try {
-            const jsonStr = JSON.stringify(value, null, 2);
-            return jsonStr.length > 100 ? jsonStr.substring(0, 97) + '...' : jsonStr;
-        } catch {
-            return '[Object]';
-        }
-    }
-    
-    const str = String(value);
-    return str.length > 100 ? str.substring(0, 97) + '...' : str;
-};
-
-/**
- * Validar si una variable existe en el sistema
- * @param {string} variableKey - Clave de la variable
- * @returns {boolean} True si existe
- */
-export const validateVariable = (variableKey) => {
-    try {
-        const variablesPlugin = window.pluginManager?.get('variables');
-        if (!variablesPlugin) return false;
-        
-        const allVariables = variablesPlugin.getAllVariables();
-        
-        for (const provider of Object.values(allVariables)) {
-            if (provider.variables && provider.variables[variableKey] !== undefined) {
-                return true;
-            }
-        }
-        
-        return false;
-    } catch (error) {
-        console.error('Error validating variable:', error);
-        return false;
-    }
-};
-
-/**
- * Obtener información completa de una variable
- * @param {string} variableKey - Clave de la variable
- * @returns {Object|null} Información de la variable
- */
-export const getVariableInfo = (variableKey) => {
-    try {
-        const variablesPlugin = window.pluginManager?.get('variables');
-        if (!variablesPlugin) return null;
-        
-        const allVariables = variablesPlugin.getAllVariables();
-        
-        for (const [providerName, provider] of Object.entries(allVariables)) {
-            if (provider.variables && provider.variables[variableKey] !== undefined) {
-                return {
-                    key: variableKey,
-                    value: provider.variables[variableKey],
-                    provider: providerName,
-                    providerTitle: provider.metadata?.title || providerName,
-                    category: provider.metadata?.category || 'unknown',
-                    lastUpdated: provider.lastUpdated,
-                    type: typeof provider.variables[variableKey]
-                };
-            }
-        }
-        
-        return null;
-    } catch (error) {
-        console.error('Error getting variable info:', error);
-        return null;
-    }
-};
-
-/**
- * Obtener todas las variables disponibles en formato plano
- * @returns {Array} Array de objetos con información de variables
- */
-export const getAllVariables = () => {
-    try {
-        const variablesPlugin = window.pluginManager?.get('variables');
-        if (!variablesPlugin) return [];
-        
-        const allVariables = variablesPlugin.getAllVariables();
-        const result = [];
-        
-        Object.entries(allVariables).forEach(([providerName, provider]) => {
-            Object.entries(provider.variables || {}).forEach(([key, value]) => {
-                result.push({
-                    key,
-                    value,
-                    provider: providerName,
-                    providerTitle: provider.metadata?.title || providerName,
-                    category: provider.metadata?.category || 'unknown',
-                    type: typeof value,
-                    formatted: formatVariableValue(value)
-                });
-            });
-        });
-        
-        return result.sort((a, b) => a.key.localeCompare(b.key));
-    } catch (error) {
-        console.error('Error getting all variables:', error);
-        return [];
-    }
-};
-
-/**
- * Debug: Mostrar información del sistema de variables
- */
-export const debugVariables = () => {
-    console.log('🎯 Variable System Debug');
-    console.log('========================');
-    
     const variablesPlugin = window.pluginManager?.get('variables');
+    
     if (!variablesPlugin) {
-        console.log('❌ Variables plugin not found');
-        return;
+        return Decoration.set([]);
     }
-    
-    const allVars = getAllVariables();
-    console.log(`📦 Total variables: ${allVars.length}`);
-    
-    const byProvider = {};
-    allVars.forEach(v => {
-        if (!byProvider[v.provider]) byProvider[v.provider] = 0;
-        byProvider[v.provider]++;
+
+    try {
+        const doc = state.doc;
+        const allVariables = variablesPlugin.getAllVariables();
+        const availableVarKeys = new Set();
+
+        // Recopilar todas las claves de variables disponibles
+        Object.values(allVariables).forEach(providerData => {
+            if (providerData.variables) {
+                Object.keys(providerData.variables).forEach(key => {
+                    availableVarKeys.add(key);
+                });
+            }
+        });
+
+        // Buscar variables en el documento
+        const variableRegex = /\{\{([^}]+)\}\}/g;
+        let match;
+        const text = doc.toString();
+
+        while ((match = variableRegex.exec(text)) !== null) {
+            const variableKey = match[1].trim();
+            const from = match.index;
+            const to = match.index + match[0].length;
+
+            // Determinar el tipo de decoración
+            const isValid = availableVarKeys.has(variableKey);
+            const className = isValid ? 'cm-variable-valid' : 'cm-variable-invalid';
+
+            decorations.push(
+                Decoration.mark({
+                    class: className,
+                    attributes: {
+                        'data-variable': variableKey,
+                        'title': isValid ? 
+                            `Variable válida: ${variableKey}` : 
+                            `Variable no encontrada: ${variableKey}`
+                    }
+                }).range(from, to)
+            );
+        }
+
+        return Decoration.set(decorations);
+
+    } catch (error) {
+        console.error('Error creating variable decorations:', error);
+        return Decoration.set([]);
+    }
+};
+
+/**
+ * Función legacy de completions (para compatibilidad)
+ */
+export const getVariableCompletions = async (context) => {
+    return await autoCompleteSystem.getCompletions(context);
+};
+
+/**
+ * Invalidar cache externamente
+ */
+export const invalidateVariableCache = () => {
+    autoCompleteSystem.invalidateCache();
+};
+
+/**
+ * Evento para refrescar variables
+ */
+if (typeof window !== 'undefined') {
+    // Escuchar eventos de cambio de variables
+    window.addEventListener('variablesChanged', () => {
+        autoCompleteSystem.invalidateCache();
     });
     
-    console.log('📊 Variables by provider:', byProvider);
-    console.table(allVars.slice(0, 10)); // Mostrar primeras 10
+    window.addEventListener('variablesForceRefresh', () => {
+        autoCompleteSystem.invalidateCache();
+    });
     
-    return allVars;
-};
-
-// Exponer funciones de debug en desarrollo
-if (process.env.NODE_ENV === 'development') {
-    window.debugVariableAutoComplete = {
-        getAllVariables,
-        debugVariables,
-        validateVariable,
-        getVariableInfo,
-        formatVariableValue
+    // Exponer funciones globalmente para debug
+    window.debugVariableAutocomplete = () => {
+        console.log('Variables Cache:', autoCompleteSystem.cachedVariables);
+        console.log('Last Cache Time:', new Date(autoCompleteSystem.lastCacheTime));
+        console.log('Cache Size:', autoCompleteSystem.cachedVariables.size);
     };
+    
+    window.invalidateVariableCache = invalidateVariableCache;
 }
