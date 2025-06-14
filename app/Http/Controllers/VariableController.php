@@ -10,8 +10,8 @@ use Illuminate\Support\Facades\Log;
 use App\Models\Variable;
 
 /**
- * VariableController Completo y Optimizado
- * Incluye todos los métodos necesarios para el frontend
+ * VariableController Completo y Funcional
+ * Soluciona todos los problemas de CREATE, UPDATE y cache
  */
 class VariableController extends Controller
 {
@@ -139,13 +139,18 @@ class VariableController extends Controller
             ];
 
             // Add count of variables per category
-            $categoryCounts = Variable::selectRaw('category, COUNT(*) as count')
-                ->groupBy('category')
-                ->pluck('count', 'category')
-                ->toArray();
+            try {
+                $categoryCounts = Variable::selectRaw('category, COUNT(*) as count')
+                    ->groupBy('category')
+                    ->pluck('count', 'category')
+                    ->toArray();
 
-            foreach ($categories as $key => &$category) {
-                $category['count'] = $categoryCounts[$key] ?? 0;
+                foreach ($categories as $key => &$category) {
+                    $category['count'] = $categoryCounts[$key] ?? 0;
+                }
+            } catch (\Exception $e) {
+                Log::warning('Could not get category counts', ['error' => $e->getMessage()]);
+                // Continue without counts
             }
 
             // Cache for 1 hour
@@ -158,6 +163,232 @@ class VariableController extends Controller
 
             return response()->json([
                 'message' => 'Error fetching categories',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+    public function store(Request $request)
+    {
+        try {
+            Log::info('Creating new variable', ['request_data' => $request->all()]);
+
+            $validator = Validator::make($request->all(), [
+                'key' => 'required|string|unique:variables,key|max:255',
+                'value' => 'nullable',
+                'type' => 'required|in:static,dynamic,external,computed',
+                'category' => 'required|string|max:50',
+                'description' => 'nullable|string',
+                'cache_ttl' => 'nullable|integer|min:0',
+                'refresh_strategy' => 'nullable|in:manual,scheduled,event_driven,real_time',
+                'config' => 'nullable|array',
+                'is_active' => 'boolean'
+            ]);
+
+            if ($validator->fails()) {
+                Log::warning('Variable creation validation failed', [
+                    'errors' => $validator->errors(),
+                    'data' => $request->all()
+                ]);
+
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Validar key format solo si validateKey existe en el modelo
+            if (method_exists(Variable::class, 'validateKey') && !Variable::validateKey($request->key)) {
+                Log::warning('Invalid key format', ['key' => $request->key]);
+                
+                return response()->json([
+                    'message' => 'Invalid key format. Use format: category.name',
+                    'errors' => ['key' => ['Invalid key format']]
+                ], 422);
+            }
+
+            $data = $validator->validated();
+            
+            // Set defaults
+            $data['is_active'] = $data['is_active'] ?? true;
+            
+            // Add user info if available
+            if (Auth::check()) {
+                $data['created_by'] = Auth::id();
+                $data['updated_by'] = Auth::id();
+            }
+
+            Log::info('Creating variable with data', ['data' => $data]);
+
+            $variable = Variable::create($data);
+
+            Log::info('Variable created successfully', ['variable' => $variable]);
+
+            // INVALIDAR CACHE
+            $this->invalidateCache();
+
+            return response()->json([
+                'message' => 'Variable created successfully',
+                'data' => $variable
+            ], 201);
+
+        } catch (\Exception $e) {
+            Log::error('Error creating variable', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'data' => $request->all()
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to create variable',
+                'error' => $e->getMessage(),
+                'debug' => [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine()
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * Display the specified variable
+     */
+    public function show($id)
+    {
+        try {
+            $variable = Variable::findOrFail($id);
+
+            // Include current resolved value if resolve method exists
+            if (method_exists($variable, 'resolve')) {
+                try {
+                    $resolvedValue = $variable->resolve();
+                    $variable->resolved_value = $resolvedValue;
+                } catch (\Exception $e) {
+                    $variable->resolved_value = null;
+                    $variable->resolve_error = $e->getMessage();
+                }
+            }
+
+            return response()->json($variable);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Variable not found',
+                'error' => $e->getMessage()
+            ], 404);
+        }
+    }
+
+    /**
+     * Update the specified variable
+     * CORREGIDO: Manejo adecuado de validación y errores
+     */
+    public function update(Request $request, $id)
+    {
+        try {
+            Log::info('Updating variable', ['id' => $id, 'request_data' => $request->all()]);
+
+            $variable = Variable::findOrFail($id);
+
+            $validator = Validator::make($request->all(), [
+                'key' => 'required|string|max:255|unique:variables,key,' . $id,
+                'value' => 'nullable',
+                'type' => 'required|in:static,dynamic,external,computed',
+                'category' => 'required|string|max:50',
+                'description' => 'nullable|string',
+                'cache_ttl' => 'nullable|integer|min:0',
+                'refresh_strategy' => 'nullable|in:manual,scheduled,event_driven,real_time',
+                'config' => 'nullable|array',
+                'is_active' => 'boolean'
+            ]);
+
+            if ($validator->fails()) {
+                Log::warning('Variable update validation failed', [
+                    'errors' => $validator->errors(),
+                    'data' => $request->all()
+                ]);
+
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Validar key format solo si cambió y el método existe
+            if (method_exists(Variable::class, 'validateKey') && 
+                $request->key !== $variable->key && 
+                !Variable::validateKey($request->key)) {
+                
+                Log::warning('Invalid key format on update', ['key' => $request->key]);
+                
+                return response()->json([
+                    'message' => 'Invalid key format. Use format: category.name',
+                    'errors' => ['key' => ['Invalid key format']]
+                ], 422);
+            }
+
+            $data = $validator->validated();
+            
+            if (Auth::check()) {
+                $data['updated_by'] = Auth::id();
+            }
+
+            Log::info('Updating variable with data', ['data' => $data]);
+
+            $variable->update($data);
+
+            Log::info('Variable updated successfully', ['variable' => $variable]);
+
+            // INVALIDAR CACHE
+            $this->invalidateCache();
+
+            return response()->json([
+                'message' => 'Variable updated successfully',
+                'data' => $variable->fresh()
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error updating variable', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'variable_id' => $id,
+                'data' => $request->all()
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to update variable',
+                'error' => $e->getMessage(),
+                'debug' => [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine()
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove the specified variable
+     */
+    public function destroy($id)
+    {
+        try {
+            $variable = Variable::findOrFail($id);
+            $variable->delete();
+
+            // INVALIDAR CACHE
+            $this->invalidateCache();
+
+            return response()->json([
+                'message' => 'Variable deleted successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error deleting variable', [
+                'error' => $e->getMessage(),
+                'variable_id' => $id
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to delete variable',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -225,7 +456,7 @@ class VariableController extends Controller
             ], 500);
         }
     }
-  
+ 
     /**
      * Obtener variables optimizadas
      * CORREGIDO: Formato consistente para el frontend
@@ -311,22 +542,17 @@ class VariableController extends Controller
         }
     }
 
+
     /**
-     * Invalidar cache cuando se actualiza una variable
+     * Test endpoint para validar variables
      */
-    public function store(Request $request)
+    public function test(Request $request)
     {
         try {
             $validator = Validator::make($request->all(), [
-                'key' => 'required|string|max:255|unique:variables,key',
-                'value' => 'nullable',
                 'type' => 'required|in:static,dynamic,external,computed',
-                'category' => 'required|string|max:50',
-                'description' => 'nullable|string',
-                'cache_ttl' => 'nullable|integer|min:0',
-                'refresh_strategy' => 'nullable|in:manual,scheduled,event_driven,real_time',
-                'config' => 'nullable|array',
-                'is_active' => 'boolean'
+                'value' => 'nullable',
+                'config' => 'nullable|array'
             ]);
 
             if ($validator->fails()) {
@@ -336,140 +562,62 @@ class VariableController extends Controller
                 ], 422);
             }
 
-            // Validar formato de key
-            if (!Variable::validateKey($request->key)) {
-                return response()->json([
-                    'message' => 'Invalid key format. Use format: category.name',
-                    'errors' => ['key' => ['Invalid key format']]
-                ], 422);
-            }
-
-            $data = $validator->validated();
-            
-            if (Auth::check()) {
-                $data['created_by'] = Auth::id();
-                $data['updated_by'] = Auth::id();
-            }
-
-            $variable = Variable::create($data);
-
-            // INVALIDAR CACHE
-            $this->invalidateCache();
-
-            return response()->json([
-                'message' => 'Variable created successfully',
-                'data' => $variable
-            ], 201);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Failed to create variable',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Actualizar variable
-     */
-    public function update(Request $request, $id)
-    {
-        try {
-            $variable = Variable::findOrFail($id);
-
-            $validator = Validator::make($request->all(), [
-                'key' => 'required|string|max:255|unique:variables,key,' . $id,
-                'value' => 'nullable',
-                'type' => 'required|in:static,dynamic,external,computed',
-                'category' => 'required|string|max:50',
-                'description' => 'nullable|string',
-                'cache_ttl' => 'nullable|integer|min:0',
-                'refresh_strategy' => 'nullable|in:manual,scheduled,event_driven,real_time',
-                'config' => 'nullable|array',
-                'is_active' => 'boolean'
+            // Create a temporary variable for testing
+            $tempVariable = new Variable([
+                'key' => 'test.variable',
+                'type' => $request->type,
+                'value' => $request->value,
+                'config' => $request->config
             ]);
 
-            if ($validator->fails()) {
-                return response()->json([
-                    'message' => 'Validation failed',
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-
-            $data = $validator->validated();
-            
-            if (Auth::check()) {
-                $data['updated_by'] = Auth::id();
-            }
-
-            $variable->update($data);
-
-            // INVALIDAR CACHE
-            $this->invalidateCache();
+            // Try to resolve it if method exists
+            $result = method_exists($tempVariable, 'resolve') ? 
+                     $tempVariable->resolve() : 
+                     $tempVariable->value;
 
             return response()->json([
-                'message' => 'Variable updated successfully',
-                'data' => $variable->fresh()
+                'success' => true,
+                'message' => 'Variable test successful',
+                'result' => $result
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Failed to update variable',
+                'success' => false,
+                'message' => 'Variable test failed',
                 'error' => $e->getMessage()
-            ], 500);
+            ], 400);
         }
     }
 
     /**
-     * Eliminar variable
-     */
-    public function destroy($id)
-    {
-        try {
-            $variable = Variable::findOrFail($id);
-            $variable->delete();
-
-            // INVALIDAR CACHE
-            $this->invalidateCache();
-
-            return response()->json([
-                'message' => 'Variable deleted successfully'
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Failed to delete variable',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Refresh manual de una variable específica
+     * Manually refresh a variable
      */
     public function refresh($id)
     {
         try {
             $variable = Variable::findOrFail($id);
             
-            // Forzar actualización
-            $resolved = $variable->resolve();
+            // Force resolution if method exists
+            $result = method_exists($variable, 'resolve') ? 
+                     $variable->resolve(true) : 
+                     $variable->value;
             
-            $variable->update([
-                'last_refreshed_at' => now(),
-                'updated_by' => Auth::id()
-            ]);
+            // Update timestamp if column exists
+            try {
+                $variable->update(['last_refreshed_at' => now()]);
+            } catch (\Exception $e) {
+                Log::warning('Could not update last_refreshed_at', ['error' => $e->getMessage()]);
+            }
 
             // INVALIDAR CACHE
             $this->invalidateCache();
 
             return response()->json([
+                'success' => true,
                 'message' => 'Variable refreshed successfully',
-                'data' => [
-                    'key' => $variable->key,
-                    'value' => $resolved,
-                    'last_refreshed_at' => $variable->last_refreshed_at
-                ]
+                'result' => $result,
+                'refreshed_at' => now()->toISOString()
             ]);
 
         } catch (\Exception $e) {
@@ -495,71 +643,6 @@ class VariableController extends Controller
     }
 
     /**
-     * Invalidar todo el cache de variables
-     */
-    private function invalidateCache()
-    {
-        Cache::forget(self::CACHE_KEY_ALL_RESOLVED);
-        Cache::forget(self::CACHE_KEY_CATEGORIES);
-        
-        // También limpiar cache por tags si está disponible
-        if (method_exists(Cache::store(), 'tags')) {
-            Cache::tags(['variables'])->flush();
-        }
-        
-        Log::info('Variable cache invalidated');
-    }
-
-    /**
-     * Validar formato de key (debe ser category.name)
-     */
-    private function validateKey($key)
-    {
-        return preg_match('/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/i', $key);
-    }
-
-    /**
-     * Test endpoint para validar variables
-     */
-    public function test(Request $request)
-    {
-        try {
-            $key = $request->get('key');
-            if (!$key) {
-                return response()->json([
-                    'error' => 'Key parameter is required'
-                ], 400);
-            }
-
-            $variable = Variable::where('key', $key)->first();
-            if (!$variable) {
-                return response()->json([
-                    'error' => 'Variable not found'
-                ], 404);
-            }
-
-            $startTime = microtime(true);
-            $resolvedValue = $variable->resolve();
-            $executionTime = (microtime(true) - $startTime) * 1000;
-
-            return response()->json([
-                'key' => $key,
-                'original_value' => $variable->value,
-                'resolved_value' => $resolvedValue,
-                'type' => $variable->type,
-                'execution_time' => $executionTime . 'ms',
-                'timestamp' => now()->toISOString()
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Test failed',
-                'message' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
      * Obtener información de cache para debug
      */
     public function cacheInfo()
@@ -576,5 +659,25 @@ class VariableController extends Controller
         ]);
     }
 
-
+    /**
+     * Invalidar todo el cache de variables
+     */
+    private function invalidateCache()
+    {
+        try {
+            Cache::forget(self::CACHE_KEY_ALL_RESOLVED);
+            Cache::forget(self::CACHE_KEY_CATEGORIES);
+            
+            // También limpiar cache por tags si está disponible
+            if (method_exists(Cache::store(), 'tags')) {
+                Cache::tags(['variables'])->flush();
+            }
+            
+            Log::info('Variable cache invalidated');
+        } catch (\Exception $e) {
+            Log::warning('Error invalidating cache', ['error' => $e->getMessage()]);
+        }
+    }
 }
+
+
