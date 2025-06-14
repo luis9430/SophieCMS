@@ -464,6 +464,92 @@ const variablesPlugin = {
         return this.processor?.getProvider(name);
     },
 
+
+     getVariable(variableKey) {
+        try {
+            if (!this.processor) return undefined;
+            
+            // Buscar en todos los providers
+            for (const [providerName, provider] of this.processor.providers.entries()) {
+                try {
+                    const variables = provider.getVariables();
+                    if (variables && variables.hasOwnProperty(variableKey)) {
+                        return variables[variableKey];
+                    }
+                } catch (error) {
+                    console.error(`Error getting variable from ${providerName}:`, error);
+                }
+            }
+            
+            return undefined;
+            
+        } catch (error) {
+            console.error('Error in getVariable:', error);
+            return undefined;
+        }
+    },
+
+      getVariableInfo(variableKey) {
+        try {
+            if (!this.processor) return null;
+            
+            for (const [providerName, provider] of this.processor.providers.entries()) {
+                try {
+                    const variables = provider.getVariables();
+                    if (variables && variables.hasOwnProperty(variableKey)) {
+                        return {
+                            key: variableKey,
+                            value: variables[variableKey],
+                            provider: providerName,
+                            providerTitle: provider.title || providerName,
+                            category: provider.category || 'unknown',
+                            priority: provider.priority || 50,
+                            type: typeof variables[variableKey],
+                            lastUpdated: provider.lastUpdated
+                        };
+                    }
+                } catch (error) {
+                    console.error(`Error getting variable info from ${providerName}:`, error);
+                }
+            }
+            
+            return null;
+            
+        } catch (error) {
+            console.error('Error in getVariableInfo:', error);
+            return null;
+        }
+    },
+
+      hasVariable(variableKey) {
+        return this.getVariable(variableKey) !== undefined;
+    },
+
+     getVariableKeys() {
+        try {
+            const keys = new Set();
+            
+            if (!this.processor) return [];
+            
+            for (const [providerName, provider] of this.processor.providers.entries()) {
+                try {
+                    const variables = provider.getVariables();
+                    if (variables) {
+                        Object.keys(variables).forEach(key => keys.add(key));
+                    }
+                } catch (error) {
+                    console.error(`Error getting keys from ${providerName}:`, error);
+                }
+            }
+            
+            return Array.from(keys).sort();
+            
+        } catch (error) {
+            console.error('Error getting variable keys:', error);
+            return [];
+        }
+    },
+
     /**
      * Agregar provider personalizado
      */
@@ -477,77 +563,90 @@ const variablesPlugin = {
     // DEBUG Y DESARROLLO (ACTUALIZADO)
     // ===================================================================
     
-    getDebugInfo() {
-        if (process.env.NODE_ENV === 'development') {
-            return {
-                version: this.version,
-                processors: this.processor ? this.processor.providers.size : 0,
-                
-                // Debug de providers
-                testProviders() {
-                    const allVars = variablesPlugin.getAllVariables();
-                    console.log('🔍 Testing all providers:');
-                    Object.entries(allVars).forEach(([name, provider]) => {
-                        console.log(`📦 ${name}:`, provider);
-                    });
-                },
-                
-                // Debug específico de database
-                async testDatabase() {
-                    const dbProvider = variablesPlugin.getProvider('database');
-                    if (dbProvider) {
-                        console.log('💾 Testing database provider...');
-                        await dbProvider.refresh();
-                        const vars = dbProvider.getVariables();
-                        console.log('Variables from DB:', vars);
-                    } else {
-                        console.log('❌ Database provider not found');
-                    }
-                },
-                
-                // Debug de cache
-                showCache() {
-                    const dbProvider = variablesPlugin.getProvider('database');
-                    console.log('💾 Database Provider State:');
-                    console.log('Cache:', dbProvider?.cache);
-                    console.log('Last fetch:', dbProvider?.lastFetch);
-                    console.log('Loading:', dbProvider?.loading);
-                },
-                
-                // Test API connection
-                testAPI: async () => {
-                    try {
-                        const categories = await variablesPlugin.api.getCategories();
-                        console.log('✅ API Connection OK');
-                        console.log('Categories:', categories);
-                    } catch (error) {
-                        console.error('❌ API Connection Failed:', error);
-                    }
-                },
-                
-                // NUEVO: Test preview integration
-                testPreviewIntegration() {
-                    console.log('🔍 Testing preview integration...');
-                    
-                    // Simular cambio de variable
-                    variablesPlugin._emit('testEvent', { test: true });
-                    
-                    // Verificar listeners
-                    console.log('Preview listeners:', variablesPlugin._previewListeners?.length || 0);
-                    console.log('Change listeners:', variablesPlugin._changeListeners?.length || 0);
-                },
-                
-                // NUEVO: Force refresh para debug
-                async forceRefreshAll() {
-                    console.log('🔄 Force refreshing all providers...');
-                    await variablesPlugin._refreshProvider('database');
-                    await variablesPlugin._refreshProvider('system');
-                    window.dispatchEvent(new CustomEvent('variablesForceRefresh'));
-                    console.log('✅ Force refresh completed');
+        getDebugInfo() {
+                if (process.env.NODE_ENV === 'development') {
+                    return {
+                        version: this.version,
+                        processors: this.processor ? this.processor.providers.size : 0,
+                        
+                        // Debug de providers
+                        testProviders() {
+                            const allVars = variablesPlugin.getAllVariables();
+                            console.log('🔍 Testing all providers:');
+                            Object.entries(allVars).forEach(([name, provider]) => {
+                                console.log(`📦 ${name}:`, provider);
+                            });
+                        },
+                        
+                        // NUEVO: Test del método getVariable
+                        testGetVariable(key = 'site.company_name') {
+                            console.log(`🎯 Testing getVariable('${key}'):`);
+                            const value = variablesPlugin.getVariable(key);
+                            const info = variablesPlugin.getVariableInfo(key);
+                            console.log('Value:', value);
+                            console.log('Info:', info);
+                            return { value, info };
+                        },
+                        
+                        // NUEVO: Listar todas las claves
+                        showAllKeys() {
+                            const keys = variablesPlugin.getVariableKeys();
+                            console.log('🔑 All variable keys:', keys);
+                            return keys;
+                        },
+                        
+                        // Test específico de database
+                        async testDatabase() {
+                            const dbProvider = variablesPlugin.getProvider('database');
+                            if (dbProvider) {
+                                console.log('💾 Testing database provider...');
+                                await dbProvider.refresh();
+                                const vars = dbProvider.getVariables();
+                                console.log('Variables from DB:', vars);
+                            } else {
+                                console.log('❌ Database provider not found');
+                            }
+                        },
+                        
+                        // Debug de cache
+                        showCache() {
+                            const dbProvider = variablesPlugin.getProvider('database');
+                            console.log('💾 Database Provider State:');
+                            console.log('Cache:', dbProvider?.cache);
+                            console.log('Last fetch:', dbProvider?.lastFetch);
+                            console.log('Loading:', dbProvider?.loading);
+                        },
+                        
+                        // Test API connection
+                        testAPI: async () => {
+                            try {
+                                const categories = await variablesPlugin.api.getCategories();
+                                console.log('✅ API Connection OK');
+                                console.log('Categories:', categories);
+                            } catch (error) {
+                                console.error('❌ API Connection Failed:', error);
+                            }
+                        },
+                        
+                        // Test preview integration
+                        testPreviewIntegration() {
+                            console.log('🔍 Testing preview integration...');
+                            variablesPlugin._emit('testEvent', { test: true });
+                            console.log('Preview listeners:', variablesPlugin._previewListeners?.length || 0);
+                            console.log('Change listeners:', variablesPlugin._changeListeners?.length || 0);
+                        },
+                        
+                        // Force refresh para debug
+                        async forceRefreshAll() {
+                            console.log('🔄 Force refreshing all providers...');
+                            await variablesPlugin._refreshProvider('database');
+                            await variablesPlugin._refreshProvider('system');
+                            window.dispatchEvent(new CustomEvent('variablesForceRefresh'));
+                            console.log('✅ Force refresh completed');
+                        }
+                    };
                 }
-            };
-        }
-    },
+            },
 
     // ===================================================================
     // CLEANUP (ACTUALIZADO)
@@ -584,6 +683,8 @@ const variablesPlugin = {
         }
     }
 };
+
+
 
 // ===================================================================
 // DEBUGGING Y DESARROLLO (ACTUALIZADO)

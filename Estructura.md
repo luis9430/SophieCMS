@@ -6,7 +6,6 @@
 resources/js/block-builder/
 ├── 📁 core/                           # Sistema principal de plugins
 │   ├── PluginManager.js               # ✅ Gestor central de plugins
-│   ├── LegacyBridge.js                # ✅ Puente de compatibilidad
 │   ├── PluginSystemInit.js            # ✅ Inicializador del sistema
 │   └── TemplateEngine.js              # 🔄 Motor de templates (Fase 3)
 │

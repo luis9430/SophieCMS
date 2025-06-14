@@ -296,19 +296,18 @@ class PageBuilderController extends Controller
             
             // Reemplazar variables en el contenido
             foreach ($variables as $key => $value) {
-                // Convertir objetos a string si es necesario
-                if (is_array($value) || is_object($value)) {
-                    $value = json_encode($value);
-                }
+                // Convertir objetos/arrays a string de manera segura
+                $stringValue = $this->convertValueToString($value);
                 
-                // Reemplazar diferentes formatos de variables
+                // Crear patrones individuales (no arrays)
                 $patterns = [
-                    '/\{\{\s*' . preg_quote($key, '/') . '\s*\}\}/',          // {{variable}}
-                    '/\$\{\s*' . preg_quote($key, '/') . '\s*\}/',            // ${variable}
+                    '/\{\{\s*' . preg_quote($key, '/') . '\s*\}\}/',   // {{variable}}
+                    '/\$\{\s*' . preg_quote($key, '/') . '\s*\}/',     // ${variable}
                 ];
                 
+                // Aplicar cada patrón individualmente
                 foreach ($patterns as $pattern) {
-                    $content = preg_replace($pattern, $value, $content);
+                    $content = preg_replace($pattern, $stringValue, $content);
                 }
             }
             
@@ -320,6 +319,39 @@ class PageBuilderController extends Controller
         }
     }
 
+    private function convertValueToString($value)
+    {
+        if ($value === null) {
+            return '';
+        }
+        
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+        
+        if (is_array($value) || is_object($value)) {
+            // Para objetos complejos, extraer valor si es posible
+            if (is_array($value) && isset($value['count'])) {
+                return (string) $value['count'];
+            }
+            
+            if (is_object($value) && property_exists($value, 'count')) {
+                return (string) $value->count;
+            }
+            
+            // Para otros casos, convertir a JSON
+            try {
+                return json_encode($value, JSON_UNESCAPED_UNICODE);
+            } catch (\Exception $e) {
+                return '[Object]';
+            }
+        }
+        
+        // Para valores escalares, convertir a string directamente
+        return (string) $value;
+    }
+
+
     /**
      * Procesar configuración en el contenido
      */
@@ -328,13 +360,16 @@ class PageBuilderController extends Controller
         try {
             // Procesar sintaxis de configuración como {{ $config['title'] }}
             foreach ($config as $key => $value) {
+                $stringValue = $this->convertValueToString($value);
+                
                 $patterns = [
                     '/\{\{\s*\$config\[\s*[\'"]' . preg_quote($key, '/') . '[\'"]\s*\]\s*\}\}/',
                     '/\{\{\s*\$config\[' . preg_quote($key, '/') . '\]\s*\}\}/',
                 ];
                 
+                // Aplicar cada patrón individualmente
                 foreach ($patterns as $pattern) {
-                    $content = preg_replace($pattern, $value, $content);
+                    $content = preg_replace($pattern, $stringValue, $content);
                 }
             }
             
