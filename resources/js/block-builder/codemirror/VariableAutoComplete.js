@@ -1,5 +1,5 @@
 // ===================================================================
-// SOLUCIÓN PARA EL AUTOCOMPLETADO DE VARIABLES EN CODEMIRROR
+// SOLUCIÓN COMPLETA PARA EL ERROR DE AUTOCOMPLETADO DE VARIABLES
 // Archivo: resources/js/block-builder/codemirror/VariableAutoComplete.js
 // ===================================================================
 
@@ -98,7 +98,7 @@ export class VariableAutoCompleteSystem {
     }
 
     /**
-     * Función principal de autocompletado
+     * Función principal de autocompletado - SOLUCIONADA
      */
     async getCompletions(context) {
         try {
@@ -109,14 +109,19 @@ export class VariableAutoCompleteSystem {
             );
             
             // Buscar patrones de variables: {{ variable }}
-            const variableMatch = beforeCursor.match(/\{\{[\w\s.]*$/);
+            const variableMatch = beforeCursor.match(/\{\{[\w\s.-]*$/);
             if (!variableMatch) return null;
 
             const variables = await this.getVariables();
             if (variables.size === 0) return null;
 
-            // Extraer término de búsqueda
-            const searchTerm = variableMatch[0].replace('{{', '').trim().toLowerCase();
+            // Extraer término de búsqueda - MEJORADO
+            const matchText = variableMatch[0];
+            const searchTerm = matchText.replace('{{', '').trim().toLowerCase();
+            
+            // Calcular posición base - CORREGIDO
+            const matchStart = context.pos - matchText.length;
+            const contentStart = matchStart + 2; // Después de {{
             
             // Filtrar y ordenar variables
             const completions = [];
@@ -129,17 +134,78 @@ export class VariableAutoCompleteSystem {
                         info: `${varData.title}: ${varData.type}`,
                         detail: this.formatValue(varData.value),
                         apply: (view, completion, from, to) => {
-                            // Calcular posición correcta
-                            const insertFrom = from - variableMatch[0].length + 2; // +2 para saltar {{
-                            const insertText = `${key}}}`;
-                            
-                            view.dispatch({
-                                changes: { 
-                                    from: insertFrom, 
-                                    to, 
-                                    insert: insertText 
+                            // SOLUCIÓN CORREGIDA - Sin duplicar llaves de cierre
+                            try {
+                                const doc = view.state.doc;
+                                const docLength = doc.length;
+                                
+                                // Obtener contexto más amplio
+                                const contextStart = Math.max(0, from - 20);
+                                const contextEnd = Math.min(docLength, to + 10);
+                                const contextText = doc.sliceString(contextStart, contextEnd);
+                                
+                                // Buscar la posición real de {{ en el contexto
+                                const braceIndex = contextText.lastIndexOf('{{');
+                                if (braceIndex === -1) {
+                                    // Si no encontramos {{, insertar variable completa
+                                    const insertText = `{{${key}}}`;
+                                    view.dispatch({
+                                        changes: { from, to, insert: insertText }
+                                    });
+                                    return;
                                 }
-                            });
+                                
+                                // Calcular posiciones reales
+                                const braceStart = contextStart + braceIndex;
+                                const contentStart = braceStart + 2; // Después de {{
+                                
+                                // Verificar si ya hay }} después del cursor
+                                const afterCursor = doc.sliceString(to, Math.min(docLength, to + 5));
+                                const hasClosingBraces = afterCursor.startsWith('}}');
+                                
+                                // Determinar qué insertar
+                                let insertText;
+                                if (hasClosingBraces) {
+                                    // Ya hay }}, solo insertar el nombre de la variable
+                                    insertText = key;
+                                } else {
+                                    // No hay }}, insertar variable + }}
+                                    insertText = `${key}}}`;
+                                }
+                                
+                                // Calcular from y to correctos
+                                const actualFrom = Math.max(contentStart, from);
+                                const actualTo = to;
+                                
+                                // Validar rangos
+                                if (actualFrom < 0 || actualTo < actualFrom || actualTo > docLength) {
+                                    console.warn('⚠️ Invalid range, using simple insertion');
+                                    view.dispatch({
+                                        changes: { from: to, insert: key }
+                                    });
+                                    return;
+                                }
+                                
+                                // Aplicar el cambio
+                                view.dispatch({
+                                    changes: { 
+                                        from: actualFrom, 
+                                        to: actualTo, 
+                                        insert: insertText 
+                                    }
+                                });
+                                
+                                if (this.debug) {
+                                    console.log(`✅ Variable inserted: "${insertText}" at ${actualFrom}-${actualTo}, hasClosing: ${hasClosingBraces}`);
+                                }
+                                
+                            } catch (error) {
+                                console.error('❌ Error applying variable completion:', error);
+                                // Fallback más simple y seguro
+                                view.dispatch({
+                                    changes: { from, to, insert: key }
+                                });
+                            }
                         },
                         boost: varData.priority,
                         section: {
@@ -158,10 +224,13 @@ export class VariableAutoCompleteSystem {
 
             if (sortedCompletions.length === 0) return null;
 
+            // CORREGIDO: Calcular from correctamente
+            const completionFrom = Math.max(0, contentStart);
+            
             return {
-                from: context.pos - variableMatch[0].length + 2,
+                from: completionFrom,
                 options: sortedCompletions,
-                validFor: /^[\w.]*$/
+                validFor: /^[\w.-]*$/
             };
 
         } catch (error) {
@@ -179,8 +248,6 @@ export class VariableAutoCompleteSystem {
         if (this.debug) console.log('🗑️ Variable autocomplete cache invalidated');
     }
 }
-
-// Instancia global del sistema
 
 // Instancia global del sistema
 const autoCompleteSystem = new VariableAutoCompleteSystem();
@@ -344,8 +411,31 @@ export const invalidateVariableCache = () => {
 };
 
 /**
- * Evento para refrescar variables
+ * Función de debug para probar el autocompletado
  */
+export const debugVariableAutoComplete = () => {
+    console.log('=== DEBUG VARIABLE AUTOCOMPLETE ===');
+    console.log('Variables Cache:', autoCompleteSystem.cachedVariables);
+    console.log('Last Cache Time:', new Date(autoCompleteSystem.lastCacheTime));
+    console.log('Cache Size:', autoCompleteSystem.cachedVariables.size);
+    
+    // Test con contexto mock
+    const mockContext = {
+        pos: 10,
+        state: {
+            doc: {
+                sliceString: (from, to) => '{{ test',
+                length: 20
+            }
+        }
+    };
+    
+    autoCompleteSystem.getCompletions(mockContext).then(result => {
+        console.log('Mock completion result:', result);
+    });
+};
+
+// Eventos para refrescar variables
 if (typeof window !== 'undefined') {
     // Escuchar eventos de cambio de variables
     window.addEventListener('variablesChanged', () => {
@@ -357,11 +447,24 @@ if (typeof window !== 'undefined') {
     });
     
     // Exponer funciones globalmente para debug
-    window.debugVariableAutocomplete = () => {
-        console.log('Variables Cache:', autoCompleteSystem.cachedVariables);
-        console.log('Last Cache Time:', new Date(autoCompleteSystem.lastCacheTime));
-        console.log('Cache Size:', autoCompleteSystem.cachedVariables.size);
-    };
-    
+    window.debugVariableAutocomplete = debugVariableAutoComplete;
     window.invalidateVariableCache = invalidateVariableCache;
+    
+    // Función de test rápido
+    window.testVariableInsertion = () => {
+        if (!window.currentEditor) {
+            console.log('❌ Editor no disponible');
+            return;
+        }
+        
+        const view = window.currentEditor;
+        const pos = view.state.selection.main.head;
+        
+        // Insertar {{ para activar autocompletado
+        view.dispatch({
+            changes: { from: pos, insert: '{{ ' }
+        });
+        
+        console.log('✅ Test completado - escribe para ver sugerencias de variables');
+    };
 }
