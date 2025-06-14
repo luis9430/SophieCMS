@@ -431,18 +431,34 @@ const variablesPlugin = {
     /**
      * Obtener todas las variables disponibles
      */
+ // Reemplazar el método getAllVariables() con la versión corregida del fix
     getAllVariables() {
-        if (!this.processor) return {};
-        
         const allVariables = {};
+        
         for (const [name, provider] of this.processor.providers.entries()) {
             try {
-                const variables = provider.getVariables();
+                let variables = provider.getVariables();
+                
+                // CORRECCIÓN: Si es una Promise, usar el cache directo
+                if (variables && typeof variables.then === 'function') {
+                    if (name === 'database' && provider._variables) {
+                        variables = provider._variables;
+                    } else {
+                        variables = {};
+                    }
+                }
+                
                 allVariables[name] = {
                     title: provider.title || name,
                     priority: provider.priority || 50,
-                    variables: variables || {}
+                    variables: variables || {},
+                    metadata: {
+                        title: provider.title || name,
+                        priority: provider.priority || 50,
+                        category: provider.category || 'general'
+                    }
                 };
+                
             } catch (error) {
                 console.error(`Error getting variables from ${name}:`, error);
                 allVariables[name] = {
@@ -456,6 +472,7 @@ const variablesPlugin = {
         
         return allVariables;
     },
+
 
     /**
      * Obtener provider específico
