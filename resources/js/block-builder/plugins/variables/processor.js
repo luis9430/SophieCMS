@@ -117,6 +117,10 @@ export class VariableProcessor {
         }
     }
 
+        process(content) {
+            return this.processCode(content);
+        }
+
     /**
      * Obtener todas las variables de todos los providers
      * @returns {Object} Variables organizadas por categoría
@@ -159,6 +163,8 @@ export class VariableProcessor {
             return null;
         }
 
+
+        
         // Buscar en providers ordenados por prioridad
         const sortedProviders = this._getSortedProviders();
         
@@ -176,6 +182,11 @@ export class VariableProcessor {
         return null;
     }
 
+        getVariable(variablePath) {
+            return this.getVariableValue(variablePath);
+        }
+
+
     /**
      * Validar si una variable existe
      * @param {string} variablePath - Path de la variable
@@ -185,6 +196,32 @@ export class VariableProcessor {
         return this.getVariableValue(variablePath) !== null;
     }
 
+    hasVariable(variablePath) {
+            if (!variablePath || typeof variablePath !== 'string') {
+                return false;
+            }
+
+            // Buscar en providers ordenados por prioridad
+            const sortedProviders = this._getSortedProviders();
+            
+            for (const [name, provider] of sortedProviders) {
+                try {
+                    if (provider.hasVariable && provider.hasVariable(variablePath)) {
+                        return true;
+                    }
+                    // Fallback: verificar si existe en las variables del provider
+                    const variables = provider.getVariables();
+                    if (variables && variables.hasOwnProperty(variablePath)) {
+                        return true;
+                    }
+                } catch (error) {
+                    console.error(`❌ Error checking variable ${variablePath} in ${name}:`, error);
+                    continue;
+                }
+            }
+            
+            return false;
+        }
     /**
      * Extraer variables de código HTML
      * @param {string} htmlCode - Código HTML
@@ -207,6 +244,22 @@ export class VariableProcessor {
         }
         
         return variables;
+    }
+
+
+    getProviderVariables(providerName) {
+        const provider = this.providers.get(providerName);
+        if (!provider) {
+            console.warn(`Provider ${providerName} not found`);
+            return {};
+        }
+        
+        try {
+            return provider.getVariables() || {};
+        } catch (error) {
+            console.error(`❌ Error getting variables from provider ${providerName}:`, error);
+            return {};
+        }
     }
 
     /**

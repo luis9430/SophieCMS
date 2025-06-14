@@ -238,18 +238,19 @@ const variablesPlugin = {
         }
     },
 
-    processVariables(content) {
-        if (!content || typeof content !== 'string') {
-            return content;
-        }
+        processVariables(content) {
+            if (!content || typeof content !== 'string') {
+                return content;
+            }
 
-        try {
-            return this.processor.process(content);
-        } catch (error) {
-            console.error('❌ Error processing variables:', error);
-            return content;
-        }
-    },
+            try {
+                // Usar processCode que es el método real en VariableProcessor
+                return this.processor.processCode(content);
+            } catch (error) {
+                console.error('❌ Error processing variables:', error);
+                return content;
+            }
+        },
 
     getVariable(path) {
         return this.processor.getVariable(path);
@@ -276,9 +277,19 @@ const variablesPlugin = {
         return filtered;
     },
 
-    analyzeContent(content) {
-        return this.analyzer.analyze(content);
-    },
+        analyzeContent(content) {
+            try {
+                return this.analyzer.analyzeCode(content);
+            } catch (error) {
+                console.error('❌ Error analyzing content:', error);
+                return {
+                    totalVariables: 0,
+                    validVariables: 0,
+                    invalidVariables: 0,
+                    recommendations: []
+                };
+            }
+        },
 
     validateVariable(path) {
         return this.processor.hasVariable(path);

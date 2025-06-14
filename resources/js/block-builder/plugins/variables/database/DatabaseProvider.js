@@ -132,6 +132,17 @@ export class DatabaseProvider extends VariableProvider {
         }
     }
 
+    hasVariable(key) {
+    return this._variables && this._variables.hasOwnProperty(key);
+        }
+
+        /**
+         * Obtener valor de una variable específica
+         */
+        getVariable(key) {
+            return this._variables ? this._variables[key] : null;
+        }
+
     /**
      * Actualizar variable existente
      */
