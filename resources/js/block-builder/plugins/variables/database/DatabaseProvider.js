@@ -1,9 +1,13 @@
+// ===================================================================
 // resources/js/block-builder/plugins/variables/database/DatabaseProvider.js
+// ACTUALIZADO - Con invalidación inteligente de cache
+// ===================================================================
 
 import { VariableProvider } from '../providers.js';
 
 /**
  * Provider que se conecta a la API de Laravel para variables dinámicas
+ * con sistema de cache inteligente y auto-invalidación
  */
 export class DatabaseProvider extends VariableProvider {
     constructor() {
@@ -14,22 +18,62 @@ export class DatabaseProvider extends VariableProvider {
             priority: 90,
             refreshable: true,
             autoRefresh: true,
-            refreshInterval: 60000 // 1 minuto
+            refreshInterval: 30000 // 30 segundos (reducido para mayor responsividad)
         });
         
         this.apiUrl = '/api/variables';
         this.cache = new Map();
         this.lastFetch = null;
         this.loading = false;
+        this.retryCount = 0;
+        this.maxRetries = 3;
+        
+        // Callbacks para notificar cambios
+        this.onRefresh = null;
+        this.changeListeners = [];
+        
+        // Setup de invalidación automática
+        this.setupCacheInvalidation();
+        
+        console.log('💾 DatabaseProvider initialized with enhanced caching');
     }
 
     /**
-     * Cargar variables desde la API
+     * Configurar sistema de invalidación automática de cache
+     */
+    setupCacheInvalidation() {
+        // Escuchar eventos de cambios en variables
+        window.addEventListener('variableChanged', (event) => {
+            const { event: changeType, data } = event.detail;
+            console.log(`📡 Database variable changed: ${changeType}`, data);
+            this.invalidateCache();
+        });
+        
+        // Escuchar cambios específicos que requieren refresh inmediato
+        const immediateRefreshEvents = [
+            'variableCreated',
+            'variableUpdated', 
+            'variableDeleted',
+            'variableRefreshed'
+        ];
+        
+        immediateRefreshEvents.forEach(eventType => {
+            window.addEventListener(eventType, () => {
+                console.log(`🔄 Immediate refresh triggered by ${eventType}`);
+                this.invalidateCache();
+                this.refresh(); // Refresh inmediato
+            });
+        });
+    }
+
+    /**
+     * Cargar variables desde la API con retry automático
      */
     async getVariables() {
         try {
-            // Usar cache si es reciente (menos de 1 minuto)
-            if (this.lastFetch && Date.now() - this.lastFetch < 60000) {
+            // Usar cache si es reciente (menos de 30 segundos)
+            if (this.lastFetch && Date.now() - this.lastFetch < 30000 && Object.keys(this._variables).length > 0) {
+                console.log('💾 Using cached database variables');
                 return this._variables;
             }
 
@@ -39,36 +83,158 @@ export class DatabaseProvider extends VariableProvider {
                 return this._variables;
             }
 
-            this.loading = true;
-            console.log('💾 Fetching variables from database...');
+            return await this.fetchFromAPI();
 
+        } catch (error) {
+            console.error('❌ Error loading variables from database:', error);
+            
+            // En caso de error, intentar retry si es posible
+            if (this.retryCount < this.maxRetries) {
+                this.retryCount++;
+                console.log(`🔄 Retrying database fetch (${this.retryCount}/${this.maxRetries})...`);
+                
+                // Esperar un poco antes del retry
+                await new Promise(resolve => setTimeout(resolve, 1000 * this.retryCount));
+                return this.getVariables();
+            }
+            
+            // Si falló el retry, mantener variables en cache
+            console.warn('⚠️ Using cached variables due to API failure');
+            return this._variables;
+        }
+    }
+
+    /**
+     * Realizar la petición a la API
+     */
+    async fetchFromAPI() {
+        this.loading = true;
+        console.log('💾 Fetching fresh variables from database...');
+
+        try {
             const response = await fetch(`${this.apiUrl}/resolved/all`, {
                 headers: {
                     'Accept': 'application/json',
                     'Content-Type': 'application/json',
-                    // Agregar auth header si es necesario
-                    ...(this.getAuthHeaders())
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache',
+                    ...this.getAuthHeaders()
                 }
             });
 
             if (!response.ok) {
-                throw new Error(`API request failed: ${response.status}`);
+                throw new Error(`API request failed: ${response.status} ${response.statusText}`);
             }
 
             const data = await response.json();
-            this._variables = data.variables || {};
+            
+            // Procesar variables
+            const newVariables = data.variables || {};
+            
+            // Verificar si hubo cambios
+            const hasChanges = this.detectChanges(newVariables);
+            
+            // Actualizar variables
+            this._variables = newVariables;
             this.lastFetch = Date.now();
-
-            console.log(`✅ Loaded ${Object.keys(this._variables).length} variables from database`);
+            this.retryCount = 0; // Reset retry count en éxito
+            
+            console.log(`✅ Loaded ${Object.keys(this._variables).length} variables from database`, {
+                hasChanges,
+                timestamp: new Date().toLocaleTimeString()
+            });
+            
+            // Notificar cambios si los hubo
+            if (hasChanges) {
+                this.notifyChanges();
+            }
             
             return this._variables;
 
-        } catch (error) {
-            console.error('❌ Error loading variables from database:', error);
-            // Mantener variables en cache en caso de error
-            return this._variables;
         } finally {
             this.loading = false;
+        }
+    }
+
+    /**
+     * Detectar si hubo cambios en las variables
+     */
+    detectChanges(newVariables) {
+        const oldKeys = Object.keys(this._variables);
+        const newKeys = Object.keys(newVariables);
+        
+        // Verificar si cambió el número de variables
+        if (oldKeys.length !== newKeys.length) {
+            return true;
+        }
+        
+        // Verificar si cambiaron las claves
+        if (!oldKeys.every(key => newKeys.includes(key))) {
+            return true;
+        }
+        
+        // Verificar si cambiaron los valores
+        for (const key of newKeys) {
+            if (this._variables[key] !== newVariables[key]) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    /**
+     * Notificar sobre cambios en variables
+     */
+    notifyChanges() {
+        // Callback específico
+        if (typeof this.onRefresh === 'function') {
+            try {
+                this.onRefresh();
+            } catch (error) {
+                console.error('Error in onRefresh callback:', error);
+            }
+        }
+        
+        // Notificar a listeners
+        this.changeListeners.forEach(listener => {
+            try {
+                listener({
+                    type: 'databaseRefreshed',
+                    variables: this._variables,
+                    timestamp: Date.now()
+                });
+            } catch (error) {
+                console.error('Error in change listener:', error);
+            }
+        });
+        
+        // Emitir evento global
+        window.dispatchEvent(new CustomEvent('databaseVariablesRefreshed', {
+            detail: {
+                variables: this._variables,
+                count: Object.keys(this._variables).length,
+                timestamp: Date.now()
+            }
+        }));
+    }
+
+    /**
+     * Agregar listener para cambios
+     */
+    addChangeListener(callback) {
+        if (typeof callback === 'function') {
+            this.changeListeners.push(callback);
+        }
+    }
+
+    /**
+     * Remover listener
+     */
+    removeChangeListener(callback) {
+        const index = this.changeListeners.indexOf(callback);
+        if (index > -1) {
+            this.changeListeners.splice(index, 1);
         }
     }
 
@@ -76,250 +242,64 @@ export class DatabaseProvider extends VariableProvider {
      * Refresh específico para base de datos
      */
     async refresh() {
-        this.lastFetch = null; // Forzar nueva carga
+        console.log('🔄 Force refreshing database variables...');
+        this.invalidateCache();
         await this.getVariables();
         await super.refresh();
+    }
+
+    /**
+     * Invalidar cache forzadamente
+     */
+    invalidateCache() {
+        console.log('🗑️ Invalidating database cache');
+        this.lastFetch = null;
+        this.cache.clear();
+        
+        // Emitir evento de invalidación
+        window.dispatchEvent(new CustomEvent('databaseCacheInvalidated', {
+            detail: { timestamp: Date.now() }
+        }));
+    }
+
+    /**
+     * Esperar a que termine la carga actual
+     */
+    async waitForLoading(maxWait = 5000) {
+        const startTime = Date.now();
+        
+        while (this.loading && (Date.now() - startTime) < maxWait) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        if (this.loading) {
+            console.warn('⚠️ Timeout waiting for database loading');
+        }
     }
 
     /**
      * Obtener headers de autenticación
      */
     getAuthHeaders() {
+        const headers = {};
+        
+        // CSRF Token
         const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        return token ? { 'X-CSRF-TOKEN': token } : {};
+        if (token) {
+            headers['X-CSRF-TOKEN'] = token;
+        }
+        
+        // Authorization header si existe
+        const authToken = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+        if (authToken) {
+            headers['Authorization'] = `Bearer ${authToken}`;
+        }
+        
+        return headers;
     }
 
     /**
-     * Esperar a que termine la carga actual
-     */
-    async waitForLoading() {
-        while (this.loading) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-        }
-    }
-
-    /**
-     * Crear nueva variable en la base de datos
-     */
-    async createVariable(data) {
-        try {
-            const response = await fetch(this.apiUrl, {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    ...this.getAuthHeaders()
-                },
-                body: JSON.stringify(data)
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || 'Failed to create variable');
-            }
-
-            const result = await response.json();
-            
-            // Actualizar cache local
-            this.lastFetch = null; // Forzar refresh
-            await this.refresh();
-
-            return result;
-
-        } catch (error) {
-            console.error('❌ Error creating variable:', error);
-            throw error;
-        }
-    }
-
-    hasVariable(key) {
-    return this._variables && this._variables.hasOwnProperty(key);
-        }
-
-        /**
-         * Obtener valor de una variable específica
-         */
-        getVariable(key) {
-            return this._variables ? this._variables[key] : null;
-        }
-
-    /**
-     * Actualizar variable existente
-     */
-    async updateVariable(id, data) {
-        try {
-            const response = await fetch(`${this.apiUrl}/${id}`, {
-                method: 'PUT',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    ...this.getAuthHeaders()
-                },
-                body: JSON.stringify(data)
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || 'Failed to update variable');
-            }
-
-            const result = await response.json();
-            
-            // Actualizar cache local
-            this.lastFetch = null; // Forzar refresh
-            await this.refresh();
-
-            return result;
-
-        } catch (error) {
-            console.error('❌ Error updating variable:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Eliminar variable
-     */
-    async deleteVariable(id) {
-        try {
-            const response = await fetch(`${this.apiUrl}/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Accept': 'application/json',
-                    ...this.getAuthHeaders()
-                }
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || 'Failed to delete variable');
-            }
-
-            // Actualizar cache local
-            this.lastFetch = null; // Forzar refresh
-            await this.refresh();
-
-            return true;
-
-        } catch (error) {
-            console.error('❌ Error deleting variable:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Obtener información detallada de una variable
-     */
-    async getVariableDetails(id) {
-        try {
-            const response = await fetch(`${this.apiUrl}/${id}`, {
-                headers: {
-                    'Accept': 'application/json',
-                    ...this.getAuthHeaders()
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to get variable details: ${response.status}`);
-            }
-
-            return await response.json();
-
-        } catch (error) {
-            console.error('❌ Error getting variable details:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Obtener todas las variables con metadata (para interfaz admin)
-     */
-    async getAllVariables(options = {}) {
-        try {
-            const params = new URLSearchParams();
-            
-            if (options.category) params.append('category', options.category);
-            if (options.type) params.append('type', options.type);
-            if (options.search) params.append('search', options.search);
-            if (options.sort_by) params.append('sort_by', options.sort_by);
-            if (options.sort_direction) params.append('sort_direction', options.sort_direction);
-
-            const url = params.toString() ? `${this.apiUrl}?${params}` : this.apiUrl;
-
-            const response = await fetch(url, {
-                headers: {
-                    'Accept': 'application/json',
-                    ...this.getAuthHeaders()
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to get variables: ${response.status}`);
-            }
-
-            return await response.json();
-
-        } catch (error) {
-            console.error('❌ Error getting all variables:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Obtener categorías disponibles
-     */
-    async getCategories() {
-        try {
-            const response = await fetch(`${this.apiUrl}/categories/list`, {
-                headers: {
-                    'Accept': 'application/json',
-                    ...this.getAuthHeaders()
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to get categories: ${response.status}`);
-            }
-
-            return await response.json();
-
-        } catch (error) {
-            console.error('❌ Error getting categories:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Probar configuración de variable
-     */
-    async testVariable(data) {
-        try {
-            const response = await fetch(`${this.apiUrl}/test`, {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    ...this.getAuthHeaders()
-                },
-                body: JSON.stringify(data)
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.message || 'Test failed');
-            }
-
-            return result;
-
-        } catch (error) {
-            console.error('❌ Error testing variable:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Refresh manual de una variable específica
+     * Refrescar variable específica
      */
     async refreshVariable(id) {
         try {
@@ -339,7 +319,7 @@ export class DatabaseProvider extends VariableProvider {
             const result = await response.json();
             
             // Actualizar cache local después del refresh
-            this.lastFetch = null;
+            this.invalidateCache();
             await this.refresh();
 
             return result;
@@ -349,6 +329,41 @@ export class DatabaseProvider extends VariableProvider {
             throw error;
         }
     }
+
+    /**
+     * Verificar estado del provider
+     */
+    getStatus() {
+        return {
+            loading: this.loading,
+            lastFetch: this.lastFetch,
+            cacheAge: this.lastFetch ? Date.now() - this.lastFetch : null,
+            variableCount: Object.keys(this._variables).length,
+            retryCount: this.retryCount,
+            hasCache: this.lastFetch !== null
+        };
+    }
+
+    /**
+     * Cleanup del provider
+     */
+    async cleanup() {
+        console.log('🧹 Cleaning up DatabaseProvider...');
+        
+        // Limpiar timers
+        this.stopAutoRefresh();
+        
+        // Limpiar listeners
+        this.changeListeners = [];
+        this.onRefresh = null;
+        
+        // Limpiar cache
+        this.cache.clear();
+        this._variables = {};
+        this.lastFetch = null;
+        
+        await super.cleanup();
+    }
 }
 
 // Instancia singleton del provider
@@ -356,3 +371,46 @@ export const DatabaseProviderInstance = new DatabaseProvider();
 
 // Export para usar en el plugin
 export default DatabaseProviderInstance;
+
+// ===================================================================
+// FUNCIONES DE UTILIDAD PARA DEBUG
+// ===================================================================
+
+if (process.env.NODE_ENV === 'development') {
+    // Exponer provider para debugging
+    window.debugDatabaseProvider = {
+        getStatus: () => DatabaseProviderInstance.getStatus(),
+        
+        async forceRefresh() {
+            await DatabaseProviderInstance.refresh();
+            console.log('✅ Database provider force refreshed');
+        },
+        
+        invalidateCache() {
+            DatabaseProviderInstance.invalidateCache();
+            console.log('🗑️ Database cache invalidated');
+        },
+        
+        showVariables() {
+            console.table(DatabaseProviderInstance._variables);
+        },
+        
+        async testConnection() {
+            try {
+                await DatabaseProviderInstance.fetchFromAPI();
+                console.log('✅ Database connection test successful');
+            } catch (error) {
+                console.error('❌ Database connection test failed:', error);
+            }
+        },
+        
+        addTestListener() {
+            DatabaseProviderInstance.addChangeListener((event) => {
+                console.log('🔔 Database change detected:', event);
+            });
+            console.log('👂 Test listener added');
+        }
+    };
+    
+    console.log('🔧 Database provider debug tools available at window.debugDatabaseProvider');
+}

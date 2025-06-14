@@ -56,7 +56,6 @@ Route::get('/editor', [EditorController::class, 'index'])
     Route::post('/pages/{page}/remove-template', [PageController::class, 'removeTemplate']);
 
     
-
         // Variables
         Route::prefix('variables')->group(function () {
     Route::get('/', [VariableController::class, 'index']);
@@ -72,10 +71,18 @@ Route::get('/editor', [EditorController::class, 'index'])
     Route::get('/resolve/{key}', [VariableController::class, 'resolve']);
     Route::get('/resolved/all', [VariableController::class, 'resolved']);
 
-            });
+     });
 
 });
 
+
+
+// O si prefieres que esté en las rutas API:
+Route::prefix('api/admin')->group(function () {
+    // NUEVA: Ruta para preview de templates en API
+    Route::post('/page-builder/preview-template', [PageBuilderController::class, 'previewTemplate'])
+        ->name('api.page-builder.preview-template');
+});
 
 
 // Variables API Routes

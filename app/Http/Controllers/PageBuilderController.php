@@ -251,4 +251,99 @@ class PageBuilderController extends Controller
         
         return $config;
     }
+
+    /**
+     * Preview template with variables processing
+     */
+    public function previewTemplate(Request $request)
+    {
+        try {
+            $content = $request->input('content', '');
+            $config = $request->input('config', []);
+            $styles = $request->input('styles', []);
+
+            // Procesar variables en el contenido
+            $processedContent = $this->processVariablesInContent($content);
+            
+            // Procesar configuración si es necesario
+            $processedContent = $this->processConfigInContent($processedContent, $config);
+
+            return response()->json([
+                'success' => true,
+                'html' => $processedContent,
+                'rendered' => $processedContent,
+                'config' => $config,
+                'styles' => $styles
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to preview template',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Procesar variables en el contenido
+     */
+    private function processVariablesInContent($content)
+    {
+        try {
+            // Obtener variables resueltas
+            $variables = \App\Models\Variable::getAllForFrontend();
+            
+            // Reemplazar variables en el contenido
+            foreach ($variables as $key => $value) {
+                // Convertir objetos a string si es necesario
+                if (is_array($value) || is_object($value)) {
+                    $value = json_encode($value);
+                }
+                
+                // Reemplazar diferentes formatos de variables
+                $patterns = [
+                    '/\{\{\s*' . preg_quote($key, '/') . '\s*\}\}/',          // {{variable}}
+                    '/\$\{\s*' . preg_quote($key, '/') . '\s*\}/',            // ${variable}
+                ];
+                
+                foreach ($patterns as $pattern) {
+                    $content = preg_replace($pattern, $value, $content);
+                }
+            }
+            
+            return $content;
+            
+        } catch (\Exception $e) {
+            \Log::error('Error processing variables in content: ' . $e->getMessage());
+            return $content; // Devolver contenido original si hay error
+        }
+    }
+
+    /**
+     * Procesar configuración en el contenido
+     */
+    private function processConfigInContent($content, $config)
+    {
+        try {
+            // Procesar sintaxis de configuración como {{ $config['title'] }}
+            foreach ($config as $key => $value) {
+                $patterns = [
+                    '/\{\{\s*\$config\[\s*[\'"]' . preg_quote($key, '/') . '[\'"]\s*\]\s*\}\}/',
+                    '/\{\{\s*\$config\[' . preg_quote($key, '/') . '\]\s*\}\}/',
+                ];
+                
+                foreach ($patterns as $pattern) {
+                    $content = preg_replace($pattern, $value, $content);
+                }
+            }
+            
+            return $content;
+            
+        } catch (\Exception $e) {
+            \Log::error('Error processing config in content: ' . $e->getMessage());
+            return $content;
+        }
+    }
+
 }

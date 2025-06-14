@@ -1,4 +1,7 @@
-// resources/js/block-builder/plugins/variables/index.js - UPDATED
+// ===================================================================
+// resources/js/block-builder/plugins/variables/index.js
+// ACTUALIZADO - Con integración mejorada para preview
+// ===================================================================
 
 import { 
     SystemProvider, 
@@ -8,7 +11,6 @@ import {
     createCustomProvider 
 } from './providers.js';
 
-// NUEVO: Import DatabaseProvider
 import DatabaseProvider from './database/DatabaseProvider.js';
 import variableAPI from './api/VariableAPI.js';
 
@@ -23,23 +25,23 @@ import {
 
 const variablesPlugin = {
     name: 'variables',
-    version: '2.1.0', // Updated version
+    version: '2.2.0', // Updated version
     dependencies: [],
     previewPriority: 95,
     
     // ===================================================================
-    // INICIALIZACIÓN
+    // INICIALIZACIÓN MEJORADA
     // ===================================================================
     
     async init(context) {
-        console.log('🎯 Initializing Variables Plugin v2.1.0...');
+        console.log('🎯 Initializing Variables Plugin v2.2.0...');
         
         try {
             // Inicializar el procesador con providers
             this.processor = new VariableProcessor();
             this.analyzer = new VariableAnalyzer(this.processor);
             
-            // NUEVO: Registrar DatabaseProvider primero (mayor prioridad)
+            // Registrar DatabaseProvider primero (mayor prioridad)
             this.processor.addProvider('database', DatabaseProvider);
             
             // Registrar providers existentes
@@ -48,12 +50,12 @@ const variablesPlugin = {
             this.processor.addProvider('site', SiteProvider);
             this.processor.addProvider('templates', TemplatesProvider);
             
-            // NUEVO: Inicializar API wrapper
+            // Inicializar API wrapper
             this.api = variableAPI;
             
             // Iniciar auto-refresh donde sea necesario
             SystemProvider.startAutoRefresh();
-            DatabaseProvider.startAutoRefresh(); // NUEVO
+            DatabaseProvider.startAutoRefresh();
             
             // Configurar el procesador global
             window.processVariables = (content) => this.processVariables(content);
@@ -61,7 +63,10 @@ const variablesPlugin = {
             // Configurar funciones de CodeMirror
             this._setupEditorIntegration();
             
-            // NUEVO: Exponer API para interfaces de administración
+            // NUEVO: Configurar invalidación de cache para preview
+            this._setupPreviewIntegration();
+            
+            // Exponer API para interfaces de administración
             this._setupAdminAPI();
             
             console.log('✅ Variables Plugin initialized successfully');
@@ -74,45 +79,169 @@ const variablesPlugin = {
     },
 
     // ===================================================================
-    // NUEVA: CONFIGURACIÓN DE API PARA ADMIN
+    // NUEVA: INTEGRACIÓN CON PREVIEW
+    // ===================================================================
+    
+    _setupPreviewIntegration() {
+        // Lista de listeners para cambios en variables
+        this._previewListeners = [];
+        
+        // Configurar listeners para invalidar cache del preview
+        this._addVariableChangeListener((event, data) => {
+            console.log(`📡 Variable event for preview: ${event}`, data);
+            
+            // Notificar al preview que las variables han cambiado
+            this._notifyPreviewListeners(event, data);
+            
+            // Emitir evento global para que el preview se actualice
+            window.dispatchEvent(new CustomEvent('variableChanged', {
+                detail: { event, data, timestamp: Date.now() }
+            }));
+        });
+        
+        // Listener específico para refresh de DatabaseProvider
+        DatabaseProvider.onRefresh = () => {
+            console.log('💾 Database variables refreshed, notifying preview...');
+            this._notifyPreviewListeners('databaseRefreshed', {
+                provider: 'database',
+                timestamp: Date.now()
+            });
+        };
+        
+        console.log('🔗 Preview integration configured');
+    },
+
+    /**
+     * Agregar listener para cambios que afecten al preview
+     */
+    addPreviewListener(callback) {
+        if (typeof callback === 'function') {
+            this._previewListeners.push(callback);
+        }
+    },
+
+    /**
+     * Notificar a listeners del preview sobre cambios
+     */
+    _notifyPreviewListeners(event, data) {
+        if (this._previewListeners) {
+            this._previewListeners.forEach(callback => {
+                try {
+                    callback(event, data);
+                } catch (error) {
+                    console.error('Error in preview listener:', error);
+                }
+            });
+        }
+    },
+
+    // ===================================================================
+    // CONFIGURACIÓN DE API PARA ADMIN (ACTUALIZADA)
     // ===================================================================
     
     _setupAdminAPI() {
         // Exponer API para interfaces de administración
         window.variablesAdmin = {
             // CRUD operations
-            create: (data) => this.api.create(data),
-            update: (id, data) => this.api.update(id, data),
-            delete: (id) => this.api.delete(id),
+            create: async (data) => {
+                const result = await this.api.create(data);
+                await this._refreshProvider('database');
+                this._emit('variableCreated', result);
+                return result;
+            },
+            
+            update: async (id, data) => {
+                const result = await this.api.update(id, data);
+                await this._refreshProvider('database');
+                this._emit('variableUpdated', result);
+                return result;
+            },
+            
+            delete: async (id) => {
+                const result = await this.api.delete(id);
+                await this._refreshProvider('database');
+                this._emit('variableDeleted', { id, result });
+                return result;
+            },
+            
             getAll: (filters) => this.api.getAll(filters),
             getById: (id) => this.api.getById(id),
             
             // Special operations
             test: (data) => this.api.test(data),
-            refresh: (id) => this.api.refresh(id),
+            
+            refresh: async (id) => {
+                const result = await this.api.refresh(id);
+                await this._refreshProvider('database');
+                this._emit('variableRefreshed', { id, result });
+                return result;
+            },
+            
+            refreshAll: async () => {
+                await this._refreshProvider('database');
+                this._emit('allVariablesRefreshed', { timestamp: Date.now() });
+                console.log('🔄 All variables refreshed');
+            },
+            
             getCategories: () => this.api.getCategories(),
             
             // Bulk operations
-            createMultiple: (variables) => this.api.createMultiple(variables),
-            updateMultiple: (updates) => this.api.updateMultiple(updates),
-            deleteMultiple: (ids) => this.api.deleteMultiple(ids),
-            refreshMultiple: (ids) => this.api.refreshMultiple(ids),
+            createMultiple: async (variables) => {
+                const result = await this.api.createMultiple(variables);
+                await this._refreshProvider('database');
+                this._emit('variablesCreatedBulk', result);
+                return result;
+            },
+            
+            updateMultiple: async (updates) => {
+                const result = await this.api.updateMultiple(updates);
+                await this._refreshProvider('database');
+                this._emit('variablesUpdatedBulk', result);
+                return result;
+            },
+            
+            deleteMultiple: async (ids) => {
+                const result = await this.api.deleteMultiple(ids);
+                await this._refreshProvider('database');
+                this._emit('variablesDeletedBulk', { ids, result });
+                return result;
+            },
+            
+            refreshMultiple: async (ids) => {
+                const result = await this.api.refreshMultiple(ids);
+                await this._refreshProvider('database');
+                this._emit('variablesRefreshedBulk', { ids, result });
+                return result;
+            },
             
             // Utilities
             validateKey: (key) => this.api.validateKey(key),
             validateConfig: (type, config) => this.api.validateConfig(type, config),
             formatVariable: (variable) => this.api.formatVariable(variable),
             
-            // Events
+            // Events and preview integration
             onVariableChange: (callback) => this._addVariableChangeListener(callback),
-            refreshProvider: (providerName) => this._refreshProvider(providerName)
+            addPreviewListener: (callback) => this.addPreviewListener(callback),
+            refreshProvider: (providerName) => this._refreshProvider(providerName),
+            
+            // NUEVAS: Funciones para invalidar cache del preview
+            invalidatePreviewCache: () => {
+                window.dispatchEvent(new CustomEvent('variablesForceRefresh'));
+                console.log('🗑️ Preview cache invalidated');
+            },
+            
+            forcePreviewRefresh: async () => {
+                await this._refreshProvider('database');
+                window.dispatchEvent(new CustomEvent('variablesForceRefresh'));
+                console.log('🔄 Preview force refreshed');
+            }
         };
         
         console.log('🔧 Variables Admin API exposed to window.variablesAdmin');
     },
 
     // ===================================================================
-    // NUEVOS: MÉTODOS DE GESTIÓN AVANZADA
+    // MÉTODOS DE GESTIÓN AVANZADA (ACTUALIZADOS)
     // ===================================================================
     
     /**
@@ -123,6 +252,12 @@ const variablesPlugin = {
         if (provider && provider.refresh) {
             await provider.refresh();
             this._emit('providerRefreshed', { provider: providerName });
+            
+            // Notificar específicamente al preview
+            this._notifyPreviewListeners('providerRefreshed', { 
+                provider: providerName,
+                timestamp: Date.now()
+            });
         }
     },
 
@@ -151,8 +286,12 @@ const variablesPlugin = {
         }
     },
 
+    // ===================================================================
+    // OPERACIONES CRUD MEJORADAS
+    // ===================================================================
+    
     /**
-     * NUEVO: Crear variable desde interfaz
+     * Crear variable desde interfaz
      */
     async createVariable(data) {
         try {
@@ -171,7 +310,7 @@ const variablesPlugin = {
     },
 
     /**
-     * NUEVO: Actualizar variable desde interfaz
+     * Actualizar variable desde interfaz
      */
     async updateVariable(id, data) {
         try {
@@ -190,7 +329,7 @@ const variablesPlugin = {
     },
 
     /**
-     * NUEVO: Eliminar variable desde interfaz
+     * Eliminar variable desde interfaz
      */
     async deleteVariable(id) {
         try {
@@ -199,7 +338,7 @@ const variablesPlugin = {
             // Refrescar DatabaseProvider para remover la variable
             await this._refreshProvider('database');
             
-            this._emit('variableDeleted', { id });
+            this._emit('variableDeleted', { id, result });
             return result;
             
         } catch (error) {
@@ -209,157 +348,216 @@ const variablesPlugin = {
     },
 
     /**
-     * NUEVO: Probar configuración de variable
+     * Refrescar variable específica
      */
-    async testVariable(data) {
+    async refreshVariable(id) {
         try {
-            return await this.api.test(data);
+            const result = await this.api.refresh(id);
+            
+            // Refrescar DatabaseProvider para obtener el nuevo valor
+            await this._refreshProvider('database');
+            
+            this._emit('variableRefreshed', { id, result });
+            return result;
+            
         } catch (error) {
-            console.error('❌ Error testing variable:', error);
+            console.error('❌ Error refreshing variable:', error);
             throw error;
         }
     },
 
     // ===================================================================
-    // MÉTODOS EXISTENTES (sin cambios)
+    // CONFIGURACIÓN EDITOR (MANTENIDA)
     // ===================================================================
     
     _setupEditorIntegration() {
-        if (window.editorBridge) {
-            window.editorBridge.onVariableRequest = (context) => {
-                return getVariableCompletions(context, this);
-            };
-            
-            window.editorBridge.onVariableValidation = (content) => {
-                return validateVariablesInCode(content, this);
-            };
-            
-            console.log('🔧 Variables editor integration configured');
+        // Configurar autocompletado de CodeMirror
+        if (window.getVariableCompletions) {
+            console.log('⚠️ Overriding existing getVariableCompletions');
+        }
+        
+        window.getVariableCompletions = (context) => {
+            return getVariableCompletions(context, this);
+        };
+        
+        window.getVariableContentCompletions = (context) => {
+            return getVariableContentCompletions(context, this);
+        };
+        
+        // Funciones de análisis
+        window.validateVariablesInCode = (code) => {
+            return validateVariablesInCode(code, this);
+        };
+        
+        window.analyzeVariableUsage = (code) => {
+            return analyzeVariableUsage(code, this);
+        };
+        
+        // Función para registrar uso reciente
+        window.recordRecentVariable = (variable) => {
+            recordRecentVariable(variable);
+        };
+        
+        console.log('🔧 Editor integration configured');
+    },
+
+    // ===================================================================
+    // FUNCIONES PRINCIPALES (MANTENIDAS)
+    // ===================================================================
+    
+    /**
+     * Procesar contenido reemplazando variables
+     */
+    processContent(content) {
+        if (!content || typeof content !== 'string') {
+            return content;
+        }
+        
+        try {
+            return this.processor.processContent(content);
+        } catch (error) {
+            console.error('Error processing variables:', error);
+            return content;
         }
     },
 
-        processVariables(content) {
-            if (!content || typeof content !== 'string') {
-                return content;
-            }
-
-            try {
-                // Usar processCode que es el método real en VariableProcessor
-                return this.processor.processCode(content);
-            } catch (error) {
-                console.error('❌ Error processing variables:', error);
-                return content;
-            }
-        },
-
-    getVariable(path) {
-        return this.processor.getVariable(path);
+    /**
+     * Alias para compatibilidad
+     */
+    processVariables(content) {
+        return this.processContent(content);
     },
 
+    /**
+     * Obtener todas las variables disponibles
+     */
     getAllVariables() {
-        return this.processor.getAllVariables();
-    },
-
-    getProviderVariables(providerName) {
-        return this.processor.getProviderVariables(providerName);
-    },
-
-    getVariablesByCategory(category) {
-        const allVars = this.getAllVariables();
-        const filtered = {};
+        if (!this.processor) return {};
         
-        Object.entries(allVars).forEach(([providerKey, providerData]) => {
-            if (providerData.metadata?.category === category) {
-                Object.assign(filtered, providerData.variables);
-            }
-        });
-        
-        return filtered;
-    },
-
-        analyzeContent(content) {
+        const allVariables = {};
+        for (const [name, provider] of this.processor.providers.entries()) {
             try {
-                return this.analyzer.analyzeCode(content);
+                const variables = provider.getVariables();
+                allVariables[name] = {
+                    title: provider.title || name,
+                    priority: provider.priority || 50,
+                    variables: variables || {}
+                };
             } catch (error) {
-                console.error('❌ Error analyzing content:', error);
-                return {
-                    totalVariables: 0,
-                    validVariables: 0,
-                    invalidVariables: 0,
-                    recommendations: []
+                console.error(`Error getting variables from ${name}:`, error);
+                allVariables[name] = {
+                    title: provider.title || name,
+                    priority: provider.priority || 50,
+                    variables: {},
+                    error: error.message
                 };
             }
-        },
-
-    validateVariable(path) {
-        return this.processor.hasVariable(path);
+        }
+        
+        return allVariables;
     },
 
-    formatVariableForInsertion(path) {
-        return `{{${path}}}`;
+    /**
+     * Obtener provider específico
+     */
+    getProvider(name) {
+        return this.processor?.getProvider(name);
     },
 
+    /**
+     * Agregar provider personalizado
+     */
     addProvider(name, provider) {
-        this.processor.addProvider(name, provider);
-        console.log(`➕ Variable provider added: ${name}`);
-    },
-
-    removeProvider(name) {
-        this.processor.removeProvider(name);
-        console.log(`➖ Variable provider removed: ${name}`);
+        if (this.processor) {
+            this.processor.addProvider(name, provider);
+        }
     },
 
     // ===================================================================
-    // DEBUG HELPERS (UPDATED)
+    // DEBUG Y DESARROLLO (ACTUALIZADO)
     // ===================================================================
     
-    _setupDebugHelpers() {
+    getDebugInfo() {
         if (process.env.NODE_ENV === 'development') {
-            window.debugVariables = {
-                // Existing methods...
-                listProviders: () => {
-                    console.table(Array.from(this.processor.providers.entries()).map(([name, provider]) => ({
-                        name,
-                        title: provider.title,
-                        category: provider.category,
-                        priority: provider.priority,
-                        variables: Object.keys(provider.getVariables()).length,
-                        lastUpdated: provider.lastUpdated
-                    })));
+            return {
+                version: this.version,
+                processors: this.processor ? this.processor.providers.size : 0,
+                
+                // Debug de providers
+                testProviders() {
+                    const allVars = variablesPlugin.getAllVariables();
+                    console.log('🔍 Testing all providers:');
+                    Object.entries(allVars).forEach(([name, provider]) => {
+                        console.log(`📦 ${name}:`, provider);
+                    });
                 },
                 
-                // NUEVO: Debug para DatabaseProvider
-                debugDatabase: async () => {
-                    console.log('💾 Database Provider Status:');
-                    console.log('Loading:', DatabaseProvider.loading);
-                    console.log('Last Fetch:', new Date(DatabaseProvider.lastFetch));
-                    console.log('Variables Count:', Object.keys(await DatabaseProvider.getVariables()).length);
-                    console.log('Cache:', DatabaseProvider.cache);
+                // Debug específico de database
+                async testDatabase() {
+                    const dbProvider = variablesPlugin.getProvider('database');
+                    if (dbProvider) {
+                        console.log('💾 Testing database provider...');
+                        await dbProvider.refresh();
+                        const vars = dbProvider.getVariables();
+                        console.log('Variables from DB:', vars);
+                    } else {
+                        console.log('❌ Database provider not found');
+                    }
                 },
                 
-                // NUEVO: Test API connection
+                // Debug de cache
+                showCache() {
+                    const dbProvider = variablesPlugin.getProvider('database');
+                    console.log('💾 Database Provider State:');
+                    console.log('Cache:', dbProvider?.cache);
+                    console.log('Last fetch:', dbProvider?.lastFetch);
+                    console.log('Loading:', dbProvider?.loading);
+                },
+                
+                // Test API connection
                 testAPI: async () => {
                     try {
-                        const categories = await this.api.getCategories();
+                        const categories = await variablesPlugin.api.getCategories();
                         console.log('✅ API Connection OK');
                         console.log('Categories:', categories);
                     } catch (error) {
                         console.error('❌ API Connection Failed:', error);
                     }
+                },
+                
+                // NUEVO: Test preview integration
+                testPreviewIntegration() {
+                    console.log('🔍 Testing preview integration...');
+                    
+                    // Simular cambio de variable
+                    variablesPlugin._emit('testEvent', { test: true });
+                    
+                    // Verificar listeners
+                    console.log('Preview listeners:', variablesPlugin._previewListeners?.length || 0);
+                    console.log('Change listeners:', variablesPlugin._changeListeners?.length || 0);
+                },
+                
+                // NUEVO: Force refresh para debug
+                async forceRefreshAll() {
+                    console.log('🔄 Force refreshing all providers...');
+                    await variablesPlugin._refreshProvider('database');
+                    await variablesPlugin._refreshProvider('system');
+                    window.dispatchEvent(new CustomEvent('variablesForceRefresh'));
+                    console.log('✅ Force refresh completed');
                 }
             };
         }
     },
 
     // ===================================================================
-    // CLEANUP (UPDATED)
+    // CLEANUP (ACTUALIZADO)
     // ===================================================================
     
     async cleanup() {
         try {
             // Detener auto-refresh de providers
             SystemProvider.stopAutoRefresh();
-            DatabaseProvider.stopAutoRefresh(); // NUEVO
+            DatabaseProvider.stopAutoRefresh();
             
             // Limpiar providers
             for (const [name, provider] of this.processor.providers.entries()) {
@@ -374,10 +572,11 @@ const variablesPlugin = {
             // Limpiar funciones globales
             delete window.processVariables;
             delete window.debugVariables;
-            delete window.variablesAdmin; // NUEVO
+            delete window.variablesAdmin;
             
             // Limpiar listeners
             this._changeListeners = [];
+            this._previewListeners = [];
             
             console.log('🧹 Variables plugin cleaned up');
         } catch (error) {
@@ -387,7 +586,7 @@ const variablesPlugin = {
 };
 
 // ===================================================================
-// DEBUGGING Y DESARROLLO (UPDATED)
+// DEBUGGING Y DESARROLLO (ACTUALIZADO)
 // ===================================================================
 
 if (process.env.NODE_ENV === 'development') {
@@ -396,7 +595,7 @@ if (process.env.NODE_ENV === 'development') {
     window.DatabaseProvider = DatabaseProvider;
     window.variableAPI = variableAPI;
     
-    console.log('🔧 Variables plugin (v2.1.0) exposed to window for debugging');
+    console.log('🔧 Variables plugin (v2.2.0) exposed to window for debugging');
 }
 
 export default variablesPlugin;
