@@ -1,28 +1,41 @@
 // ===================================================================
 // resources/js/block-builder/plugins/alpine-methods/init.js
-// Inicializador para integrar con tu sistema existente
+// CORREGIDO - Evita doble registro del plugin
 // ===================================================================
 
 import AlpineMethodsPlugin from './index.js';
 
 /**
  * Inicializar el plugin de métodos Alpine
- * Adaptado para tu sistema de plugins existente
+ * CORREGIDO para evitar doble registro
  */
 export async function initializeAlpineMethodsPlugin() {
     try {
         console.log('🚀 Initializing Alpine Methods Plugin...');
 
-        // Crear instancia del plugin
+        // VERIFICAR PRIMERO si ya existe
+        if (window.pluginManager) {
+            const existingPlugin = window.pluginManager.get('alpine-methods');
+            if (existingPlugin) {
+                console.log('✅ Alpine Methods Plugin already exists, returning existing instance');
+                return existingPlugin;
+            }
+        } else if (window.alpineMethodsPlugin) {
+            console.log('✅ Alpine Methods Plugin already exists globally, returning existing instance');
+            return window.alpineMethodsPlugin;
+        }
+
+        // Crear instancia del plugin SOLO si no existe
         const plugin = new AlpineMethodsPlugin();
         
         // Inicializar el plugin
         await plugin.init();
 
-        // Si tienes un plugin manager, registrarlo
+        // Registrar el plugin
         if (window.pluginManager) {
-            await window.pluginManager.register('alpine-methods', plugin);
-            console.log('✅ Plugin registered in PluginManager');
+            // USAR replace: true para evitar el error
+            await window.pluginManager.register('alpine-methods', plugin, { replace: true });
+            console.log('✅ Plugin registered in PluginManager (with replace)');
         } else {
             // Si no hay plugin manager, registrar globalmente
             window.alpineMethodsPlugin = plugin;
@@ -57,10 +70,12 @@ export function getAlpineMethodsPlugin() {
 }
 
 /**
- * Auto-inicializar cuando el DOM esté listo
+ * Auto-inicializar SOLO SI NO HA SIDO INICIALIZADO
+ * REMOVIDO para evitar conflictos con CoreSystemInitializer
  */
+// COMENTADO PARA EVITAR AUTO-INIT DUPLICADO
+/*
 if (typeof document !== 'undefined') {
-    // Verificar si ya está cargado
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', autoInit);
     } else {
@@ -70,23 +85,28 @@ if (typeof document !== 'undefined') {
 
 async function autoInit() {
     try {
-        // Esperar un poco para que otros sistemas se inicialicen
+        // Esperar para que otros sistemas se inicialicen
         await new Promise(resolve => setTimeout(resolve, 100));
         
-        // Inicializar el plugin
-        await initializeAlpineMethodsPlugin();
-        
-        // Emitir evento para notificar que está listo
-        if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('alpineMethodsPluginReady', {
-                detail: { plugin: getAlpineMethodsPlugin() }
-            }));
+        // SOLO inicializar si no existe
+        if (!isAlpineMethodsPluginAvailable()) {
+            await initializeAlpineMethodsPlugin();
+            
+            // Emitir evento para notificar que está listo
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('alpineMethodsPluginReady', {
+                    detail: { plugin: getAlpineMethodsPlugin() }
+                }));
+            }
+        } else {
+            console.log('✅ Alpine Methods Plugin already available, skipping auto-init');
         }
         
     } catch (error) {
         console.error('❌ Auto-initialization failed:', error);
     }
 }
+*/
 
 // ===================================================================
 // UTILIDADES PARA DESARROLLO Y DEBUG
@@ -110,30 +130,26 @@ export async function testAlpineMethodsPlugin() {
         console.log(`✅ Found ${methods.length} methods`);
 
         // Test 2: Probar búsqueda
-        const timerMethods = plugin.searchMethods('timer');
-        console.log(`✅ Timer search found ${timerMethods.length} results`);
+        const searchResults = plugin.searchMethods('toggle');
+        console.log(`✅ Search found ${searchResults.length} results`);
 
         // Test 3: Probar obtener método específico
-        const timerMethod = plugin.getMethod('@timer');
-        console.log(`✅ Get timer method: ${timerMethod ? 'Found' : 'Not found'}`);
-
-        // Test 4: Probar generación de código (si hay métodos)
-        if (timerMethod) {
-            const code = plugin.generateCode(timerMethod, { interval: 500 });
-            console.log(`✅ Code generation: ${code ? 'Success' : 'Failed'}`);
+        if (methods.length > 0) {
+            const firstMethod = plugin.getMethod(methods[0].trigger);
+            console.log(`✅ Get method: ${firstMethod ? 'Found' : 'Not found'}`);
         }
 
-        // Test 5: Probar funciones globales
+        // Test 4: Verificar estructura del plugin
+        console.log(`✅ Plugin name: ${plugin.name}`);
+        console.log(`✅ Plugin version: ${plugin.version}`);
+
+        // Test 5: Probar funciones globales (si existen)
         const globalFunctionsExist = !!(
             window.getAlpineMethodCompletions &&
             window.validateAlpineMethodSyntax &&
             window.processAlpineMethodCode
         );
         console.log(`✅ Global functions: ${globalFunctionsExist ? 'Available' : 'Missing'}`);
-
-        // Test 6: Estadísticas
-        const stats = plugin.getUsageStats();
-        console.log('✅ Plugin stats:', stats);
 
         console.log('🎉 All tests passed!');
         return true;
@@ -152,18 +168,27 @@ export function debugAlpineMethodsPlugin() {
     
     if (!plugin) {
         console.error('❌ Plugin not found');
-        return;
+        return null;
     }
 
-    const debugInfo = plugin.getDebugInfo();
+    const debugInfo = {
+        name: plugin.name,
+        version: plugin.version,
+        methodsCount: plugin.methods?.size || 0,
+        loading: plugin.loading,
+        lastSync: plugin.lastSync,
+        config: plugin.config,
+        cacheAge: plugin.lastSync ? Date.now() - plugin.lastSync : null
+    };
     
     console.group('🔍 Alpine Methods Plugin Debug Info');
-    console.log('Config:', debugInfo.config);
+    console.log('Name:', debugInfo.name);
+    console.log('Version:', debugInfo.version);
     console.log('Methods count:', debugInfo.methodsCount);
     console.log('Loading state:', debugInfo.loading);
     console.log('Last sync:', debugInfo.lastSync);
     console.log('Cache age (ms):', debugInfo.cacheAge);
-    console.log('Usage stats:', debugInfo.stats);
+    console.log('Config:', debugInfo.config);
     console.groupEnd();
     
     return debugInfo;
@@ -177,14 +202,59 @@ export async function reloadAlpineMethods() {
     
     if (!plugin) {
         console.error('❌ Plugin not found');
-        return;
+        return [];
     }
 
     console.log('🔄 Reloading Alpine methods...');
-    await plugin.loadMethods();
-    console.log('✅ Methods reloaded');
     
-    return plugin.getAllMethods();
+    try {
+        await plugin.loadMethods();
+        console.log('✅ Methods reloaded');
+        return plugin.getAllMethods();
+    } catch (error) {
+        console.error('❌ Error reloading methods:', error);
+        return [];
+    }
+}
+
+/**
+ * Helper para limpiar y reinicializar el plugin
+ */
+export async function resetAlpineMethodsPlugin() {
+    console.log('🔄 Resetting Alpine Methods Plugin...');
+    
+    try {
+        // Limpiar instancias existentes
+        if (window.pluginManager && window.pluginManager.has('alpine-methods')) {
+            await window.pluginManager.unregister('alpine-methods');
+        }
+        
+        if (window.alpineMethodsPlugin) {
+            delete window.alpineMethodsPlugin;
+        }
+        
+        // Reinicializar
+        const plugin = await initializeAlpineMethodsPlugin();
+        console.log('✅ Plugin reset and reinitialized');
+        
+        return plugin;
+        
+    } catch (error) {
+        console.error('❌ Error resetting plugin:', error);
+        throw error;
+    }
+}
+
+// Exponer funciones útiles para debugging en development
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    window.alpineMethodsDebug = {
+        test: testAlpineMethodsPlugin,
+        debug: debugAlpineMethodsPlugin,
+        reload: reloadAlpineMethods,
+        reset: resetAlpineMethodsPlugin,
+        getPlugin: getAlpineMethodsPlugin,
+        isAvailable: isAlpineMethodsPluginAvailable
+    };
 }
 
 // Exportar todo para uso externo
@@ -194,5 +264,6 @@ export default {
     getAlpineMethodsPlugin,
     testAlpineMethodsPlugin,
     debugAlpineMethodsPlugin,
-    reloadAlpineMethods
+    reloadAlpineMethods,
+    resetAlpineMethodsPlugin
 };

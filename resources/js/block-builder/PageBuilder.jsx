@@ -1,26 +1,49 @@
-// resources/js/block-builder/PageBuilder.jsx - COMPLETO CON CACHE SIMPLE
+// ===================================================================
+// resources/js/block-builder/PageBuilder.jsx - CON ALPINE METHODS TAB
+// ===================================================================
 
 import { useState, useEffect, useCallback } from 'preact/hooks';
 import IntegratedPageBuilderEditor from './components/IntegratedPageBuilderEditor';
 import VariableManager from './plugins/variables/ui/VariableManager.jsx';
+import AlpineMethodsTab from './plugins/alpine-methods/components/AlpineMethodsTab.jsx';
 import { initializeCoreSystem } from './core/CoreSystemInitializer';
 
 const PageBuilder = ({ content: initialContent, onContentChange }) => {
     const [isReady, setIsReady] = useState(false);
     const [editorContent, setEditorContent] = useState(initialContent || '');
-    const [activeTab, setActiveTab] = useState('editor'); // 'editor' | 'variables'
+    const [activeTab, setActiveTab] = useState('editor'); // 'editor' | 'variables' | 'alpine-methods'
+    const [alpineMethodsPlugin, setAlpineMethodsPlugin] = useState(null);
 
     useEffect(() => {
-        initializeCoreSystem().then(() => {
+        initializeCoreSystem().then(async () => {
             console.log("Block Builder Core Systems Initialized.");
+            
+            // EVITAR DOBLE INICIALIZACIÓN - Verificar primero si ya existe
+            try {
+                const { getAlpineMethodsPlugin, initializeAlpineMethodsPlugin } = await import('./plugins/alpine-methods/init.js');
+                
+                let plugin = getAlpineMethodsPlugin();
+                
+                if (!plugin) {
+                    console.log('🔄 Inicializando Alpine Methods Plugin desde PageBuilder...');
+                    plugin = await initializeAlpineMethodsPlugin();
+                } else {
+                    console.log('✅ Alpine Methods Plugin ya estaba disponible');
+                }
+                
+                setAlpineMethodsPlugin(plugin);
+                console.log('✅ Alpine Methods Plugin ready in PageBuilder');
+            } catch (error) {
+                console.warn('⚠️ Alpine Methods Plugin failed to initialize:', error);
+                // No es crítico, continuar sin Alpine Methods
+            }
+            
             setIsReady(true);
             
-            // ===================================================================
-            // CACHE INVALIDATION SIMPLE
-            // ===================================================================
+            // Cache invalidation setup
             setTimeout(() => {
                 setupSimpleCacheInvalidation();
-            }, 1500); // Esperar más tiempo para asegurar que todo esté listo
+            }, 1500);
         });
     }, []);
 
@@ -43,98 +66,55 @@ const PageBuilder = ({ content: initialContent, onContentChange }) => {
                 console.log('🔄 Refreshing variable cache...');
                 
                 const variablesPlugin = window.pluginManager.get('variables');
-                if (variablesPlugin) {
-                    const dbProvider = variablesPlugin.getProvider('database');
-                    if (dbProvider) {
-                        // Limpiar cache
-                        dbProvider.lastFetch = null;
-                        if (dbProvider.cache) dbProvider.cache.clear();
-                        
-                        // Refrescar datos
-                        await dbProvider.refresh();
-                        
-                        // Notificar al preview
-                        window.dispatchEvent(new CustomEvent('variablesForceRefresh'));
-                        
-                        console.log('✅ Cache refreshed successfully');
-                        return true;
-                    }
+                if (variablesPlugin && typeof variablesPlugin.loadProviders === 'function') {
+                    await variablesPlugin.loadProviders();
+                    console.log('✅ Variables plugin cache refreshed');
+                } else {
+                    console.warn('⚠️ Variables plugin not available for refresh');
                 }
-                console.warn('⚠️ Variables plugin or database provider not found');
-                return false;
+                
+                // Refresh Alpine Methods cache if available
+                if (alpineMethodsPlugin && typeof alpineMethodsPlugin.loadMethods === 'function') {
+                    await alpineMethodsPlugin.loadMethods();
+                    console.log('✅ Alpine Methods cache refreshed');
+                }
+                
+                // Invalidar cache de autocompletado
+                if (window.variableAutoComplete) {
+                    window.variableAutoComplete.invalidateCache();
+                }
+                
+                console.log('🎉 All caches refreshed successfully');
+                
             } catch (error) {
                 console.error('❌ Error refreshing cache:', error);
-                return false;
             }
         };
-        
-        // Interceptar métodos críticos del admin
-        if (window.variablesAdmin) {
-            const methods = ['update', 'create', 'delete', 'refresh'];
-            const originals = {};
-            
-            methods.forEach(method => {
-                if (typeof window.variablesAdmin[method] === 'function') {
-                    originals[method] = window.variablesAdmin[method];
-                    
-                    window.variablesAdmin[method] = async (...args) => {
-                        try {
-                            const result = await originals[method].apply(window.variablesAdmin, args);
-                            
-                            // Auto-refresh después de cambios
-                            setTimeout(() => refreshCache(), 100);
-                            
-                            return result;
-                        } catch (error) {
-                            console.error(`Error in ${method}:`, error);
-                            throw error;
-                        }
-                    };
-                }
-            });
-            
-            console.log('🔗 Admin methods intercepted:', methods);
-        }
-        
-        // Exponer función manual
-        window.refreshVariables = refreshCache;
-        
-        // Test function
-        window.testVariables = async () => {
-            console.log('🧪 Testing variables...');
-            
-            const plugin = window.pluginManager.get('variables');
-            if (plugin) {
-                const testVar = plugin.getVariable?.('site.company_name');
-                console.log('Test variable:', testVar);
-                
-                await refreshCache();
-                
-                const afterRefresh = plugin.getVariable?.('site.company_name');
-                console.log('After refresh:', afterRefresh);
-                
-                return { before: testVar, after: afterRefresh };
+
+        // Función de test
+        const testVariables = () => {
+            const variablesPlugin = window.pluginManager.get('variables');
+            if (variablesPlugin) {
+                console.log('🧪 Testing variables system:');
+                console.log('Variables:', variablesPlugin.getAllVariables());
+                console.log('Keys:', variablesPlugin.getVariableKeys());
+                console.log('Providers:', variablesPlugin.getProviders());
             }
-            return null;
         };
-        
-        // Función de información del sistema
-        window.getSystemInfo = () => {
-            const pluginManager = window.pluginManager;
-            const variablesPlugin = pluginManager?.get('variables');
+
+        // Función para obtener información del sistema
+        const getSystemInfo = () => {
+            const variablesPlugin = window.pluginManager.get('variables');
             
             return {
-                pluginManager: {
-                    available: !!pluginManager,
-                    pluginCount: pluginManager?.list?.()?.length || 0,
-                    methods: pluginManager ? Object.getOwnPropertyNames(pluginManager).filter(name => typeof pluginManager[name] === 'function') : []
-                },
-                variables: {
-                    plugin: !!variablesPlugin,
-                    hasGetVariable: !!(variablesPlugin?.getVariable),
+                timestamp: new Date().toISOString(),
+                plugins: {
+                    variables: !!variablesPlugin,
+                    alpineMethods: !!alpineMethodsPlugin,
                     hasGetAllVariables: !!(variablesPlugin?.getAllVariables),
                     hasGetProvider: !!(variablesPlugin?.getProvider),
-                    variableCount: variablesPlugin?.getVariableKeys?.()?.length || 0
+                    variableCount: variablesPlugin?.getVariableKeys?.()?.length || 0,
+                    alpineMethodsCount: alpineMethodsPlugin?.getAllMethods?.()?.length || 0
                 },
                 admin: {
                     available: !!window.variablesAdmin,
@@ -146,6 +126,11 @@ const PageBuilder = ({ content: initialContent, onContentChange }) => {
                 }
             };
         };
+
+        // Exponer funciones globalmente
+        window.refreshVariables = refreshCache;
+        window.testVariables = testVariables;
+        window.getSystemInfo = getSystemInfo;
         
         console.log('✅ Simple cache setup complete');
         console.log('💡 Commands: refreshVariables(), testVariables(), getSystemInfo()');
@@ -157,6 +142,55 @@ const PageBuilder = ({ content: initialContent, onContentChange }) => {
             onContentChange(newContent);
         }
     }, [onContentChange]);
+
+    // Alpine Methods handlers
+    const handleAlpineMethodSave = useCallback(async (method) => {
+        console.log('💾 Saving Alpine method:', method.name);
+        try {
+            if (alpineMethodsPlugin && typeof alpineMethodsPlugin.saveMethod === 'function') {
+                return await alpineMethodsPlugin.saveMethod(method);
+            } else {
+                // Fallback: save via API
+                const response = await fetch('/api/templates/alpine-methods', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        name: method.name,
+                        description: method.description,
+                        category: method.category,
+                        trigger_syntax: `@${method.name}`,
+                        method_template: method.inputCode,
+                        method_parameters: method.parameters || {},
+                        is_active: true
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                if (!result.success) {
+                    throw new Error(result.message || 'Failed to save method');
+                }
+
+                console.log('✅ Alpine method saved successfully');
+                return result.data;
+            }
+        } catch (error) {
+            console.error('❌ Error saving Alpine method:', error);
+            alert(`Error guardando método: ${error.message}`);
+            throw error;
+        }
+    }, [alpineMethodsPlugin]);
+
+    const handleAlpineMethodLoad = useCallback((method) => {
+        console.log('📄 Alpine method loaded:', method.name);
+    }, []);
 
     if (!isReady) {
         return (
@@ -183,7 +217,7 @@ const PageBuilder = ({ content: initialContent, onContentChange }) => {
                             <span>Page Builder</span>
                         </h1>
                         
-                        {/* Tab Navigation */}
+                        {/* Tab Navigation - AGREGADA ALPINE METHODS */}
                         <nav className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
                             <button
                                 onClick={() => setActiveTab('editor')}
@@ -205,6 +239,18 @@ const PageBuilder = ({ content: initialContent, onContentChange }) => {
                             >
                                 🎯 Variables
                             </button>
+                            {/* NUEVA TAB ALPINE METHODS */}
+                            <button
+                                onClick={() => setActiveTab('alpine-methods')}
+                                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                                    activeTab === 'alpine-methods'
+                                        ? 'bg-white text-blue-600 shadow-sm'
+                                        : 'text-gray-600 hover:text-gray-900'
+                                }`}
+                                title="Editor de métodos Alpine.js reutilizables"
+                            >
+                                ⚡ Alpine Methods
+                            </button>
                         </nav>
                     </div>
                     
@@ -214,10 +260,10 @@ const PageBuilder = ({ content: initialContent, onContentChange }) => {
                         <button
                             onClick={() => window.refreshVariables?.()}
                             className="px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors flex items-center space-x-1"
-                            title="Refrescar variables desde base de datos"
+                            title="Refrescar variables y métodos desde base de datos"
                         >
                             <span>🔄</span>
-                            <span>Refresh Variables</span>
+                            <span>Refresh</span>
                         </button>
                         
                         <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
@@ -232,6 +278,7 @@ const PageBuilder = ({ content: initialContent, onContentChange }) => {
 
             {/* Main Content */}
             <div className="flex-1 flex overflow-hidden">
+                {/* Editor Tab */}
                 {activeTab === 'editor' && (
                     <IntegratedPageBuilderEditor
                         initialContent={editorContent}
@@ -239,10 +286,20 @@ const PageBuilder = ({ content: initialContent, onContentChange }) => {
                     />
                 )}
                 
+                {/* Variables Tab */}
                 {activeTab === 'variables' && (
                     <div className="flex-1 p-6">
                         <VariableManager />
                     </div>
+                )}
+
+                {/* Alpine Methods Tab - NUEVO */}
+                {activeTab === 'alpine-methods' && (
+                    <AlpineMethodsTab
+                        pluginInstance={alpineMethodsPlugin}
+                        onSave={handleAlpineMethodSave}
+                        onLoad={handleAlpineMethodLoad}
+                    />
                 )}
             </div>
             
@@ -253,6 +310,7 @@ const PageBuilder = ({ content: initialContent, onContentChange }) => {
                         <span>🔧 Dev Mode</span>
                         <span>📦 Plugins: {window.pluginManager?.list?.()?.length || 0}</span>
                         <span>🎯 Variables: {window.pluginManager?.get?.('variables')?.getVariableKeys?.()?.length || 0}</span>
+                        <span>⚡ Alpine Methods: {alpineMethodsPlugin?.getAllMethods?.()?.length || 0}</span>
                     </div>
                     <div className="flex space-x-2">
                         <button 
@@ -265,9 +323,9 @@ const PageBuilder = ({ content: initialContent, onContentChange }) => {
                         <button 
                             onClick={() => window.refreshVariables?.()}
                             className="px-2 py-1 bg-gray-700 rounded text-xs hover:bg-gray-600"
-                            title="Refrescar variables manualmente"
+                            title="Refrescar cache"
                         >
-                            Refresh Now
+                            Refresh Cache
                         </button>
                         <button 
                             onClick={() => console.log(window.getSystemInfo?.())}
@@ -275,13 +333,6 @@ const PageBuilder = ({ content: initialContent, onContentChange }) => {
                             title="Ver información del sistema"
                         >
                             System Info
-                        </button>
-                        <button 
-                            onClick={() => console.clear()}
-                            className="px-2 py-1 bg-gray-700 rounded text-xs hover:bg-gray-600"
-                            title="Limpiar consola"
-                        >
-                            Clear Console
                         </button>
                     </div>
                 </footer>
