@@ -59,24 +59,39 @@ Route::prefix('api')->group(function () {
         Route::get('/cache/info', [VariableController::class, 'cacheInfo']);
     });
 
-    // ===================================================================
-    // TEMPLATES API
-    // ===================================================================
-    Route::prefix('templates')->group(function () {
-        Route::get('/', [TemplateController::class, 'index']);
-        Route::get('/metadata', [TemplateController::class, 'metadata']);
-        Route::get('/type/{type}', [TemplateController::class, 'byType']);
-        Route::post('/', [TemplateController::class, 'store']);
-        Route::get('/{template}', [TemplateController::class, 'show']);
-        Route::put('/{template}', [TemplateController::class, 'update']);
-        Route::delete('/{template}', [TemplateController::class, 'destroy']);
-        Route::post('/{template}/clone', [TemplateController::class, 'clone']);
-    });
+
+        Route::prefix('templates')->group(function () {
+            // ===================================================================
+            // MÉTODOS ALPINE PRIMERO (rutas más específicas)
+            // ===================================================================
+            Route::get('/alpine-methods', [TemplateController::class, 'getAlpineMethods']);
+            Route::get('/alpine-methods/{identifier}', [TemplateController::class, 'getAlpineMethod']);
+            Route::get('/alpine-methods-stats', [TemplateController::class, 'getAlpineMethodsStats']);
+            Route::post('/alpine-methods', [TemplateController::class, 'createAlpineMethod']);
+            Route::put('/alpine-methods/{template}', [TemplateController::class, 'updateAlpineMethod']);
+            Route::post('/{template}/generate-code', [TemplateController::class, 'generateAlpineCode']);
+            Route::post('/{template}/increment-usage', [TemplateController::class, 'incrementMethodUsage']);
+
+            // ===================================================================
+            // RUTAS GENÉRICAS DE TEMPLATES DESPUÉS
+            // ===================================================================
+            Route::get('/', [TemplateController::class, 'index']);
+            Route::get('/metadata', [TemplateController::class, 'metadata']);
+            Route::get('/type/{type}', [TemplateController::class, 'byType']);
+            Route::post('/', [TemplateController::class, 'store']);
+            Route::get('/{template}', [TemplateController::class, 'show']); // Esta era la que causaba conflicto
+            Route::put('/{template}', [TemplateController::class, 'update']);
+            Route::delete('/{template}', [TemplateController::class, 'destroy']);
+            Route::post('/{template}/clone', [TemplateController::class, 'clone']);
+        });
+
+
+
 
     // ===================================================================
     // PAGES API
     // ===================================================================
-    Route::prefix('pages')->group(function () {
+          Route::prefix('pages')->group(function () {
         Route::get('/', [PageController::class, 'index']);
         Route::post('/', [PageController::class, 'store']);
         Route::get('/{page}', [PageController::class, 'show']);
@@ -99,40 +114,5 @@ Route::prefix('api')->group(function () {
     });
 });
 
-// ===================================================================
-// RUTAS DE DESARROLLO Y DEBUG (Solo en desarrollo)
-// ===================================================================
-if (app()->environment('local', 'development')) {
-    Route::prefix('debug')->group(function () {
-        Route::get('/variables', function () {
-            return response()->json([
-                'message' => 'Variables debug endpoint',
-                'routes' => [
-                    'GET /api/variables' => 'List all variables',
-                    'GET /api/variables/categories/list' => 'Get categories',
-                    'GET /api/variables/resolved/all' => 'Get resolved variables',
-                    'POST /api/variables' => 'Create variable',
-                    'PUT /api/variables/{id}' => 'Update variable',
-                    'DELETE /api/variables/{id}' => 'Delete variable'
-                ],
-                'total_variables' => \App\Models\Variable::count(),
-                'timestamp' => now()->toISOString()
-            ]);
-        });
-        
-        Route::get('/routes', function () {
-            $routes = collect(\Illuminate\Support\Facades\Route::getRoutes())->map(function ($route) {
-                return [
-                    'method' => implode('|', $route->methods()),
-                    'uri' => $route->uri(),
-                    'name' => $route->getName(),
-                    'action' => $route->getActionName()
-                ];
-            })->filter(function ($route) {
-                return str_contains($route['uri'], 'api/variables');
-            });
-            
-            return response()->json($routes);
-        });
-    });
-}
+
+

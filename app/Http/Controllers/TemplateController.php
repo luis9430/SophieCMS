@@ -163,7 +163,6 @@ class TemplateController extends Controller
             'data' => $template
         ]);
     }
-
     /**
      * Eliminar template
      */
@@ -227,278 +226,445 @@ class TemplateController extends Controller
             ]
         ]);
     }
-}
 
-// ===================================================================
-// app/Http/Controllers/PageController.php
-// ===================================================================
 
-namespace App\Http\Controllers;
-
-use App\Models\Page;
-use App\Models\Template;
-use App\Services\PageRenderer;
-use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Validation\Rule;
-
-class PageController extends Controller
-{
-    protected PageRenderer $pageRenderer;
-
-    public function __construct(PageRenderer $pageRenderer)
-    {
-        $this->pageRenderer = $pageRenderer;
-    }
-
-    /**
-     * Listar páginas del usuario
-     */
-    public function index(Request $request): JsonResponse
-    {
-        $query = Page::query();
-
-        // Filtros opcionales
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('search')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('title', 'LIKE', '%' . $request->search . '%')
-                  ->orWhere('slug', 'LIKE', '%' . $request->search . '%');
-            });
-        }
-
-        $pages = $query->with('layout')
-                      ->orderBy('updated_at', 'desc')
-                      ->paginate(10);
-
-        return response()->json([
-            'success' => true,
-            'data' => $pages->items(),
-            'pagination' => [
-                'current_page' => $pages->currentPage(),
-                'last_page' => $pages->lastPage(),
-                'per_page' => $pages->perPage(),
-                'total' => $pages->total(),
-            ]
-        ]);
-    }
-
-    /**
-     * Obtener página específica
-     */
-    public function show(Page $page): JsonResponse
-    {
-        $page->load('layout');
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'id' => $page->id,
-                'title' => $page->title,
-                'slug' => $page->slug,
-                'content' => $page->content,
-                'layout' => $page->layout ? [
-                    'id' => $page->layout->id,
-                    'name' => $page->layout->name,
-                    'type' => $page->layout->type,
-                ] : null,
-                'template_assignments' => $page->template_assignments,
-                'page_variables' => $page->page_variables,
-                'status' => $page->status,
-                'status_name' => $page->status_name,
-                'needs_regeneration' => $page->needs_regeneration,
-                'created_at' => $page->created_at,
-                'updated_at' => $page->updated_at,
-            ]
-        ]);
-    }
-
-    /**
-     * Crear nueva página
-     */
-    public function store(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'slug' => 'required|string|max:255|unique:pages,slug',
-            'content' => 'required|array',
-            'layout_id' => 'nullable|exists:templates,id',
-            'template_assignments' => 'nullable|array',
-            'page_variables' => 'nullable|array',
-            'status' => ['nullable', Rule::in(array_keys(Page::STATUSES))],
-        ]);
-
-        // Verificar que el layout es del tipo correcto
-        if (isset($validated['layout_id'])) {
-            $layout = Template::find($validated['layout_id']);
-            if ($layout->type !== 'layout') {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'El template seleccionado no es un layout'
-                ], 400);
-            }
-        }
-
-        $page = Page::create($validated);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Página creada exitosamente',
-            'data' => $page
-        ], 201);
-    }
-
-    /**
-     * Actualizar página
-     */
-    public function update(Request $request, Page $page): JsonResponse
-    {
-        $validated = $request->validate([
-            'title' => 'sometimes|required|string|max:255',
-            'slug' => 'sometimes|required|string|max:255|unique:pages,slug,' . $page->id,
-            'content' => 'sometimes|required|array',
-            'layout_id' => 'nullable|exists:templates,id',
-            'template_assignments' => 'nullable|array',
-            'page_variables' => 'nullable|array',
-            'status' => ['nullable', Rule::in(array_keys(Page::STATUSES))],
-        ]);
-
-        // Verificar layout si se está actualizando
-        if (isset($validated['layout_id'])) {
-            $layout = Template::find($validated['layout_id']);
-            if ($layout->type !== 'layout') {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'El template seleccionado no es un layout'
-                ], 400);
-            }
-        }
-
-        $page->update($validated);
-
-        // Limpiar cache de renderizado si cambió el contenido
-        if (isset($validated['content']) || isset($validated['layout_id']) || isset($validated['template_assignments'])) {
-            $page->clearRenderCache();
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Página actualizada exitosamente',
-            'data' => $page
-        ]);
-    }
-
-    /**
-     * Renderizar página (preview)
-     */
-    public function render(Page $page): JsonResponse
+    public function getAlpineMethods(Request $request): JsonResponse
     {
         try {
-            $html = $this->pageRenderer->render($page);
-            
+            $query = Template::alpineMethods()
+                            ->availableForUser(auth()->id())
+                            ->active();
+
+            // Filtros opcionales
+            if ($request->filled('category')) {
+                $query->inCategory($request->category);
+            }
+
+            if ($request->filled('search')) {
+                $query->where(function ($q) use ($request) {
+                    $search = $request->search;
+                    $q->where('name', 'LIKE', "%{$search}%")
+                    ->orWhere('description', 'LIKE', "%{$search}%")
+                    ->orWhere('trigger_syntax', 'LIKE', "%{$search}%");
+                });
+            }
+
+            // Ordenar por popularidad y nombre
+            $methods = $query->orderBy('usage_count', 'desc')
+                            ->orderBy('is_global', 'desc')
+                            ->orderBy('name')
+                            ->get();
+
             return response()->json([
                 'success' => true,
-                'data' => [
-                    'html' => $html,
-                    'last_rendered_at' => now()->toISOString(),
+                'data' => $methods->map(function ($method) {
+                    return [
+                        'id' => $method->id,
+                        'name' => $method->name,
+                        'trigger_syntax' => $method->trigger_syntax,
+                        'description' => $method->description,
+                        'category' => $method->category,
+                        'category_name' => $method->category_name,
+                        
+                        // Datos específicos del método
+                        'method_template' => $method->method_template,
+                        'method_parameters' => $method->method_parameters,
+                        'method_config' => $method->method_config,
+                        
+                        // Para preview
+                        'content' => $method->content,
+                        
+                        // Metadatos
+                        'usage_count' => $method->usage_count,
+                        'last_used_at' => $method->last_used_at,
+                        'is_global' => $method->is_global,
+                        'is_active' => $method->is_active,
+                        
+                        // Timestamps
+                        'created_at' => $method->created_at,
+                        'updated_at' => $method->updated_at,
+                    ];
+                }),
+                'meta' => [
+                    'total' => $methods->count(),
+                    'categories' => $this->getAlpineMethodCategories(),
+                    'cache_time' => now()->toISOString()
                 ]
             ]);
+
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error al renderizar la página',
+                'message' => 'Error al obtener métodos Alpine',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
 
     /**
-     * Publicar página
+     * Obtener un método Alpine específico
      */
-    public function publish(Page $page): JsonResponse
+    public function getAlpineMethod(Request $request, $identifier): JsonResponse
     {
-        $page->publish();
+        try {
+            // Buscar por ID o por trigger_syntax
+            $method = Template::alpineMethods()
+                            ->availableForUser(auth()->id())
+                            ->where(function ($q) use ($identifier) {
+                                $q->where('id', $identifier)
+                                ->orWhere('trigger_syntax', $identifier);
+                            })
+                            ->first();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Página publicada exitosamente'
-        ]);
-    }
+            if (!$method) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Método Alpine no encontrado'
+                ], 404);
+            }
 
-    /**
-     * Convertir página a borrador
-     */
-    public function unpublish(Page $page): JsonResponse
-    {
-        $page->makeDraft();
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'id' => $method->id,
+                    'name' => $method->name,
+                    'trigger_syntax' => $method->trigger_syntax,
+                    'description' => $method->description,
+                    'category' => $method->category,
+                    
+                    // Template y configuración completa
+                    'method_template' => $method->method_template,
+                    'method_parameters' => $method->method_parameters,
+                    'method_config' => $method->method_config,
+                    
+                    // Para preview y documentación
+                    'content' => $method->content,
+                    'usage_example' => $method->usage_example,
+                    'required_parameters' => $method->required_parameters,
+                    'optional_parameters' => $method->optional_parameters,
+                    
+                    // Metadatos
+                    'usage_count' => $method->usage_count,
+                    'last_used_at' => $method->last_used_at,
+                    'is_global' => $method->is_global,
+                    'created_at' => $method->created_at,
+                    'updated_at' => $method->updated_at,
+                ]
+            ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Página convertida a borrador'
-        ]);
-    }
-
-    /**
-     * Eliminar página
-     */
-    public function destroy(Page $page): JsonResponse
-    {
-        $page->delete();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Página eliminada exitosamente'
-        ]);
-    }
-
-    /**
-     * Asignar template a página
-     */
-    public function assignTemplate(Request $request, Page $page): JsonResponse
-    {
-        $validated = $request->validate([
-            'type' => 'required|string|in:header,footer,sidebar,nav',
-            'template_id' => 'required|exists:templates,id',
-        ]);
-
-        $template = Template::find($validated['template_id']);
-        
-        // Verificar que el template es del tipo correcto
-        if ($template->type !== $validated['type']) {
+        } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => "El template seleccionado no es del tipo {$validated['type']}"
-            ], 400);
+                'message' => 'Error al obtener el método Alpine',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        $page->assignTemplate($validated['type'], $validated['template_id']);
-        $page->clearRenderCache();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Template asignado exitosamente'
-        ]);
     }
 
     /**
-     * Remover asignación de template
+     * Incrementar contador de uso de un método Alpine
      */
-    public function removeTemplate(Request $request, Page $page): JsonResponse
+    public function incrementMethodUsage(Request $request, Template $template): JsonResponse
     {
-        $validated = $request->validate([
-            'type' => 'required|string|in:header,footer,sidebar,nav',
-        ]);
+        try {
+            // Verificar que es un método Alpine
+            if (!$template->is_alpine_method) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El template no es un método Alpine'
+                ], 400);
+            }
 
-        $page->removeTemplateAssignment($validated['type']);
-        $page->clearRenderCache();
+            // Verificar que el usuario puede usar este método
+            if (!$template->canBeUsedByUser(auth()->id())) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes permisos para usar este método'
+                ], 403);
+            }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Template removido exitosamente'
-        ]);
+            // Incrementar uso
+            $template->incrementUsage();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'id' => $template->id,
+                    'trigger_syntax' => $template->trigger_syntax,
+                    'usage_count' => $template->usage_count,
+                    'last_used_at' => $template->last_used_at->toISOString()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al incrementar uso del método',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
+
+    /**
+     * Crear nuevo método Alpine
+     */
+    public function createAlpineMethod(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'trigger_syntax' => 'required|string|max:50|unique:templates,trigger_syntax|regex:/^@\w+$/',
+                'description' => 'nullable|string|max:1000',
+                'category' => ['nullable', Rule::in(array_keys(Template::CATEGORIES))],
+                
+                // Específicos del método Alpine
+                'method_template' => 'required|string',
+                'method_parameters' => 'nullable|array',
+                'method_config' => 'nullable|array',
+                
+                // Para preview
+                'content' => 'nullable|string',
+            ]);
+
+            // Agregar campos por defecto
+            $validated['type'] = 'alpine_method';
+            $validated['user_id'] = auth()->id();
+            $validated['is_global'] = false; // Solo admins pueden crear globales
+            $validated['usage_count'] = 0;
+
+            $method = Template::create($validated);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Método Alpine creado exitosamente',
+                'data' => [
+                    'id' => $method->id,
+                    'trigger_syntax' => $method->trigger_syntax,
+                    'name' => $method->name
+                ]
+            ], 201);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error de validación',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al crear método Alpine',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Actualizar método Alpine existente
+     */
+    public function updateAlpineMethod(Request $request, Template $template): JsonResponse
+    {
+        try {
+            // Verificar que es un método Alpine
+            if (!$template->is_alpine_method) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El template no es un método Alpine'
+                ], 400);
+            }
+
+            // Verificar permisos
+            if ($template->user_id !== auth()->id() && !auth()->user()->isAdmin()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes permisos para editar este método'
+                ], 403);
+            }
+
+            $validated = $request->validate([
+                'name' => 'sometimes|required|string|max:255',
+                'trigger_syntax' => [
+                    'sometimes',
+                    'required',
+                    'string',
+                    'max:50',
+                    'regex:/^@\w+$/',
+                    Rule::unique('templates', 'trigger_syntax')->ignore($template->id)
+                ],
+                'description' => 'nullable|string|max:1000',
+                'category' => ['nullable', Rule::in(array_keys(Template::CATEGORIES))],
+                
+                // Específicos del método Alpine
+                'method_template' => 'sometimes|required|string',
+                'method_parameters' => 'nullable|array',
+                'method_config' => 'nullable|array',
+                
+                // Para preview
+                'content' => 'nullable|string',
+                'is_active' => 'sometimes|boolean',
+            ]);
+
+            $template->update($validated);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Método Alpine actualizado exitosamente',
+                'data' => [
+                    'id' => $template->id,
+                    'trigger_syntax' => $template->trigger_syntax,
+                    'name' => $template->name,
+                    'updated_at' => $template->updated_at->toISOString()
+                ]
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error de validación',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al actualizar método Alpine',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generar código Alpine desde un método
+     */
+    public function generateAlpineCode(Request $request, Template $template): JsonResponse
+    {
+        try {
+            // Verificar que es un método Alpine
+            if (!$template->is_alpine_method) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El template no es un método Alpine'
+                ], 400);
+            }
+
+            // Validar parámetros
+            $validated = $request->validate([
+                'parameters' => 'nullable|array'
+            ]);
+
+            $parameters = $validated['parameters'] ?? [];
+
+            // Validar parámetros del método
+            $parameterErrors = $template->validateMethodParameters($parameters);
+            if (!empty($parameterErrors)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error en parámetros del método',
+                    'errors' => $parameterErrors
+                ], 422);
+            }
+
+            // Generar código Alpine
+            $alpineCode = $template->generateAlpineCode($parameters);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'alpine_code' => $alpineCode,
+                    'method_name' => $template->trigger_syntax,
+                    'parameters_used' => $parameters,
+                    'generated_at' => now()->toISOString()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al generar código Alpine',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtener estadísticas de métodos Alpine
+     */
+    public function getAlpineMethodsStats(Request $request): JsonResponse
+    {
+        try {
+            $stats = [
+                'total_methods' => Template::alpineMethods()->count(),
+                'active_methods' => Template::alpineMethods()->active()->count(),
+                'global_methods' => Template::alpineMethods()->global()->count(),
+                'user_methods' => Template::alpineMethods()->forUser(auth()->id())->count(),
+                
+                'by_category' => Template::alpineMethods()
+                                    ->active()
+                                    ->selectRaw('category, COUNT(*) as count')
+                                    ->groupBy('category')
+                                    ->pluck('count', 'category'),
+                
+                'most_used' => Template::alpineMethods()
+                                    ->active()
+                                    ->orderBy('usage_count', 'desc')
+                                    ->limit(10)
+                                    ->get(['trigger_syntax', 'name', 'usage_count'])
+                                    ->map(function ($method) {
+                                        return [
+                                            'trigger' => $method->trigger_syntax,
+                                            'name' => $method->name,
+                                            'usage' => $method->usage_count
+                                        ];
+                                    }),
+                
+                'recently_used' => Template::alpineMethods()
+                                        ->recentlyUsed(7)
+                                        ->limit(5)
+                                        ->get(['trigger_syntax', 'name', 'last_used_at'])
+                                        ->map(function ($method) {
+                                            return [
+                                                'trigger' => $method->trigger_syntax,
+                                                'name' => $method->name,
+                                                'last_used' => $method->last_used_at->toISOString()
+                                            ];
+                                        }),
+                
+                'total_usage' => Template::alpineMethods()->sum('usage_count'),
+                'generated_at' => now()->toISOString()
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => $stats
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener estadísticas',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtener categorías de métodos Alpine
+     * @return array
+     */
+    private function getAlpineMethodCategories(): array
+    {
+        return Template::alpineMethods()
+                    ->active()
+                    ->distinct()
+                    ->pluck('category')
+                    ->filter()
+                    ->mapWithKeys(function ($category) {
+                        return [$category => Template::CATEGORIES[$category] ?? ucfirst($category)];
+                    })
+                    ->toArray();
+    }
+
+
 }
+
+
 

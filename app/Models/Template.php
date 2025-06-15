@@ -2,6 +2,7 @@
 
 // ===================================================================
 // app/Models/Template.php
+// ACTUALIZADO - Con soporte para métodos Alpine
 // ===================================================================
 
 namespace App\Models;
@@ -26,12 +27,24 @@ class Template extends Model
         'is_global',
         'is_active',
         'user_id',
+        // ✅ Nuevos campos para métodos Alpine
+        'method_config',
+        'method_template',
+        'method_parameters',
+        'trigger_syntax',
+        'usage_count',
+        'last_used_at',
     ];
 
     protected $casts = [
         'variables' => 'array',
         'is_global' => 'boolean',
         'is_active' => 'boolean',
+        // ✅ Nuevos casts para métodos Alpine
+        'method_config' => 'array',
+        'method_parameters' => 'array',
+        'usage_count' => 'integer',
+        'last_used_at' => 'datetime',
     ];
 
     // ===================================================================
@@ -110,6 +123,46 @@ class Template extends Model
     }
 
     // ===================================================================
+    // ✅ NUEVOS SCOPES PARA MÉTODOS ALPINE
+    // ===================================================================
+
+    /**
+     * Solo métodos Alpine
+     */
+    public function scopeAlpineMethods(Builder $query): Builder
+    {
+        return $query->where('type', 'alpine_method');
+    }
+
+    /**
+     * Métodos Alpine por sintaxis de trigger
+     */
+    public function scopeByTrigger(Builder $query, string $trigger): Builder
+    {
+        return $query->where('trigger_syntax', $trigger);
+    }
+
+    /**
+     * Métodos Alpine más usados
+     */
+    public function scopeMostUsed(Builder $query, int $limit = 10): Builder
+    {
+        return $query->alpineMethods()
+                    ->orderBy('usage_count', 'desc')
+                    ->limit($limit);
+    }
+
+    /**
+     * Métodos Alpine usados recientemente
+     */
+    public function scopeRecentlyUsed(Builder $query, int $days = 30): Builder
+    {
+        return $query->alpineMethods()
+                    ->where('last_used_at', '>=', now()->subDays($days))
+                    ->orderBy('last_used_at', 'desc');
+    }
+
+    // ===================================================================
     // ACCESSORS & MUTATORS
     // ===================================================================
 
@@ -126,6 +179,7 @@ class Template extends Model
             'nav' => 'Navegación',
             'component' => 'Componente',
             'partial' => 'Partial',
+            'alpine_method' => 'Método Alpine', // ✅ Nuevo tipo
             default => ucfirst($this->type)
         };
     }
@@ -142,6 +196,12 @@ class Template extends Model
             'marketing' => 'Marketing',
             'ecommerce' => 'E-commerce',
             'blog' => 'Blog',
+            // ✅ Nuevas categorías para métodos Alpine
+            'ui' => 'Interfaz de Usuario',
+            'data' => 'Manejo de Datos',
+            'animation' => 'Animaciones',
+            'form' => 'Formularios',
+            'utility' => 'Utilidades',
             default => ucfirst($this->category ?? 'General')
         };
     }
@@ -162,6 +222,45 @@ class Template extends Model
         return $this->variables['optional'] ?? [];
     }
 
+    // ===================================================================
+    // ✅ NUEVOS ACCESSORS PARA MÉTODOS ALPINE
+    // ===================================================================
+
+    /**
+     * Verificar si es un método Alpine
+     */
+    public function getIsAlpineMethodAttribute(): bool
+    {
+        return $this->type === 'alpine_method';
+    }
+
+    /**
+     * Obtener parámetros requeridos del método
+     */
+    public function getRequiredParametersAttribute(): array
+    {
+        if (!$this->is_alpine_method) return [];
+        
+        return collect($this->method_parameters ?? [])
+            ->filter(fn($param) => !($param['optional'] ?? false))
+            ->keys()
+            ->toArray();
+    }
+
+    /**
+     * Obtener parámetros opcionales del método
+     */
+    public function getOptionalParametersAttribute(): array
+    {
+        if (!$this->is_alpine_method) return [];
+        
+        return collect($this->method_parameters ?? [])
+            ->filter(fn($param) => $param['optional'] ?? false)
+            ->keys()
+            ->toArray();
+    }
+
+    
     // ===================================================================
     // METHODS
     // ===================================================================
@@ -191,13 +290,15 @@ class Template extends Model
         $clone->user_id = $userId;
         $clone->is_global = false;
         $clone->name = $this->name . ' (Copia)';
+        $clone->usage_count = 0; // ✅ Reset contador de uso
+        $clone->last_used_at = null; // ✅ Reset última vez usado
         $clone->save();
         
         return $clone;
     }
 
     /**
-     * Validar variables requeridas
+     * Validar variables requeridas (para templates HTML)
      */
     public function validateVariables(array $variables): array
     {
@@ -211,6 +312,106 @@ class Template extends Model
     }
 
     // ===================================================================
+    // ✅ NUEVOS MÉTODOS PARA MÉTODOS ALPINE
+    // ===================================================================
+
+    /**
+     * Incrementar contador de uso del método
+     */
+    public function incrementUsage(): self
+    {
+        if ($this->is_alpine_method) {
+            $this->increment('usage_count');
+            $this->update(['last_used_at' => now()]);
+        }
+        
+        return $this;
+    }
+
+    /**
+     * Validar parámetros del método Alpine
+     */
+    public function validateMethodParameters(array $parameters): array
+    {
+        if (!$this->is_alpine_method) return [];
+        
+        $errors = [];
+        $required = $this->required_parameters;
+        $schema = $this->method_parameters ?? [];
+        
+        // Verificar parámetros requeridos
+        foreach ($required as $param) {
+            if (!array_key_exists($param, $parameters)) {
+                $errors[] = "Parameter '$param' is required";
+            }
+        }
+        
+        // Verificar tipos de parámetros
+        foreach ($parameters as $key => $value) {
+            if (isset($schema[$key]['type'])) {
+                $expectedType = $schema[$key]['type'];
+                if (!$this->validateParameterType($value, $expectedType)) {
+                    $errors[] = "Parameter '$key' must be of type $expectedType";
+                }
+            }
+        }
+        
+        return $errors;
+    }
+
+    /**
+     * Generar código Alpine completo del método
+     */
+    public function generateAlpineCode(array $parameters = []): string
+    {
+        if (!$this->is_alpine_method) return '';
+        
+        // Merge con parámetros por defecto
+        $params = $this->getDefaultParameters();
+        $params = array_merge($params, $parameters);
+        
+        // Reemplazar placeholders en el template
+        $template = $this->method_template;
+        foreach ($params as $key => $value) {
+            $placeholder = "{{" . $key . "}}";
+            $template = str_replace($placeholder, json_encode($value), $template);
+        }
+        
+        // Extraer nombre del método desde trigger_syntax (@timer -> timer)
+        $methodName = ltrim($this->trigger_syntax, '@');
+        
+        return "Alpine.data('$methodName', () => ({\n    $template\n}))";
+    }
+
+    /**
+     * Obtener parámetros por defecto del método
+     */
+    public function getDefaultParameters(): array
+    {
+        if (!$this->is_alpine_method) return [];
+        
+        return collect($this->method_parameters ?? [])
+            ->mapWithKeys(fn($param, $key) => [$key => $param['default'] ?? null])
+            ->filter(fn($value) => $value !== null)
+            ->toArray();
+    }
+
+    /**
+     * Validar tipo de parámetro
+     */
+    private function validateParameterType($value, string $expectedType): bool
+    {
+        return match($expectedType) {
+            'string' => is_string($value),
+            'number' => is_numeric($value),
+            'boolean' => is_bool($value),
+            'array' => is_array($value),
+            'object' => is_object($value) || is_array($value),
+            default => true // Tipo no reconocido, aceptar cualquier valor
+        };
+    }
+
+    // ===================================================================
     // CONSTANTS
     // ===================================================================
 
@@ -221,7 +422,8 @@ class Template extends Model
         'sidebar' => 'Barra lateral',
         'nav' => 'Navegación',
         'component' => 'Componente',
-        'partial' => 'Fragmento'
+        'partial' => 'Fragmento',
+        'alpine_method' => 'Método Alpine', // ✅ Nuevo tipo
     ];
 
     const CATEGORIES = [
@@ -230,6 +432,21 @@ class Template extends Model
         'content' => 'Contenido',
         'marketing' => 'Marketing',
         'ecommerce' => 'E-commerce',
-        'blog' => 'Blog'
+        'blog' => 'Blog',
+        // ✅ Nuevas categorías para métodos Alpine
+        'ui' => 'Interfaz de Usuario',
+        'data' => 'Manejo de Datos',
+        'animation' => 'Animaciones',
+        'form' => 'Formularios',
+        'utility' => 'Utilidades',
+    ];
+
+    // ✅ Constantes específicas para métodos Alpine
+    const ALPINE_PARAMETER_TYPES = [
+        'string' => 'Texto',
+        'number' => 'Número',
+        'boolean' => 'Verdadero/Falso',
+        'array' => 'Lista',
+        'object' => 'Objeto',
     ];
 }
