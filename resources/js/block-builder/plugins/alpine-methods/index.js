@@ -1,90 +1,93 @@
 // ===================================================================
-// plugins/alpine-methods/index.js
-// Responsabilidad: Plugin principal para métodos Alpine
+// resources/js/block-builder/plugins/alpine-methods/index.js
+// Plugin Alpine Methods integrado con tu sistema
 // ===================================================================
-
-import { createPlugin } from '../../core/PluginManager.js';
-import { MethodProvider } from './providers.js';
-import { getMethodCompletions, validateMethodSyntax, processMethodCode } from './editor.js';
-import { MethodProcessor } from './processor.js';
 
 /**
  * Plugin de Métodos Alpine
- * Permite usar sintaxis simplificada como @timer({}) en lugar de Alpine.data()
+ * Se integra perfectamente con tu CoreSystemInitializer
  */
-const AlpineMethodsPlugin = createPlugin({
-    name: 'alpine-methods',
-    version: '1.0.0',
-    dependencies: [],
-    metadata: {
-        title: 'Métodos Alpine',
-        description: 'Sintaxis simplificada para componentes Alpine.js',
-        category: 'editor',
-        priority: 85
-    },
-
-    // ===================================================================
-    // INICIALIZACIÓN
-    // ===================================================================
-
-    async init() {
-        console.log('🔧 Initializing Alpine Methods Plugin...');
-
-        // Configuración del plugin
+export default class AlpineMethodsPlugin {
+    constructor() {
+        this.name = 'alpine-methods';
+        this.version = '1.0.0';
+        this.dependencies = [];
+        
+        // Configuración
         this.config = {
             apiUrl: '/api/templates/alpine-methods',
             cacheTimeout: 5 * 60 * 1000, // 5 minutos
             enableValidation: true,
-            enablePreview: true,
             triggerPrefix: '@',
             maxSuggestions: 15
         };
 
-        // Estado del plugin
-        this.methods = new Map(); // Cache de métodos cargados
+        // Estado
+        this.methods = new Map();
         this.loading = false;
         this.lastSync = null;
-
-        // Inicializar componentes
-        this.provider = new MethodProvider(this.config);
-        this.processor = new MethodProcessor(this.config);
-
-        // Cargar métodos desde BD
-        await this.loadMethods();
-
-        // Configurar editor
-        this.setupEditorIntegration();
-
-        console.log(`✅ Alpine Methods Plugin initialized with ${this.methods.size} methods`);
-        return this;
-    },
+        
+        console.log('🔧 Alpine Methods Plugin constructed');
+    }
 
     // ===================================================================
-    // GESTIÓN DE MÉTODOS
+    // INIT - Compatible con tu PluginManager
     // ===================================================================
 
-    /**
-     * Cargar métodos desde la base de datos
-     */
+    async init() {
+        console.log('🚀 Initializing Alpine Methods Plugin...');
+
+        try {
+            // Cargar métodos desde API
+            await this.loadMethods();
+
+            // Configurar integración con editor
+            this.setupEditorIntegration();
+
+            console.log(`✅ Alpine Methods Plugin initialized with ${this.methods.size} methods`);
+            return this;
+
+        } catch (error) {
+            console.error('❌ Failed to initialize Alpine Methods Plugin:', error);
+            // No fallar, solo continuar sin métodos
+            return this;
+        }
+    }
+
+    // ===================================================================
+    // CARGA DE MÉTODOS DESDE API
+    // ===================================================================
+
     async loadMethods() {
         if (this.loading) return;
 
         try {
             this.loading = true;
-            console.log('📥 Loading Alpine methods from database...');
+            console.log('📥 Loading Alpine methods from API...');
 
-            const response = await fetch(this.config.apiUrl);
+            const response = await fetch(this.config.apiUrl, {
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            });
+
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
             const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || 'API returned success: false');
+            }
+
             const methods = data.data || [];
 
             // Limpiar cache actual
             this.methods.clear();
 
-            // Cargar métodos en el cache
+            // Cargar métodos en cache
             methods.forEach(method => {
                 if (method.is_active && method.trigger_syntax) {
                     this.methods.set(method.trigger_syntax, {
@@ -97,7 +100,7 @@ const AlpineMethodsPlugin = createPlugin({
                         parameters: method.method_parameters || {},
                         config: method.method_config || {},
                         usage_count: method.usage_count || 0,
-                        content: method.content // Para preview
+                        content: method.content
                     });
                 }
             });
@@ -107,41 +110,31 @@ const AlpineMethodsPlugin = createPlugin({
 
         } catch (error) {
             console.error('❌ Error loading Alpine methods:', error);
-            // Continuar con métodos en cache si los hay
+            // Continuar sin métodos si falla la carga
         } finally {
             this.loading = false;
         }
-    },
+    }
 
-    /**
-     * Obtener método por trigger
-     */
+    // ===================================================================
+    // GESTIÓN DE MÉTODOS
+    // ===================================================================
+
     getMethod(trigger) {
-        // Asegurar que el trigger tenga el prefijo @
         if (!trigger.startsWith(this.config.triggerPrefix)) {
             trigger = this.config.triggerPrefix + trigger;
         }
-        
         return this.methods.get(trigger);
-    },
+    }
 
-    /**
-     * Obtener todos los métodos disponibles
-     */
     getAllMethods() {
         return Array.from(this.methods.values());
-    },
+    }
 
-    /**
-     * Obtener métodos por categoría
-     */
     getMethodsByCategory(category) {
         return this.getAllMethods().filter(method => method.category === category);
-    },
+    }
 
-    /**
-     * Buscar métodos por término
-     */
     searchMethods(searchTerm) {
         if (!searchTerm) return this.getAllMethods();
         
@@ -151,105 +144,398 @@ const AlpineMethodsPlugin = createPlugin({
             method.description.toLowerCase().includes(term) ||
             method.trigger.toLowerCase().includes(term)
         );
-    },
+    }
 
     // ===================================================================
     // PROCESAMIENTO DE CÓDIGO
     // ===================================================================
 
-    /**
-     * Procesar código que contiene métodos Alpine
-     */
     processCode(code) {
-        return this.processor.processCode(code, this.methods);
-    },
-
-    /**
-     * Generar código Alpine desde sintaxis de método
-     */
-    generateAlpineCode(trigger, parameters = {}) {
-        const method = this.getMethod(trigger);
-        if (!method) {
-            throw new Error(`Method "${trigger}" not found`);
+        const methodCalls = this.extractMethods(code);
+        
+        if (methodCalls.length === 0) {
+            return code;
         }
 
-        return this.processor.generateCode(method, parameters);
-    },
+        let processedCode = code;
+        
+        // Procesar métodos de atrás hacia adelante
+        methodCalls.reverse().forEach(methodCall => {
+            try {
+                const method = this.getMethod(methodCall.trigger);
+                if (!method) {
+                    console.warn(`⚠️ Method ${methodCall.trigger} not found`);
+                    return;
+                }
 
-    /**
-     * Extraer métodos usados en código
-     */
+                const alpineCode = this.generateCode(method, methodCall.parameters);
+                
+                // Reemplazar en el código
+                processedCode = processedCode.substring(0, methodCall.start) +
+                               alpineCode +
+                               processedCode.substring(methodCall.end);
+
+                // Incrementar uso de manera asíncrona
+                this.incrementMethodUsage(methodCall.trigger);
+
+            } catch (error) {
+                console.error(`❌ Error processing method ${methodCall.trigger}:`, error);
+            }
+        });
+
+        return processedCode;
+    }
+
     extractMethods(code) {
-        return this.processor.extractMethods(code);
-    },
+        const methods = [];
+        const methodRegex = /@(\w+)\s*\(\s*(\{[^}]*\})?\s*\)/g;
+        let match;
+
+        while ((match = methodRegex.exec(code)) !== null) {
+            const [fullMatch, methodName, parametersStr] = match;
+            
+            try {
+                const parameters = parametersStr ? this.parseParameters(parametersStr) : {};
+                
+                methods.push({
+                    trigger: '@' + methodName,
+                    parameters,
+                    start: match.index,
+                    end: match.index + fullMatch.length,
+                    raw: fullMatch
+                });
+            } catch (error) {
+                console.warn(`⚠️ Error parsing method ${methodName}:`, error);
+            }
+        }
+
+        return methods;
+    }
+
+    generateCode(method, parameters = {}) {
+        try {
+            // Combinar con parámetros por defecto
+            const finalParameters = this.mergeWithDefaults(parameters, method);
+
+            // Procesar template
+            const processedTemplate = this.processTemplate(method.template, finalParameters);
+
+            // Extraer nombre del componente
+            const componentName = method.trigger.replace(this.config.triggerPrefix, '');
+
+            // Generar código Alpine.data
+            return `Alpine.data('${componentName}', () => ({
+    ${this.indentCode(processedTemplate, 4)}
+}))`;
+
+        } catch (error) {
+            console.error(`❌ Error generating code for ${method.trigger}:`, error);
+            throw error;
+        }
+    }
 
     // ===================================================================
-    // INTEGRACIÓN CON EDITOR
+    // INTEGRACIÓN CON CODEMIRROR
     // ===================================================================
 
-    /**
-     * Configurar integración con CodeMirror
-     */
     setupEditorIntegration() {
-        // Exponer funciones globales para CodeMirror
         if (typeof window !== 'undefined') {
-            // Autocompletado
+            // Funciones globales para CodeMirror
             window.getAlpineMethodCompletions = (context) => {
                 return this.getEditorCompletions(context);
             };
 
-            // Validación
             window.validateAlpineMethodSyntax = (code) => {
                 return this.validateEditorSyntax(code);
             };
 
-            // Procesamiento
             window.processAlpineMethodCode = (code) => {
                 return this.processCode(code);
             };
+
+            console.log('🌐 Global functions exposed for CodeMirror');
+        }
+    }
+
+    getEditorCompletions(context) {
+        try {
+            const beforeCursor = this.getTextBeforeCursor(context, 50);
+            const methodContext = this.detectMethodContext(beforeCursor);
+            
+            if (!methodContext) return [];
+
+            switch (methodContext.type) {
+                case 'trigger':
+                    return this.getMethodTriggerCompletions(methodContext);
+                case 'parameters':
+                    return this.getMethodParameterCompletions(methodContext);
+                default:
+                    return [];
+            }
+
+        } catch (error) {
+            console.warn('⚠️ Error getting method completions:', error);
+            return [];
+        }
+    }
+
+    validateEditorSyntax(code) {
+        const errors = [];
+        const warnings = [];
+
+        try {
+            const methods = this.extractMethods(code);
+            
+            methods.forEach(methodCall => {
+                const method = this.getMethod(methodCall.trigger);
+                
+                if (!method) {
+                    errors.push({
+                        type: 'unknown-method',
+                        message: `Unknown Alpine method: ${methodCall.trigger}`,
+                        severity: 'error'
+                    });
+                }
+            });
+
+        } catch (error) {
+            errors.push({
+                type: 'validation-error',
+                message: `Error validating Alpine methods: ${error.message}`,
+                severity: 'error'
+            });
         }
 
-        console.log('🔧 Editor integration configured');
-    },
-
-    /**
-     * Obtener sugerencias para el editor
-     */
-    getEditorCompletions(context) {
-        return getMethodCompletions(context, this);
-    },
-
-    /**
-     * Validar sintaxis en el editor
-     */
-    validateEditorSyntax(code) {
-        return validateMethodSyntax(code, this);
-    },
-
-    /**
-     * Formatear código en el editor
-     */
-    formatEditorCode(code) {
-        return processMethodCode(code, this);
-    },
+        return { errors, warnings };
+    }
 
     // ===================================================================
     // UTILIDADES Y HELPERS
     // ===================================================================
 
-    /**
-     * Incrementar contador de uso de un método
-     */
+    parseParameters(parametersStr) {
+        try {
+            const cleanStr = parametersStr.trim().replace(/^{|}$/g, '');
+            if (!cleanStr) return {};
+            
+            const objectStr = `{ ${cleanStr} }`;
+            return Function(`"use strict"; return (${objectStr})`)();
+        } catch (error) {
+            console.error('❌ Error parsing parameters:', error);
+            throw new Error(`Invalid parameter syntax: ${parametersStr}`);
+        }
+    }
+
+    processTemplate(template, parameters) {
+        let processed = template;
+
+        // Reemplazar placeholders {{parameter}}
+        processed = processed.replace(/\{\{(\w+)\}\}/g, (match, paramName) => {
+            if (paramName in parameters) {
+                const value = parameters[paramName];
+                return this.formatParameterValue(value);
+            } else {
+                console.warn(`⚠️ Placeholder {{${paramName}}} not found`);
+                return match;
+            }
+        });
+
+        return processed;
+    }
+
+    formatParameterValue(value) {
+        if (typeof value === 'string') {
+            return `"${value.replace(/"/g, '\\"')}"`;
+        } else if (typeof value === 'boolean') {
+            return value ? 'true' : 'false';
+        } else if (typeof value === 'number') {
+            return value.toString();
+        } else if (Array.isArray(value)) {
+            return JSON.stringify(value);
+        } else if (typeof value === 'object' && value !== null) {
+            return JSON.stringify(value);
+        } else {
+            return 'null';
+        }
+    }
+
+    mergeWithDefaults(parameters, method) {
+        const merged = { ...parameters };
+
+        Object.entries(method.parameters || {}).forEach(([paramName, paramConfig]) => {
+            if (!(paramName in merged) && paramConfig.default !== undefined) {
+                merged[paramName] = paramConfig.default;
+            }
+        });
+
+        return merged;
+    }
+
+    indentCode(code, spaces) {
+        const indent = ' '.repeat(spaces);
+        return code
+            .split('\n')
+            .map(line => line.trim() ? indent + line : line)
+            .join('\n');
+    }
+
+    // ===================================================================
+    // MÉTODOS AUXILIARES PARA COMPLETIONS
+    // ===================================================================
+
+    detectMethodContext(beforeCursor) {
+        // Detectar @trigger
+        const triggerMatch = beforeCursor.match(/@(\w*)$/);
+        if (triggerMatch) {
+            return {
+                type: 'trigger',
+                searchTerm: triggerMatch[1] || '',
+                position: beforeCursor.length - triggerMatch[0].length
+            };
+        }
+
+        // Detectar parámetros @method({...
+        const parameterMatch = beforeCursor.match(/@(\w+)\s*\(\s*\{([^}]*?)(\w*)$/);
+        if (parameterMatch) {
+            const [, trigger, params, currentParam] = parameterMatch;
+            return {
+                type: 'parameters',
+                trigger: '@' + trigger,
+                currentParams: this.parsePartialParameters(params),
+                searchTerm: currentParam || '',
+                position: beforeCursor.length - currentParam.length
+            };
+        }
+
+        return null;
+    }
+
+    getMethodTriggerCompletions(methodContext) {
+        const methods = this.searchMethods(methodContext.searchTerm);
+        
+        return methods.map(method => ({
+            label: method.trigger,
+            type: 'alpine-method',
+            info: method.category,
+            detail: method.description,
+            apply: this.createMethodApplication(method),
+            boost: this.calculateMethodBoost(method)
+        }));
+    }
+
+    getMethodParameterCompletions(methodContext) {
+        const method = this.getMethod(methodContext.trigger);
+        if (!method) return [];
+
+        const availableParams = Object.keys(method.parameters);
+        const usedParams = Object.keys(methodContext.currentParams);
+        const remainingParams = availableParams.filter(param => !usedParams.includes(param));
+
+        return remainingParams.map(paramName => {
+            const paramConfig = method.parameters[paramName];
+            return {
+                label: paramName,
+                type: 'alpine-parameter',
+                info: paramConfig.type,
+                detail: paramConfig.description,
+                apply: this.createParameterApplication(paramName, paramConfig),
+                boost: paramConfig.required ? 100 : 50
+            };
+        });
+    }
+
+    getTextBeforeCursor(context, maxLength = 100) {
+        if (context.state && context.state.doc) {
+            // CodeMirror 6
+            const pos = context.pos || context.state.selection.main.head;
+            const start = Math.max(0, pos - maxLength);
+            return context.state.doc.sliceString(start, pos);
+        } else if (context.getLine) {
+            // CodeMirror 5
+            const cursor = context.getCursor();
+            const line = context.getLine(cursor.line);
+            const start = Math.max(0, cursor.ch - maxLength);
+            return line.substring(start, cursor.ch);
+        }
+        return '';
+    }
+
+    createMethodApplication(method) {
+        const requiredParams = Object.entries(method.parameters)
+            .filter(([, config]) => config.required)
+            .map(([name, config]) => `${name}: ${this.getDefaultValueForType(config.type)}`)
+            .join(', ');
+
+        if (requiredParams) {
+            return `${method.trigger}({ ${requiredParams} })`;
+        } else {
+            return `${method.trigger}()`;
+        }
+    }
+
+    createParameterApplication(paramName, paramConfig) {
+        const defaultValue = paramConfig.default !== undefined 
+            ? JSON.stringify(paramConfig.default)
+            : this.getDefaultValueForType(paramConfig.type);
+        
+        return `${paramName}: ${defaultValue}`;
+    }
+
+    getDefaultValueForType(type) {
+        switch (type) {
+            case 'string': return '""';
+            case 'number': return '0';
+            case 'boolean': return 'false';
+            case 'array': return '[]';
+            case 'object': return '{}';
+            default: return 'null';
+        }
+    }
+
+    calculateMethodBoost(method) {
+        let boost = 50;
+        if (method.usage_count > 10) boost += 30;
+        else if (method.usage_count > 5) boost += 20;
+        else if (method.usage_count > 0) boost += 10;
+        return boost;
+    }
+
+    parsePartialParameters(paramsStr) {
+        const params = {};
+        try {
+            const parts = paramsStr.split(',');
+            parts.forEach(part => {
+                const colonIndex = part.indexOf(':');
+                if (colonIndex > 0) {
+                    const key = part.substring(0, colonIndex).trim();
+                    const value = part.substring(colonIndex + 1).trim();
+                    try {
+                        params[key] = Function(`"use strict"; return (${value})`)();
+                    } catch {
+                        params[key] = value;
+                    }
+                }
+            });
+        } catch (error) {
+            console.warn('⚠️ Error parsing partial parameters:', error);
+        }
+        return params;
+    }
+
+    // ===================================================================
+    // API INTERACTIONS
+    // ===================================================================
+
     async incrementMethodUsage(trigger) {
         const method = this.getMethod(trigger);
         if (!method) return;
 
         try {
-            await fetch(`${this.config.apiUrl}/${method.id}/increment-usage`, {
+            await fetch(`/api/templates/${method.id}/increment-usage`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
+                    'Accept': 'application/json'
                 }
             });
 
@@ -259,22 +545,20 @@ const AlpineMethodsPlugin = createPlugin({
         } catch (error) {
             console.warn('⚠️ Failed to increment method usage:', error);
         }
-    },
+    }
 
-    /**
-     * Sincronizar con servidor si es necesario
-     */
     async syncIfNeeded() {
         const fiveMinutesAgo = Date.now() - this.config.cacheTimeout;
         
         if (!this.lastSync || this.lastSync < fiveMinutesAgo) {
             await this.loadMethods();
         }
-    },
+    }
 
-    /**
-     * Obtener estadísticas de uso
-     */
+    // ===================================================================
+    // ESTADÍSTICAS Y DEBUG
+    // ===================================================================
+
     getUsageStats() {
         const methods = this.getAllMethods();
         
@@ -294,11 +578,8 @@ const AlpineMethodsPlugin = createPlugin({
                     usage: method.usage_count
                 }))
         };
-    },
+    }
 
-    /**
-     * Obtener información de debugging
-     */
     getDebugInfo() {
         return {
             config: this.config,
@@ -308,17 +589,15 @@ const AlpineMethodsPlugin = createPlugin({
             cacheAge: this.lastSync ? Date.now() - this.lastSync : null,
             stats: this.getUsageStats()
         };
-    },
+    }
 
     // ===================================================================
-    // LIMPIEZA
+    // CLEANUP
     // ===================================================================
 
     cleanup() {
-        // Limpiar cache
         this.methods.clear();
         
-        // Limpiar funciones globales
         if (typeof window !== 'undefined') {
             delete window.getAlpineMethodCompletions;
             delete window.validateAlpineMethodSyntax;
@@ -327,6 +606,4 @@ const AlpineMethodsPlugin = createPlugin({
 
         console.log('🧹 Alpine Methods Plugin cleaned up');
     }
-});
-
-export default AlpineMethodsPlugin;
+}

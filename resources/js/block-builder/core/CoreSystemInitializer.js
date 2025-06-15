@@ -1,4 +1,7 @@
-// resources/js/block-builder/core/CoreSystemInitializer.js - UPDATED
+// ===================================================================
+// resources/js/block-builder/core/CoreSystemInitializer.js
+// ACTUALIZADO con Alpine Methods Plugin
+// ===================================================================
 
 class CoreSystemInitializer {
     constructor() {
@@ -7,7 +10,7 @@ class CoreSystemInitializer {
             'PluginManager',
             'TemplateValidator', 
             'TemplateEngine',
-            'registerPlugins', // UPDATED: Incluye DatabaseProvider
+            'registerPlugins', // ✅ AQUÍ se registrará Alpine Methods
             'EditorBridge',
         ];
     }
@@ -72,36 +75,56 @@ class CoreSystemInitializer {
         window.editorBridge = createEditorBridge();
     }
     
-    // UPDATED: Incluir DatabaseProvider en el sistema de variables
+    // ===================================================================
+    // ACTUALIZADO: Incluir Alpine Methods Plugin
+    // ===================================================================
     async _init_registerPlugins() {
         try {
             console.log('🔌 Cargando plugins...');
             
-            const [variablesPlugin, alpinePlugin, tailwindPlugin, templatesPlugin] = await Promise.all([
+            // Cargar todos los plugins incluyendo Alpine Methods
+            const [
+                variablesPlugin, 
+                alpinePlugin, 
+                tailwindPlugin, 
+                templatesPlugin,
+                alpineMethodsPlugin  // ✅ NUEVO: Alpine Methods Plugin
+            ] = await Promise.all([
                 import('../plugins/variables/index.js').then(m => m.default),
                 import('../plugins/alpine/index.js').then(m => m.default),
                 import('../plugins/tailwind/index.js').then(m => m.default),
-                import('../plugins/templates/index.js').then(m => m.default)
+                import('../plugins/templates/index.js').then(m => m.default),
+                import('../plugins/alpine-methods/index.js').then(m => m.default) // ✅ NUEVO
             ]);
 
             const pluginsToRegister = [
                 { name: 'variables', plugin: variablesPlugin },
                 { name: 'alpine', plugin: alpinePlugin },
                 { name: 'tailwind', plugin: tailwindPlugin },
-                { name: 'templates', plugin: templatesPlugin }
+                { name: 'templates', plugin: templatesPlugin },
+                { name: 'alpine-methods', plugin: alpineMethodsPlugin } // ✅ NUEVO
             ];
 
             console.log('🔌 Registrando plugins...');
             for (const item of pluginsToRegister) {
                 try {
-                    await window.pluginManager.register(item.name, item.plugin);
+                    // Para Alpine Methods, crear instancia antes de registrar
+                    if (item.name === 'alpine-methods') {
+                        const pluginInstance = new item.plugin();
+                        await window.pluginManager.register(item.name, pluginInstance);
+                    } else {
+                        await window.pluginManager.register(item.name, item.plugin);
+                    }
                 } catch (error) {
                     console.error(`❌ Error registrando ${item.name}:`, error.message);
                 }
             }
 
-            // NUEVO: Verificar que DatabaseProvider se haya cargado correctamente
+            // Verificar que DatabaseProvider se haya cargado correctamente
             await this._verifyDatabaseProvider();
+            
+            // ✅ NUEVO: Verificar Alpine Methods Plugin
+            await this._verifyAlpineMethodsPlugin();
             
         } catch (error) {
             console.error('❌ Error cargando plugins:', error);
@@ -109,7 +132,50 @@ class CoreSystemInitializer {
         }
     }
 
-    // NUEVO: Verificar DatabaseProvider
+    // ===================================================================
+    // NUEVO: Verificar Alpine Methods Plugin
+    // ===================================================================
+    async _verifyAlpineMethodsPlugin() {
+        try {
+            const alpineMethodsPlugin = window.pluginManager.get('alpine-methods');
+            if (alpineMethodsPlugin) {
+                console.log('✅ Alpine Methods Plugin integrado correctamente');
+                
+                // Cargar métodos iniciales desde API
+                await alpineMethodsPlugin.loadMethods();
+                console.log(`✅ Métodos Alpine cargados: ${alpineMethodsPlugin.getAllMethods().length}`);
+                
+                // Verificar que las funciones globales estén disponibles
+                if (window.getAlpineMethodCompletions && 
+                    window.validateAlpineMethodSyntax && 
+                    window.processAlpineMethodCode) {
+                    console.log('✅ Funciones globales de Alpine Methods disponibles');
+                } else {
+                    console.warn('⚠️ Algunas funciones globales de Alpine Methods no están disponibles');
+                }
+                
+                // Exponer helpers para debugging
+                window.alpineMethodsHelpers = {
+                    getMethods: () => alpineMethodsPlugin.getAllMethods(),
+                    search: (term) => alpineMethodsPlugin.searchMethods(term),
+                    getMethod: (trigger) => alpineMethodsPlugin.getMethod(trigger),
+                    processCode: (code) => alpineMethodsPlugin.processCode(code),
+                    getStats: () => alpineMethodsPlugin.getUsageStats(),
+                    getDebugInfo: () => alpineMethodsPlugin.getDebugInfo(),
+                    reload: () => alpineMethodsPlugin.loadMethods()
+                };
+                
+                console.log('🛠️ Alpine Methods helpers disponibles en window.alpineMethodsHelpers');
+                
+            } else {
+                console.warn('⚠️ Alpine Methods Plugin no encontrado');
+            }
+        } catch (error) {
+            console.error('❌ Error verificando Alpine Methods Plugin:', error);
+        }
+    }
+
+    // Verificar DatabaseProvider (método existente)
     async _verifyDatabaseProvider() {
         try {
             const variablesPlugin = window.pluginManager.get('variables');
@@ -130,6 +196,9 @@ class CoreSystemInitializer {
         }
     }
 
+    // ===================================================================
+    // ACTUALIZADO: Estado del sistema con Alpine Methods
+    // ===================================================================
     getSystemStatus() {
         console.log('--- 📊 Estado del Sistema ---');
         console.log(`Inicializado: ${this.initialized}`);
@@ -143,7 +212,7 @@ class CoreSystemInitializer {
         if (window.pluginManager) {
             console.log('Plugins:', window.pluginManager.list());
             
-            // NUEVO: Status específico de variables
+            // Variables System
             const variablesPlugin = window.pluginManager.get('variables');
             if (variablesPlugin && variablesPlugin.processor) {
                 console.log('--- 🔧 Variables System ---');
@@ -158,10 +227,31 @@ class CoreSystemInitializer {
                     });
                 }
             }
+            
+            // ✅ NUEVO: Alpine Methods System
+            const alpineMethodsPlugin = window.pluginManager.get('alpine-methods');
+            if (alpineMethodsPlugin) {
+                console.log('--- 🎯 Alpine Methods System ---');
+                console.log('Methods loaded:', alpineMethodsPlugin.getAllMethods().length);
+                console.log('Cache age:', alpineMethodsPlugin.lastSync ? Date.now() - alpineMethodsPlugin.lastSync : 'Never');
+                console.log('Global functions:', {
+                    getAlpineMethodCompletions: !!window.getAlpineMethodCompletions,
+                    validateAlpineMethodSyntax: !!window.validateAlpineMethodSyntax,
+                    processAlpineMethodCode: !!window.processAlpineMethodCode
+                });
+                
+                const stats = alpineMethodsPlugin.getUsageStats();
+                console.log('Usage stats:', stats);
+            }
         }
         
         if (window.variablesAdmin) {
             console.log('Variables Admin API: ✅ Disponible');
+        }
+        
+        // ✅ NUEVO: Alpine Methods helpers
+        if (window.alpineMethodsHelpers) {
+            console.log('Alpine Methods Helpers: ✅ Disponible');
         }
     }
 }
