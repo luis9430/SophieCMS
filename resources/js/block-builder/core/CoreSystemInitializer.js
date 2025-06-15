@@ -32,6 +32,24 @@ class CoreSystemInitializer {
         // Exponer función de debug
         window.debugSystem = () => this.getSystemStatus();
         
+        // NUEVO: Cargar debug helpers para dependencias y conexiones
+        if (process.env.NODE_ENV === 'development') {
+            try {
+                await import('../debug/plugin-dependencies-debug.js');
+                await import('../debug/plugin-connection-verifier.js');
+                console.log('🔧 Debug helpers loaded');
+                
+                // Verificar conexiones después de inicializar
+                setTimeout(() => {
+                    console.log('\n🔍 Verificando conexiones de plugins...');
+                    window.verifyPlugins?.();
+                }, 1000);
+                
+            } catch (error) {
+                console.warn('⚠️ Debug helpers not available:', error.message);
+            }
+        }
+        
         // Exponer funciones de Alpine Methods para debugging
         if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
             window.debugAlpineMethods = async () => {
@@ -85,51 +103,169 @@ class CoreSystemInitializer {
     }
     
     // ===================================================================
-    // CORREGIDO: Incluir Alpine Methods Plugin sin conflictos
+    // CORREGIDO: Cargar plugins existentes en el orden correcto
     // ===================================================================
     async _init_registerPlugins() {
         try {
             console.log('🔌 Registrando plugins del sistema...');
 
-            // 1. Registrar plugin Alpine básico (existente)
+            // 1. PRIMERO: Variables plugin (YA EXISTE - solo conectarlo)
             try {
-                const alpinePlugin = await import('../plugins/alpine/index.js');
-                await window.pluginManager.register('alpine', alpinePlugin.default, { replace: true });
-                console.log('✅ Alpine plugin registrado');
+                console.log('📦 Conectando Variables plugin existente...');
+                const variablesModule = await import('../plugins/variables/index.js');
+                const variablesPlugin = variablesModule.default;
+                
+                await window.pluginManager.register('variables', variablesPlugin, { replace: true });
+                console.log('✅ Variables plugin conectado correctamente');
+                
             } catch (error) {
-                console.warn('⚠️ Error registrando Alpine plugin:', error);
+                console.error('❌ Error conectando Variables plugin:', error);
+                throw error; // Variables es crítico, fallar si no se puede cargar
             }
 
-            // 2. Registrar plugin Variables (si existe)
+            // 2. SEGUNDO: Alpine plugin (depende de Variables)
             try {
-                const variablesPlugin = await import('../plugins/variables/index.js');
-                await window.pluginManager.register('variables', variablesPlugin.default, { replace: true });
-                console.log('✅ Variables plugin registrado');
+                console.log('📦 Conectando Alpine plugin...');
+                const alpineModule = await import('../plugins/alpine/index.js');
+                const alpinePlugin = alpineModule.default;
+                
+                await window.pluginManager.register('alpine', alpinePlugin, { replace: true });
+                console.log('✅ Alpine plugin conectado');
+                
             } catch (error) {
-                console.warn('⚠️ Variables plugin no encontrado o error al registrar:', error);
+                console.warn('⚠️ Error conectando Alpine plugin:', error);
+                // Crear Alpine básico como fallback
+                const basicAlpinePlugin = {
+                    name: 'alpine',
+                    version: '1.0.0-fallback',
+                    dependencies: ['variables'],
+                    async init() { 
+                        console.log('✅ Fallback Alpine Plugin initialized');
+                        return this; 
+                    },
+                    getPreviewTemplate() {
+                        return '<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>';
+                    }
+                };
+                
+                await window.pluginManager.register('alpine', basicAlpinePlugin, { replace: true });
+                console.log('✅ Alpine fallback plugin registrado');
             }
 
-            // 3. REGISTRAR ALPINE METHODS PLUGIN (CORREGIDO)
+            // 3. TERCERO: Alpine Methods plugin
             try {
+                console.log('📦 Conectando Alpine Methods plugin...');
                 const { initializeAlpineMethodsPlugin, isAlpineMethodsPluginAvailable } = await import('../plugins/alpine-methods/init.js');
                 
-                // Solo inicializar si no existe ya
                 if (!isAlpineMethodsPluginAvailable()) {
-                    const alpineMethodsPlugin = await initializeAlpineMethodsPlugin();
-                    console.log('✅ Alpine Methods plugin inicializado y registrado');
+                    await initializeAlpineMethodsPlugin();
+                    console.log('✅ Alpine Methods plugin inicializado');
                 } else {
                     console.log('✅ Alpine Methods plugin ya estaba disponible');
                 }
+                
             } catch (error) {
-                console.warn('⚠️ Error registrando Alpine Methods plugin:', error);
-                // No es crítico, el sistema puede continuar sin este plugin
+                console.warn('⚠️ Error conectando Alpine Methods plugin:', error);
+                // No crítico, continuar sin este plugin
             }
 
-            console.log('🎉 Registro de plugins completado');
+            // 4. CUARTO: Otros plugins opcionales existentes
+            const optionalPlugins = [
+                { name: 'templates', path: '../plugins/templates/index.js' },
+                { name: 'tailwind', path: '../plugins/tailwind/index.js' }
+            ];
+
+            for (const { name, path } of optionalPlugins) {
+                try {
+                    console.log(`📦 Intentando conectar ${name} plugin...`);
+                    const pluginModule = await import(path);
+                    const plugin = pluginModule.default;
+                    
+                    await window.pluginManager.register(name, plugin, { replace: true });
+                    console.log(`✅ ${name} plugin conectado`);
+                    
+                } catch (error) {
+                    console.log(`ℹ️ ${name} plugin no disponible (opcional)`);
+                    // Plugins opcionales, no mostrar como error
+                }
+            }
+
+            // 5. Verificar estado final y dependencias
+            console.log('\n📊 Verificando estado de plugins:');
+            const registeredPlugins = window.pluginManager.list();
+            
+            registeredPlugins.forEach(plugin => {
+                const deps = plugin.dependencies || [];
+                const depsStatus = deps.map(dep => {
+                    const depPlugin = window.pluginManager.get(dep);
+                    return depPlugin ? '✅' : '❌';
+                }).join(' ');
+                
+                console.log(`   ${plugin.name} v${plugin.version} ${deps.length > 0 ? `[deps: ${deps.join(', ')} ${depsStatus}]` : ''}`);
+            });
+
+            // 6. Inicializar plugins en orden de dependencias
+            console.log('\n🚀 Inicializando plugins...');
+            await this._initializePluginsInOrder();
+
+            console.log('🎉 Todos los plugins conectados e inicializados correctamente');
 
         } catch (error) {
-            console.error('❌ Error durante el registro de plugins:', error);
-            // No lanzar error crítico, algunos plugins pueden fallar sin afectar el sistema
+            console.error('❌ Error crítico durante conexión de plugins:', error);
+            throw error; // Fallar si Variables no se puede cargar
+        }
+    }
+
+    /**
+     * Inicializar plugins en el orden correcto según dependencias
+     */
+    async _initializePluginsInOrder() {
+        const pluginManager = window.pluginManager;
+        const plugins = pluginManager.list();
+        
+        // Crear mapa de dependencias
+        const dependencyMap = new Map();
+        const initialized = new Set();
+        
+        plugins.forEach(plugin => {
+            dependencyMap.set(plugin.name, plugin.dependencies || []);
+        });
+
+        // Función recursiva para inicializar en orden
+        const initializePlugin = async (pluginName) => {
+            if (initialized.has(pluginName)) {
+                return; // Ya inicializado
+            }
+
+            const plugin = pluginManager.getWithMetadata(pluginName);
+            if (!plugin) {
+                console.warn(`⚠️ Plugin ${pluginName} not found for initialization`);
+                return;
+            }
+
+            // Inicializar dependencias primero
+            const dependencies = dependencyMap.get(pluginName) || [];
+            for (const dep of dependencies) {
+                await initializePlugin(dep);
+            }
+
+            // Inicializar este plugin
+            try {
+                if (plugin.plugin && typeof plugin.plugin.init === 'function') {
+                    await plugin.plugin.init({ pluginManager });
+                    console.log(`   ✅ ${pluginName} inicializado`);
+                } else {
+                    console.log(`   ℹ️ ${pluginName} no requiere inicialización`);
+                }
+                initialized.add(pluginName);
+            } catch (error) {
+                console.error(`   ❌ Error inicializando ${pluginName}:`, error);
+            }
+        };
+
+        // Inicializar todos los plugins
+        for (const plugin of plugins) {
+            await initializePlugin(plugin.name);
         }
     }
 
