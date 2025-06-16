@@ -26,3 +26,5 @@ Thumbs.db
 yarn-error.log
 .vite
 package-lock.json
+*storybook.log
+storybook-static
