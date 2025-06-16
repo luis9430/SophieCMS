@@ -1,342 +1,447 @@
 // ===================================================================
-// resources/js/block-builder/PageBuilder.jsx - CON ALPINE METHODS TAB
+// resources/js/block-builder/PageBuilder.jsx - VERSIÓN COMPLETA
+// Integración completa del nuevo plugin preact-components
 // ===================================================================
 
 import { useState, useEffect, useCallback } from 'preact/hooks';
 import IntegratedPageBuilderEditor from './components/IntegratedPageBuilderEditor';
 import VariableManager from './plugins/variables/ui/VariableManager.jsx';
-import AlpineMethodsTab from './plugins/alpine-methods/components/AlpineMethodsTab.jsx';
+import PreactComponentsTab from './plugins/preact-components/components/PreactComponentsTab.jsx';
+import AlpineMethodsTab from './plugins/alpine-methods/components/AlpineMethodsTab.jsx'; // Mantener temporalmente
 import { initializeCoreSystem } from './core/CoreSystemInitializer';
 
 const PageBuilder = ({ content: initialContent, onContentChange }) => {
     const [isReady, setIsReady] = useState(false);
     const [editorContent, setEditorContent] = useState(initialContent || '');
-    const [activeTab, setActiveTab] = useState('editor'); // 'editor' | 'variables' | 'alpine-methods'
+    const [activeTab, setActiveTab] = useState('editor'); // 'editor' | 'variables' | 'components' | 'alpine-methods'
+    const [preactComponentsPlugin, setPreactComponentsPlugin] = useState(null);
     const [alpineMethodsPlugin, setAlpineMethodsPlugin] = useState(null);
+    const [systemStatus, setSystemStatus] = useState('initializing');
 
     useEffect(() => {
-        initializeCoreSystem().then(async () => {
-            console.log("Block Builder Core Systems Initialized.");
+        initializeSystem();
+    }, []);
+
+    const initializeSystem = async () => {
+        try {
+            setSystemStatus('initializing');
+            console.log("🚀 Inicializando Block Builder Core Systems...");
             
-            // EVITAR DOBLE INICIALIZACIÓN - Verificar primero si ya existe
-            try {
-                const { getAlpineMethodsPlugin, initializeAlpineMethodsPlugin } = await import('./plugins/alpine-methods/init.js');
-                
-                let plugin = getAlpineMethodsPlugin();
-                
-                if (!plugin) {
-                    console.log('🔄 Inicializando Alpine Methods Plugin desde PageBuilder...');
-                    plugin = await initializeAlpineMethodsPlugin();
-                } else {
-                    console.log('✅ Alpine Methods Plugin ya estaba disponible');
-                }
-                
-                setAlpineMethodsPlugin(plugin);
-                console.log('✅ Alpine Methods Plugin ready in PageBuilder');
-            } catch (error) {
-                console.warn('⚠️ Alpine Methods Plugin failed to initialize:', error);
-                // No es crítico, continuar sin Alpine Methods
+            await initializeCoreSystem();
+            console.log("✅ Block Builder Core Systems Initialized.");
+            
+            // ===================================================================
+            // INICIALIZAR PLUGIN PREACT COMPONENTS (PRINCIPAL)
+            // ===================================================================
+            await initializePreactComponents();
+            
+            // ===================================================================
+            // MANTENER ALPINE METHODS (DEPRECATED - SOLO DESARROLLO)
+            // ===================================================================
+            if (process.env.NODE_ENV === 'development') {
+                await initializeAlpineMethods();
             }
             
             setIsReady(true);
+            setSystemStatus('ready');
             
             // Cache invalidation setup
             setTimeout(() => {
                 setupSimpleCacheInvalidation();
             }, 1500);
-        });
-    }, []);
-
-    // ===================================================================
-    // FUNCIÓN: Setup simple de cache
-    // ===================================================================
-    const setupSimpleCacheInvalidation = () => {
-        console.log('🔧 Setting up simple cache invalidation...');
-        
-        // Verificar disponibilidad del sistema
-        if (!window.variablesAdmin || !window.pluginManager) {
-            console.warn('⚠️ System not ready, retrying...');
-            setTimeout(setupSimpleCacheInvalidation, 2000);
-            return;
-        }
-        
-        // Función central de refresh
-        const refreshCache = async () => {
-            try {
-                console.log('🔄 Refreshing variable cache...');
-                
-                const variablesPlugin = window.pluginManager.get('variables');
-                if (variablesPlugin && typeof variablesPlugin.loadProviders === 'function') {
-                    await variablesPlugin.loadProviders();
-                    console.log('✅ Variables plugin cache refreshed');
-                } else {
-                    console.warn('⚠️ Variables plugin not available for refresh');
-                }
-                
-                // Refresh Alpine Methods cache if available
-                if (alpineMethodsPlugin && typeof alpineMethodsPlugin.loadMethods === 'function') {
-                    await alpineMethodsPlugin.loadMethods();
-                    console.log('✅ Alpine Methods cache refreshed');
-                }
-                
-                // Invalidar cache de autocompletado
-                if (window.variableAutoComplete) {
-                    window.variableAutoComplete.invalidateCache();
-                }
-                
-                console.log('🎉 All caches refreshed successfully');
-                
-            } catch (error) {
-                console.error('❌ Error refreshing cache:', error);
-            }
-        };
-
-        // Función de test
-        const testVariables = () => {
-            const variablesPlugin = window.pluginManager.get('variables');
-            if (variablesPlugin) {
-                console.log('🧪 Testing variables system:');
-                console.log('Variables:', variablesPlugin.getAllVariables());
-                console.log('Keys:', variablesPlugin.getVariableKeys());
-                console.log('Providers:', variablesPlugin.getProviders());
-            }
-        };
-
-        // Función para obtener información del sistema
-        const getSystemInfo = () => {
-            const variablesPlugin = window.pluginManager.get('variables');
             
-            return {
-                timestamp: new Date().toISOString(),
-                plugins: {
-                    variables: !!variablesPlugin,
-                    alpineMethods: !!alpineMethodsPlugin,
-                    hasGetAllVariables: !!(variablesPlugin?.getAllVariables),
-                    hasGetProvider: !!(variablesPlugin?.getProvider),
-                    variableCount: variablesPlugin?.getVariableKeys?.()?.length || 0,
-                    alpineMethodsCount: alpineMethodsPlugin?.getAllMethods?.()?.length || 0
-                },
-                admin: {
-                    available: !!window.variablesAdmin,
-                    methods: window.variablesAdmin ? Object.keys(window.variablesAdmin) : []
-                },
-                cache: {
-                    refreshFunction: !!window.refreshVariables,
-                    testFunction: !!window.testVariables
-                }
-            };
-        };
-
-        // Exponer funciones globalmente
-        window.refreshVariables = refreshCache;
-        window.testVariables = testVariables;
-        window.getSystemInfo = getSystemInfo;
-        
-        console.log('✅ Simple cache setup complete');
-        console.log('💡 Commands: refreshVariables(), testVariables(), getSystemInfo()');
-    };
-    
-    const handleContentUpdate = useCallback((newContent) => {
-        setEditorContent(newContent);
-        if (onContentChange) {
-            onContentChange(newContent);
+        } catch (error) {
+            console.error("❌ Error inicializando Page Builder:", error);
+            setSystemStatus('error');
         }
-    }, [onContentChange]);
+    };
 
-    // Alpine Methods handlers
-    const handleAlpineMethodSave = useCallback(async (method) => {
-        console.log('💾 Saving Alpine method:', method.name);
+    const initializePreactComponents = async () => {
         try {
-            if (alpineMethodsPlugin && typeof alpineMethodsPlugin.saveMethod === 'function') {
-                return await alpineMethodsPlugin.saveMethod(method);
+            const { getPreactComponentsPlugin, initializePreactComponentsPlugin } = 
+                await import('./plugins/preact-components/init.js');
+            
+            let plugin = getPreactComponentsPlugin();
+            
+            if (!plugin) {
+                console.log('🔄 Inicializando Preact Components Plugin...');
+                plugin = await initializePreactComponentsPlugin();
             } else {
-                // Fallback: save via API
-                const response = await fetch('/api/templates/alpine-methods', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    body: JSON.stringify({
-                        name: method.name,
-                        description: method.description,
-                        category: method.category,
-                        trigger_syntax: `@${method.name}`,
-                        method_template: method.inputCode,
-                        method_parameters: method.parameters || {},
-                        is_active: true
-                    })
-                });
+                console.log('✅ Preact Components Plugin ya estaba disponible');
+            }
+            
+            setPreactComponentsPlugin(plugin);
+            console.log('✅ Preact Components Plugin ready in PageBuilder');
+        } catch (error) {
+            console.warn('⚠️ Preact Components Plugin failed to initialize:', error);
+            throw error; // Re-throw para mostrar error general
+        }
+    };
 
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
+    const initializeAlpineMethods = async () => {
+        try {
+            const { getAlpineMethodsPlugin, initializeAlpineMethodsPlugin } = 
+                await import('./plugins/alpine-methods/init.js');
+            
+            let plugin = getAlpineMethodsPlugin();
+            
+            if (!plugin) {
+                console.log('🔄 Inicializando Alpine Methods Plugin (deprecated)...');
+                plugin = await initializeAlpineMethodsPlugin();
+            } else {
+                console.log('✅ Alpine Methods Plugin ya estaba disponible');
+            }
+            
+            setAlpineMethodsPlugin(plugin);
+            console.log('⚠️ Alpine Methods Plugin ready (deprecated)');
+        } catch (error) {
+            console.warn('⚠️ Alpine Methods Plugin failed to initialize (expected):', error);
+            // No es crítico, continuar sin Alpine Methods
+        }
+    };
 
-                const result = await response.json();
-                if (!result.success) {
-                    throw new Error(result.message || 'Failed to save method');
-                }
-
-                console.log('✅ Alpine method saved successfully');
-                return result.data;
+    // ===================================================================
+    // FUNCIÓN: Setup simple de cache invalidation
+    // ===================================================================
+    
+    const setupSimpleCacheInvalidation = () => {
+        try {
+            if (typeof window !== 'undefined') {
+                // Limpiar cache cada 5 minutos
+                setInterval(() => {
+                    console.log('🧹 Limpiando cache de componentes...');
+                    if (window.caches) {
+                        window.caches.keys().then(names => {
+                            names.forEach(name => {
+                                if (name.includes('preact-components') || name.includes('alpine-methods')) {
+                                    window.caches.delete(name);
+                                }
+                            });
+                        });
+                    }
+                }, 300000);
             }
         } catch (error) {
-            console.error('❌ Error saving Alpine method:', error);
-            alert(`Error guardando método: ${error.message}`);
-            throw error;
+            console.warn('⚠️ Cache invalidation setup failed:', error);
         }
-    }, [alpineMethodsPlugin]);
+    };
 
-    const handleAlpineMethodLoad = useCallback((method) => {
-        console.log('📄 Alpine method loaded:', method.name);
-    }, []);
+    // ===================================================================
+    // HANDLERS
+    // ===================================================================
 
-    if (!isReady) {
+    const handleContentChange = useCallback((newContent) => {
+        setEditorContent(newContent);
+        onContentChange?.(newContent);
+    }, [onContentChange]);
+
+    const handleTabChange = (tabValue) => {
+        setActiveTab(tabValue);
+        console.log(`📑 Switched to tab: ${tabValue}`);
+    };
+
+    // ===================================================================
+    // ESTADOS DE CARGA
+    // ===================================================================
+
+    if (systemStatus === 'error') {
         return (
-            <div className="flex items-center justify-center min-h-screen bg-gray-50">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                    <p className="text-gray-600 text-lg">Loading Page Builder...</p>
-                    <p className="text-gray-400 text-sm mt-2">Initializing core systems...</p>
+            <div className="h-screen flex items-center justify-center bg-red-50">
+                <div className="text-center max-w-md">
+                    <div className="text-6xl mb-4">❌</div>
+                    <h2 className="text-2xl font-bold text-red-800 mb-2">
+                        Error de Inicialización
+                    </h2>
+                    <p className="text-red-700 mb-4">
+                        No se pudo inicializar el sistema de componentes Preact.
+                    </p>
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                        Reintentar
+                    </button>
                 </div>
             </div>
         );
     }
 
+    if (!isReady) {
+        return (
+            <div className="h-screen flex items-center justify-center bg-gray-50">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                        Inicializando Page Builder
+                    </h2>
+                    <p className="text-gray-600">
+                        Cargando sistema de componentes Preact...
+                    </p>
+                    <div className="mt-4">
+                        <div className="text-sm text-gray-500">
+                            Estado: {systemStatus}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ===================================================================
+    // CONFIGURACIÓN DE TABS
+    // ===================================================================
+
+    const availableTabs = [
+        {
+            id: 'editor',
+            label: 'Editor',
+            icon: (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                </svg>
+            ),
+            description: 'Editor de código principal'
+        },
+        {
+            id: 'variables',
+            label: 'Variables',
+            icon: (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            ),
+            description: 'Gestión de variables dinámicas'
+        },
+        {
+            id: 'components',
+            label: 'Componentes',
+            icon: (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                </svg>
+            ),
+            description: 'Sistema de componentes Preact',
+            badge: 'Preact',
+            badgeColor: 'green'
+        }
+    ];
+
+    // Agregar Alpine Methods tab solo en desarrollo
+    if (process.env.NODE_ENV === 'development' && alpineMethodsPlugin) {
+        availableTabs.push({
+            id: 'alpine-methods',
+            label: 'Alpine (Legacy)',
+            icon: (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+            ),
+            description: 'Sistema Alpine.js (deprecated)',
+            badge: 'Legacy',
+            badgeColor: 'orange',
+            deprecated: true
+        });
+    }
+
+    // ===================================================================
+    // MAIN RENDER
+    // ===================================================================
+
     return (
-        <div className="page-builder-container h-screen flex flex-col bg-gray-50">
-            {/* Header with Navigation */}
+        <div className="h-screen flex flex-col bg-white">
+            {/* Header */}
             <header className="bg-white border-b border-gray-200 px-6 py-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
-                        <h1 className="text-2xl font-bold text-gray-900 flex items-center space-x-3">
-                            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                                <span className="text-white text-sm font-bold">PB</span>
-                            </div>
-                            <span>Page Builder</span>
+                        <h1 className="text-2xl font-bold text-gray-900">
+                            Page Builder
                         </h1>
-                        
-                        {/* Tab Navigation - AGREGADA ALPINE METHODS */}
-                        <nav className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
-                            <button
-                                onClick={() => setActiveTab('editor')}
-                                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                                    activeTab === 'editor'
-                                        ? 'bg-white text-blue-600 shadow-sm'
-                                        : 'text-gray-600 hover:text-gray-900'
-                                }`}
-                            >
-                                📝 Editor
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('variables')}
-                                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                                    activeTab === 'variables'
-                                        ? 'bg-white text-blue-600 shadow-sm'
-                                        : 'text-gray-600 hover:text-gray-900'
-                                }`}
-                            >
-                                🎯 Variables
-                            </button>
-                            {/* NUEVA TAB ALPINE METHODS */}
-                            <button
-                                onClick={() => setActiveTab('alpine-methods')}
-                                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                                    activeTab === 'alpine-methods'
-                                        ? 'bg-white text-blue-600 shadow-sm'
-                                        : 'text-gray-600 hover:text-gray-900'
-                                }`}
-                                title="Editor de métodos Alpine.js reutilizables"
-                            >
-                                ⚡ Alpine Methods
-                            </button>
-                        </nav>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            ✨ Preact Ready
+                        </span>
+                        {systemStatus === 'ready' && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                🟢 Online
+                            </span>
+                        )}
                     </div>
                     
-                    {/* Action Buttons */}
-                    <div className="flex items-center space-x-3">
-                        {/* Botón de refresh manual */}
-                        <button
-                            onClick={() => window.refreshVariables?.()}
-                            className="px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors flex items-center space-x-1"
-                            title="Refrescar variables y métodos desde base de datos"
-                        >
-                            <span>🔄</span>
-                            <span>Refresh</span>
-                        </button>
-                        
-                        <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
-                            💾 Save
-                        </button>
-                        <button className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
-                            🚀 Publish
-                        </button>
+                    <div className="flex items-center space-x-4">
+                        <span className="text-sm text-gray-500">
+                            Sistema moderno con Preact + Mantine + Tailwind
+                        </span>
                     </div>
                 </div>
             </header>
 
-            {/* Main Content */}
-            <div className="flex-1 flex overflow-hidden">
-                {/* Editor Tab */}
+            {/* Tab Navigation */}
+            <nav className="bg-white border-b border-gray-200">
+                <div className="px-6">
+                    <div className="flex space-x-8">
+                        {availableTabs.map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => handleTabChange(tab.id)}
+                                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors group ${
+                                    activeTab === tab.id
+                                        ? 'border-blue-500 text-blue-600'
+                                        : tab.deprecated
+                                        ? 'border-transparent text-orange-500 hover:text-orange-700 hover:border-orange-300 opacity-60'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
+                                title={tab.description}
+                            >
+                                <span className="flex items-center space-x-2">
+                                    {tab.icon}
+                                    <span>{tab.label}</span>
+                                    {tab.badge && (
+                                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                                            tab.badgeColor === 'green' 
+                                                ? 'bg-green-100 text-green-800'
+                                                : tab.badgeColor === 'orange'
+                                                ? 'bg-orange-100 text-orange-800'
+                                                : 'bg-blue-100 text-blue-800'
+                                        }`}>
+                                            {tab.badge}
+                                        </span>
+                                    )}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </nav>
+
+            {/* Tab Content */}
+            <main className="flex-1 overflow-hidden">
                 {activeTab === 'editor' && (
                     <IntegratedPageBuilderEditor
-                        initialContent={editorContent}
-                        onContentChange={handleContentUpdate}
+                        content={editorContent}
+                        onContentChange={handleContentChange}
+                        preactPlugin={preactComponentsPlugin}
                     />
                 )}
-                
-                {/* Variables Tab */}
+
                 {activeTab === 'variables' && (
-                    <div className="flex-1 p-6">
-                        <VariableManager />
+                    <VariableManager />
+                )}
+
+                {/* ✅ NUEVO: Preact Components Tab */}
+                {activeTab === 'components' && (
+                    <PreactComponentsTab 
+                        pluginInstance={preactComponentsPlugin}
+                        onSave={(componentData) => {
+                            console.log('Component saved:', componentData);
+                            // Aquí puedes agregar lógica adicional cuando se guarda un componente
+                        }}
+                        onLoad={(componentId) => {
+                            console.log('Component loaded:', componentId);
+                            // Aquí puedes agregar lógica adicional cuando se carga un componente
+                        }}
+                    />
+                )}
+
+                {/* ⚠️ DEPRECATED: Alpine Methods Tab */}
+                {activeTab === 'alpine-methods' && process.env.NODE_ENV === 'development' && (
+                    <div className="h-full flex flex-col">
+                        {/* Warning Banner */}
+                        <div className="bg-orange-50 border-b border-orange-200 p-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                    <div className="text-2xl">⚠️</div>
+                                    <div>
+                                        <h3 className="text-orange-800 font-semibold">
+                                            Alpine Methods (Deprecated)
+                                        </h3>
+                                        <p className="text-orange-700 text-sm">
+                                            Este sistema está deprecated. Se recomienda usar 
+                                            <strong> Componentes Preact</strong> para nuevos desarrollos.
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => handleTabChange('components')}
+                                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                                >
+                                    Ir a Componentes Preact
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Alpine Methods Tab Content */}
+                        <div className="flex-1">
+                            {alpineMethodsPlugin ? (
+                                <AlpineMethodsTab 
+                                    pluginInstance={alpineMethodsPlugin}
+                                    onSave={(methodData) => {
+                                        console.log('Alpine method saved (deprecated):', methodData);
+                                    }}
+                                    onLoad={(methodId) => {
+                                        console.log('Alpine method loaded (deprecated):', methodId);
+                                    }}
+                                />
+                            ) : (
+                                <div className="h-full flex items-center justify-center">
+                                    <div className="text-center text-gray-500">
+                                        <div className="text-4xl mb-2">🚫</div>
+                                        <p>Alpine Methods Plugin no disponible</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 
-                {/* Alpine Methods Tab - NUEVO */}
-                {activeTab === 'alpine-methods' && (
-                    <AlpineMethodsTab
-                        pluginInstance={alpineMethodsPlugin}
-                        onSave={handleAlpineMethodSave}
-                        onLoad={handleAlpineMethodLoad}
-                    />
+                {/* Estado de error si ningún tab coincide */}
+                {!['editor', 'variables', 'components', 'alpine-methods'].includes(activeTab) && (
+                    <div className="h-full flex items-center justify-center bg-gray-50">
+                        <div className="text-center">
+                            <div className="text-4xl mb-4">❓</div>
+                            <h2 className="text-xl font-semibold text-gray-800 mb-2">
+                                Tab no encontrado
+                            </h2>
+                            <p className="text-gray-600 mb-4">
+                                El tab "{activeTab}" no está disponible.
+                            </p>
+                            <button
+                                onClick={() => handleTabChange('editor')}
+                                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                                Ir al Editor
+                            </button>
+                        </div>
+                    </div>
                 )}
-            </div>
-            
-            {/* Status bar con información de debugging */}
-            {process.env.NODE_ENV === 'development' && (
-                <footer className="bg-gray-800 text-white px-4 py-2 text-xs flex justify-between items-center">
-                    <div className="flex space-x-4">
-                        <span>🔧 Dev Mode</span>
-                        <span>📦 Plugins: {window.pluginManager?.list?.()?.length || 0}</span>
-                        <span>🎯 Variables: {window.pluginManager?.get?.('variables')?.getVariableKeys?.()?.length || 0}</span>
-                        <span>⚡ Alpine Methods: {alpineMethodsPlugin?.getAllMethods?.()?.length || 0}</span>
+            </main>
+
+            {/* Footer de estado (opcional) */}
+            <footer className="bg-gray-50 border-t border-gray-200 px-6 py-2">
+                <div className="flex items-center justify-between text-sm text-gray-500">
+                    <div className="flex items-center space-x-4">
+                        <span>
+                            Tab activo: <strong className="text-gray-700">{activeTab}</strong>
+                        </span>
+                        <span>
+                            Plugin Preact: <strong className={preactComponentsPlugin ? 'text-green-600' : 'text-red-600'}>
+                                {preactComponentsPlugin ? 'Activo' : 'Inactivo'}
+                            </strong>
+                        </span>
+                        {process.env.NODE_ENV === 'development' && (
+                            <span>
+                                Plugin Alpine: <strong className={alpineMethodsPlugin ? 'text-orange-600' : 'text-gray-400'}>
+                                    {alpineMethodsPlugin ? 'Activo (Legacy)' : 'Inactivo'}
+                                </strong>
+                            </span>
+                        )}
                     </div>
-                    <div className="flex space-x-2">
-                        <button 
-                            onClick={() => window.testVariables?.()}
-                            className="px-2 py-1 bg-gray-700 rounded text-xs hover:bg-gray-600"
-                            title="Probar sistema de variables"
-                        >
-                            Test Variables
-                        </button>
-                        <button 
-                            onClick={() => window.refreshVariables?.()}
-                            className="px-2 py-1 bg-gray-700 rounded text-xs hover:bg-gray-600"
-                            title="Refrescar cache"
-                        >
-                            Refresh Cache
-                        </button>
-                        <button 
-                            onClick={() => console.log(window.getSystemInfo?.())}
-                            className="px-2 py-1 bg-gray-700 rounded text-xs hover:bg-gray-600"
-                            title="Ver información del sistema"
-                        >
-                            System Info
-                        </button>
+                    
+                    <div className="flex items-center space-x-2">
+                        <span>Modo: {process.env.NODE_ENV || 'production'}</span>
+                        <span>•</span>
+                        <span>Page Builder v2.0</span>
                     </div>
-                </footer>
-            )}
+                </div>
+            </footer>
         </div>
     );
 };

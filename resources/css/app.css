@@ -7,9 +7,202 @@
 @source '../**/*.js';
 @source '../**/*.jsx';
 
+
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
 
-/*@import "./tailwind-safelist.css";*/
+/* ===================================================================
+resources/css/sortable-styles.css
+Estilos para SortableJS drag & drop
+=================================================================== */
+
+/* Elemento siendo arrastrado */
+.sortable-ghost {
+  opacity: 0.4 !important;
+  background: #f8f9fa !important;
+  border: 2px dashed #3b82f6 !important;
+  transform: rotate(2deg);
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.15) !important;
+}
+
+/* Elemento seleccionado para arrastrar */
+.sortable-chosen {
+  transform: scale(1.02);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
+  z-index: 1000;
+}
+
+/* Elemento mientras se arrastra */
+.sortable-drag {
+  opacity: 1 !important;
+  transform: rotate(5deg) scale(1.05);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2) !important;
+  background: white !important;
+  border: 2px solid #3b82f6 !important;
+}
+
+/* Handle de arrastre */
+.drag-handle {
+  cursor: grab !important;
+  transition: all 0.2s ease;
+}
+
+.drag-handle:hover {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+  color: #3b82f6 !important;
+}
+
+.drag-handle:active {
+  cursor: grabbing !important;
+  transform: scale(0.95);
+}
+
+/* Animaciones suaves */
+.sortable-chosen .drag-handle,
+.sortable-ghost .drag-handle {
+  cursor: grabbing !important;
+}
+
+/* Container para el sortable */
+.sortable-container {
+  min-height: 200px;
+  transition: all 0.3s ease;
+}
+
+.sortable-container:empty::before {
+  content: "Drag blocks here to start building...";
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #6c757d;
+  font-style: italic;
+  border: 2px dashed #dee2e6;
+  border-radius: 8px;
+  background: #f8f9fa;
+}
+
+/* Efectos hover en el container */
+.sortable-container:hover {
+  background: rgba(59, 130, 246, 0.02);
+}
+
+/* Drop zone activa */
+.sortable-container.drag-over {
+  background: rgba(59, 130, 246, 0.05) !important;
+  border: 2px dashed #3b82f6 !important;
+  border-radius: 8px;
+}
+
+/* Animaciones de entrada/salida */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+}
+
+/* Aplicar animaciones a elementos nuevos */
+.block-card {
+  animation: slideIn 0.3s ease;
+}
+
+.block-card.removing {
+  animation: slideOut 0.3s ease;
+}
+
+/* Efectos de selección */
+.block-card.selected {
+  outline: 2px solid #3b82f6 !important;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1) !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .sortable-ghost,
+  .sortable-drag {
+    transform: none !important;
+  }
+  
+  .drag-handle {
+    padding: 8px !important;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* Estados de carga */
+.sortable-container.loading {
+  pointer-events: none;
+  opacity: 0.6;
+  position: relative;
+}
+
+.sortable-container.loading::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Indicadores visuales */
+.drop-indicator {
+  height: 4px;
+  background: #3b82f6;
+  border-radius: 2px;
+  margin: 8px 0;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.drop-indicator.active {
+  opacity: 1;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+}
+
+/* Mejoras para touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .drag-handle {
+    min-width: 48px;
+    min-height: 48px;
+    padding: 12px !important;
+  }
+  
+  .sortable-chosen {
+    transform: scale(1.05);
+  }
+  
+  .sortable-ghost {
+    opacity: 0.6 !important;
+  }
+}
