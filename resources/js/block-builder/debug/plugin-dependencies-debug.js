@@ -27,25 +27,6 @@ export function debugPluginDependencies() {
 
         // 2. Verificar dependencias específicas
         console.log('\n🔗 Verificación de dependencias:');
-        
-        // Verificar Alpine y sus dependencias
-        const alpinePlugin = pluginManager.get('alpine');
-        if (alpinePlugin) {
-            console.log('   ✅ Alpine plugin: Disponible');
-            const alpineDeps = alpinePlugin.dependencies || [];
-            console.log(`   📦 Dependencias de Alpine: [${alpineDeps.join(', ')}]`);
-            
-            alpineDeps.forEach(dep => {
-                const depPlugin = pluginManager.get(dep);
-                if (depPlugin) {
-                    console.log(`      ✅ ${dep}: Disponible`);
-                } else {
-                    console.log(`      ❌ ${dep}: FALTANTE`);
-                }
-            });
-        } else {
-            console.log('   ❌ Alpine plugin: NO DISPONIBLE');
-        }
 
         // Verificar Variables
         const variablesPlugin = pluginManager.get('variables');
@@ -54,15 +35,6 @@ export function debugPluginDependencies() {
             console.log(`   📊 Versión: ${variablesPlugin.version || 'N/A'}`);
         } else {
             console.log('   ❌ Variables plugin: NO DISPONIBLE');
-        }
-
-        // Verificar Alpine Methods
-        const alpineMethodsPlugin = pluginManager.get('alpine-methods');
-        if (alpineMethodsPlugin) {
-            console.log('   ✅ Alpine Methods plugin: Disponible');
-            console.log(`   📊 Versión: ${alpineMethodsPlugin.version || 'N/A'}`);
-        } else {
-            console.log('   ❌ Alpine Methods plugin: NO DISPONIBLE');
         }
 
         console.groupEnd();
@@ -182,20 +154,7 @@ export async function fixPluginDependencies() {
             }
         }
 
-        // 3. Verificar Alpine Methods
-        let alpineMethodsPlugin = pluginManager.get('alpine-methods');
-        if (!alpineMethodsPlugin) {
-            console.log('🔧 Inicializando Alpine Methods plugin...');
-            try {
-                const { initializeAlpineMethodsPlugin } = await import('../plugins/alpine-methods/init.js');
-                await initializeAlpineMethodsPlugin();
-                console.log('✅ Alpine Methods plugin inicializado');
-            } catch (error) {
-                console.warn('⚠️ No se pudo cargar Alpine Methods plugin:', error.message);
-            }
-        }
-
-        // 4. Verificar estado final
+         // 4. Verificar estado final
         console.log('\n📊 Estado final:');
         const finalPlugins = pluginManager.list();
         finalPlugins.forEach(plugin => {

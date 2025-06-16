@@ -111,31 +111,6 @@ Route::prefix('api')->group(function () {
                  ->name('api.templates.preact-components.destroy');
         });
 
-        // ===================================================================
-        // ⚠️ MÉTODOS ALPINE (DEPRECATED - MANTENIDOS PARA COMPATIBILIDAD)
-        // ===================================================================
-        Route::prefix('alpine-methods')->group(function () {
-            Route::get('/', [TemplateController::class, 'getAlpineMethods'])
-                 ->name('api.templates.alpine-methods.index');
-            
-            Route::get('/stats', [TemplateController::class, 'getAlpineMethodsStats'])
-                 ->name('api.templates.alpine-methods.stats');
-            
-            Route::post('/', [TemplateController::class, 'createAlpineMethod'])
-                 ->name('api.templates.alpine-methods.store');
-            
-            Route::get('/{identifier}', [TemplateController::class, 'getAlpineMethod'])
-                 ->name('api.templates.alpine-methods.show');
-            
-            Route::put('/{template}', [TemplateController::class, 'updateAlpineMethod'])
-                 ->where('template', '[0-9]+')
-                 ->name('api.templates.alpine-methods.update');
-            
-            // 🔄 MIGRACIÓN: Alpine → Preact
-            Route::post('/{template}/migrate-to-preact', [TemplateController::class, 'migrateAlpineToPreact'])
-                 ->where('template', '[0-9]+')
-                 ->name('api.templates.alpine-methods.migrate-to-preact');
-        });
 
         // ===================================================================
         // RUTAS GENÉRICAS DE TEMPLATES (DESPUÉS DE LAS ESPECÍFICAS)

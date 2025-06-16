@@ -6,16 +6,14 @@
 import { useState, useEffect, useCallback } from 'preact/hooks';
 import IntegratedPageBuilderEditor from './components/IntegratedPageBuilderEditor';
 import VariableManager from './plugins/variables/ui/VariableManager.jsx';
-import PreactComponentsTab from './plugins/preact-components/components/PreactComponentsTab.jsx';
-import AlpineMethodsTab from './plugins/alpine-methods/components/AlpineMethodsTab.jsx'; // Mantener temporalmente
+import PreactComponentEditor from './plugins/preact-components/components/PreactComponentEditor.jsx';
 import { initializeCoreSystem } from './core/CoreSystemInitializer';
 
 const PageBuilder = ({ content: initialContent, onContentChange }) => {
     const [isReady, setIsReady] = useState(false);
     const [editorContent, setEditorContent] = useState(initialContent || '');
-    const [activeTab, setActiveTab] = useState('editor'); // 'editor' | 'variables' | 'components' | 'alpine-methods'
+    const [activeTab, setActiveTab] = useState('editor'); // 'editor' | 'variables' | 'components' | 
     const [preactComponentsPlugin, setPreactComponentsPlugin] = useState(null);
-    const [alpineMethodsPlugin, setAlpineMethodsPlugin] = useState(null);
     const [systemStatus, setSystemStatus] = useState('initializing');
 
     useEffect(() => {
@@ -34,22 +32,11 @@ const PageBuilder = ({ content: initialContent, onContentChange }) => {
             // INICIALIZAR PLUGIN PREACT COMPONENTS (PRINCIPAL)
             // ===================================================================
             await initializePreactComponents();
-            
-            // ===================================================================
-            // MANTENER ALPINE METHODS (DEPRECATED - SOLO DESARROLLO)
-            // ===================================================================
-            if (process.env.NODE_ENV === 'development') {
-                await initializeAlpineMethods();
-            }
-            
+                        
             setIsReady(true);
             setSystemStatus('ready');
             
-            // Cache invalidation setup
-            setTimeout(() => {
-                setupSimpleCacheInvalidation();
-            }, 1500);
-            
+      
         } catch (error) {
             console.error("❌ Error inicializando Page Builder:", error);
             setSystemStatus('error');
@@ -78,53 +65,6 @@ const PageBuilder = ({ content: initialContent, onContentChange }) => {
         }
     };
 
-    const initializeAlpineMethods = async () => {
-        try {
-            const { getAlpineMethodsPlugin, initializeAlpineMethodsPlugin } = 
-                await import('./plugins/alpine-methods/init.js');
-            
-            let plugin = getAlpineMethodsPlugin();
-            
-            if (!plugin) {
-                console.log('🔄 Inicializando Alpine Methods Plugin (deprecated)...');
-                plugin = await initializeAlpineMethodsPlugin();
-            } else {
-                console.log('✅ Alpine Methods Plugin ya estaba disponible');
-            }
-            
-            setAlpineMethodsPlugin(plugin);
-            console.log('⚠️ Alpine Methods Plugin ready (deprecated)');
-        } catch (error) {
-            console.warn('⚠️ Alpine Methods Plugin failed to initialize (expected):', error);
-            // No es crítico, continuar sin Alpine Methods
-        }
-    };
-
-    // ===================================================================
-    // FUNCIÓN: Setup simple de cache invalidation
-    // ===================================================================
-    
-    const setupSimpleCacheInvalidation = () => {
-        try {
-            if (typeof window !== 'undefined') {
-                // Limpiar cache cada 5 minutos
-                setInterval(() => {
-                    console.log('🧹 Limpiando cache de componentes...');
-                    if (window.caches) {
-                        window.caches.keys().then(names => {
-                            names.forEach(name => {
-                                if (name.includes('preact-components') || name.includes('alpine-methods')) {
-                                    window.caches.delete(name);
-                                }
-                            });
-                        });
-                    }
-                }, 300000);
-            }
-        } catch (error) {
-            console.warn('⚠️ Cache invalidation setup failed:', error);
-        }
-    };
 
     // ===================================================================
     // HANDLERS
@@ -226,22 +166,7 @@ const PageBuilder = ({ content: initialContent, onContentChange }) => {
         }
     ];
 
-    // Agregar Alpine Methods tab solo en desarrollo
-    if (process.env.NODE_ENV === 'development' && alpineMethodsPlugin) {
-        availableTabs.push({
-            id: 'alpine-methods',
-            label: 'Alpine (Legacy)',
-            icon: (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-            ),
-            description: 'Sistema Alpine.js (deprecated)',
-            badge: 'Legacy',
-            badgeColor: 'orange',
-            deprecated: true
-        });
-    }
+
 
     // ===================================================================
     // MAIN RENDER
@@ -328,72 +253,19 @@ const PageBuilder = ({ content: initialContent, onContentChange }) => {
 
                 {/* ✅ NUEVO: Preact Components Tab */}
                 {activeTab === 'components' && (
-                    <PreactComponentsTab 
+                       <PreactComponentEditor 
                         pluginInstance={preactComponentsPlugin}
                         onSave={(componentData) => {
                             console.log('Component saved:', componentData);
-                            // Aquí puedes agregar lógica adicional cuando se guarda un componente
                         }}
                         onLoad={(componentId) => {
                             console.log('Component loaded:', componentId);
-                            // Aquí puedes agregar lógica adicional cuando se carga un componente
                         }}
                     />
                 )}
 
-                {/* ⚠️ DEPRECATED: Alpine Methods Tab */}
-                {activeTab === 'alpine-methods' && process.env.NODE_ENV === 'development' && (
-                    <div className="h-full flex flex-col">
-                        {/* Warning Banner */}
-                        <div className="bg-orange-50 border-b border-orange-200 p-4">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-3">
-                                    <div className="text-2xl">⚠️</div>
-                                    <div>
-                                        <h3 className="text-orange-800 font-semibold">
-                                            Alpine Methods (Deprecated)
-                                        </h3>
-                                        <p className="text-orange-700 text-sm">
-                                            Este sistema está deprecated. Se recomienda usar 
-                                            <strong> Componentes Preact</strong> para nuevos desarrollos.
-                                        </p>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => handleTabChange('components')}
-                                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                                >
-                                    Ir a Componentes Preact
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Alpine Methods Tab Content */}
-                        <div className="flex-1">
-                            {alpineMethodsPlugin ? (
-                                <AlpineMethodsTab 
-                                    pluginInstance={alpineMethodsPlugin}
-                                    onSave={(methodData) => {
-                                        console.log('Alpine method saved (deprecated):', methodData);
-                                    }}
-                                    onLoad={(methodId) => {
-                                        console.log('Alpine method loaded (deprecated):', methodId);
-                                    }}
-                                />
-                            ) : (
-                                <div className="h-full flex items-center justify-center">
-                                    <div className="text-center text-gray-500">
-                                        <div className="text-4xl mb-2">🚫</div>
-                                        <p>Alpine Methods Plugin no disponible</p>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
                 {/* Estado de error si ningún tab coincide */}
-                {!['editor', 'variables', 'components', 'alpine-methods'].includes(activeTab) && (
+                {!['editor', 'variables', 'components'].includes(activeTab) && (
                     <div className="h-full flex items-center justify-center bg-gray-50">
                         <div className="text-center">
                             <div className="text-4xl mb-4">❓</div>
@@ -417,24 +289,7 @@ const PageBuilder = ({ content: initialContent, onContentChange }) => {
             {/* Footer de estado (opcional) */}
             <footer className="bg-gray-50 border-t border-gray-200 px-6 py-2">
                 <div className="flex items-center justify-between text-sm text-gray-500">
-                    <div className="flex items-center space-x-4">
-                        <span>
-                            Tab activo: <strong className="text-gray-700">{activeTab}</strong>
-                        </span>
-                        <span>
-                            Plugin Preact: <strong className={preactComponentsPlugin ? 'text-green-600' : 'text-red-600'}>
-                                {preactComponentsPlugin ? 'Activo' : 'Inactivo'}
-                            </strong>
-                        </span>
-                        {process.env.NODE_ENV === 'development' && (
-                            <span>
-                                Plugin Alpine: <strong className={alpineMethodsPlugin ? 'text-orange-600' : 'text-gray-400'}>
-                                    {alpineMethodsPlugin ? 'Activo (Legacy)' : 'Inactivo'}
-                                </strong>
-                            </span>
-                        )}
-                    </div>
-                    
+                   
                     <div className="flex items-center space-x-2">
                         <span>Modo: {process.env.NODE_ENV || 'production'}</span>
                         <span>•</span>

@@ -13,8 +13,6 @@ export function verifyPluginConnections() {
         success: true,
         pluginManager: false,
         variables: false,
-        alpine: false,
-        alpineMethods: false,
         dependencies: {},
         issues: [],
         recommendations: []
@@ -54,60 +52,12 @@ export function verifyPluginConnections() {
             }
         }
 
-        // 3. Verificar Alpine Plugin
-        const alpinePlugin = window.pluginManager?.get('alpine');
-        if (!alpinePlugin) {
-            results.issues.push('Alpine plugin no está registrado');
-        } else {
-            results.alpine = true;
-            console.log('✅ Alpine plugin conectado');
-            
-            // Verificar dependencias de Alpine
-            const alpineDeps = alpinePlugin.dependencies || [];
-            results.dependencies.alpine = alpineDeps;
-            
-            if (alpineDeps.includes('variables')) {
-                if (results.variables) {
-                    console.log('   🔗 Dependencia de Variables satisfecha');
-                } else {
-                    results.issues.push('Alpine depende de Variables pero no está disponible');
-                    results.success = false;
-                }
-            }
-        }
-
-        // 4. Verificar Alpine Methods Plugin
-        const alpineMethodsPlugin = window.pluginManager?.get('alpine-methods') || window.alpineMethodsPlugin;
-        if (!alpineMethodsPlugin) {
-            results.issues.push('Alpine Methods plugin no está disponible');
-        } else {
-            results.alpineMethods = true;
-            console.log('✅ Alpine Methods plugin conectado');
-            
-            // Verificar funcionalidad
-            try {
-                const methods = alpineMethodsPlugin.getAllMethods?.();
-                if (methods) {
-                    console.log(`   📊 Alpine Methods disponibles: ${methods.length}`);
-                }
-            } catch (error) {
-                results.issues.push(`Error probando Alpine Methods: ${error.message}`);
-            }
-        }
-
-        // 5. Verificar orden de inicialización
-        if (results.variables && results.alpine) {
-            console.log('✅ Orden de plugins correcto (Variables → Alpine)');
-        }
-
+       
         // 6. Recomendaciones
         if (!results.variables) {
             results.recommendations.push('Verificar que el archivo plugins/variables/index.js existe y es válido');
         }
         
-        if (results.variables && !results.alpine) {
-            results.recommendations.push('Verificar dependencias de Alpine plugin');
-        }
 
         // 7. Resultado final
         if (results.success) {
@@ -230,17 +180,6 @@ export async function fixPluginConnections() {
             }
         }
 
-        // 2. Si falta Alpine, intentar reconectarlo
-        if (!verification.alpine && verification.variables) {
-            console.log('🔄 Intentando reconectar Alpine plugin...');
-            try {
-                const alpineModule = await import('../plugins/alpine/index.js');
-                await window.pluginManager.register('alpine', alpineModule.default, { replace: true });
-                console.log('✅ Alpine plugin reconectado');
-            } catch (error) {
-                console.error('❌ No se pudo reconectar Alpine plugin:', error);
-            }
-        }
 
         // 3. Verificar resultado
         const finalVerification = verifyPluginConnections();
@@ -269,23 +208,7 @@ export async function fixPluginConnections() {
 /**
  * Verificación rápida - solo muestra estado básico
  */
-export function quickConnectionCheck() {
-    const pm = !!window.pluginManager;
-    const vars = !!window.pluginManager?.get('variables');
-    const alpine = !!window.pluginManager?.get('alpine');
-    const alpineMethods = !!(window.pluginManager?.get('alpine-methods') || window.alpineMethodsPlugin);
 
-    console.log('🚀 Quick Connection Check:');
-    console.log(`   PluginManager: ${pm ? '✅' : '❌'}`);
-    console.log(`   Variables: ${vars ? '✅' : '❌'}`);
-    console.log(`   Alpine: ${alpine ? '✅' : '❌'}`);
-    console.log(`   Alpine Methods: ${alpineMethods ? '✅' : '❌'}`);
-
-    const allGood = pm && vars && alpine;
-    console.log(`   Estado: ${allGood ? '✅ TODO OK' : '❌ HAY PROBLEMAS'}`);
-
-    return { pm, vars, alpine, alpineMethods, allGood };
-}
 
 // ===================================================================
 // AUTO-EXPORT PARA DEBUGGING

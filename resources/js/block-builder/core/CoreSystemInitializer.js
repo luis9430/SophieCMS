@@ -50,13 +50,6 @@ class CoreSystemInitializer {
             }
         }
         
-        // Exponer funciones de Alpine Methods para debugging
-        if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-            window.debugAlpineMethods = async () => {
-                const { debugAlpineMethodsPlugin } = await import('../plugins/alpine-methods/init.js');
-                return debugAlpineMethodsPlugin();
-            };
-        }
     }
 
     async _initializeComponent(name) {
@@ -121,52 +114,6 @@ class CoreSystemInitializer {
             } catch (error) {
                 console.error('❌ Error conectando Variables plugin:', error);
                 throw error; // Variables es crítico, fallar si no se puede cargar
-            }
-
-            // 2. SEGUNDO: Alpine plugin (depende de Variables)
-            try {
-                console.log('📦 Conectando Alpine plugin...');
-                const alpineModule = await import('../plugins/alpine/index.js');
-                const alpinePlugin = alpineModule.default;
-                
-                await window.pluginManager.register('alpine', alpinePlugin, { replace: true });
-                console.log('✅ Alpine plugin conectado');
-                
-            } catch (error) {
-                console.warn('⚠️ Error conectando Alpine plugin:', error);
-                // Crear Alpine básico como fallback
-                const basicAlpinePlugin = {
-                    name: 'alpine',
-                    version: '1.0.0-fallback',
-                    dependencies: ['variables'],
-                    async init() { 
-                        console.log('✅ Fallback Alpine Plugin initialized');
-                        return this; 
-                    },
-                    getPreviewTemplate() {
-                        return '<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>';
-                    }
-                };
-                
-                await window.pluginManager.register('alpine', basicAlpinePlugin, { replace: true });
-                console.log('✅ Alpine fallback plugin registrado');
-            }
-
-            // 3. TERCERO: Alpine Methods plugin
-            try {
-                console.log('📦 Conectando Alpine Methods plugin...');
-                const { initializeAlpineMethodsPlugin, isAlpineMethodsPluginAvailable } = await import('../plugins/alpine-methods/init.js');
-                
-                if (!isAlpineMethodsPluginAvailable()) {
-                    await initializeAlpineMethodsPlugin();
-                    console.log('✅ Alpine Methods plugin inicializado');
-                } else {
-                    console.log('✅ Alpine Methods plugin ya estaba disponible');
-                }
-                
-            } catch (error) {
-                console.warn('⚠️ Error conectando Alpine Methods plugin:', error);
-                // No crítico, continuar sin este plugin
             }
 
             // 4. CUARTO: Otros plugins opcionales existentes
@@ -293,9 +240,7 @@ class CoreSystemInitializer {
                     version: p.version,
                     loadedAt: p.loadedAt
                 })),
-                alpine: !!pluginManager?.get('alpine'),
                 variables: !!pluginManager?.get('variables'),
-                alpineMethods: !!pluginManager?.get('alpine-methods')
             },
             environment: {
                 nodeEnv: process.env.NODE_ENV || 'production',
@@ -304,66 +249,9 @@ class CoreSystemInitializer {
         };
     }
 
-    async getDetailedStatus() {
-        const basicStatus = this.getSystemStatus();
-        
-        // Información adicional de Alpine Methods si está disponible
-        try {
-            const { getAlpineMethodsPlugin } = await import('../plugins/alpine-methods/init.js');
-            const alpineMethodsPlugin = getAlpineMethodsPlugin();
-            
-            if (alpineMethodsPlugin) {
-                basicStatus.alpineMethodsDetails = {
-                    available: true,
-                    methodsCount: alpineMethodsPlugin.getAllMethods?.()?.length || 0,
-                    version: alpineMethodsPlugin.version,
-                    lastSync: alpineMethodsPlugin.lastSync
-                };
-            }
-        } catch (error) {
-            basicStatus.alpineMethodsDetails = {
-                available: false,
-                error: error.message
-            };
-        }
-
-        return basicStatus;
-    }
-
     // ===================================================================
     // HELPERS PARA RECARGAR COMPONENTES
     // ===================================================================
-
-    async reloadPlugin(pluginName) {
-        if (!window.pluginManager) {
-            throw new Error('PluginManager not available');
-        }
-
-        console.log(`🔄 Reloading plugin: ${pluginName}`);
-
-        try {
-            // Casos especiales para plugins específicos
-            if (pluginName === 'alpine-methods') {
-                const { resetAlpineMethodsPlugin } = await import('../plugins/alpine-methods/init.js');
-                await resetAlpineMethodsPlugin();
-                console.log('✅ Alpine Methods plugin reloaded');
-                return;
-            }
-
-            // Para otros plugins, usar el método estándar del PluginManager
-            const plugin = window.pluginManager.get(pluginName);
-            if (plugin && typeof plugin.reload === 'function') {
-                await plugin.reload();
-                console.log(`✅ Plugin ${pluginName} reloaded`);
-            } else {
-                console.warn(`⚠️ Plugin ${pluginName} does not support reloading`);
-            }
-
-        } catch (error) {
-            console.error(`❌ Error reloading plugin ${pluginName}:`, error);
-            throw error;
-        }
-    }
 
     async reloadAllPlugins() {
         const plugins = window.pluginManager?.list() || [];
