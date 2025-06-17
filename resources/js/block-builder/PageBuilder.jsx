@@ -4,7 +4,6 @@
 // ===================================================================
 
 import { useState, useEffect, useCallback } from 'preact/hooks';
-import IntegratedPageBuilderEditor from './components/IntegratedPageBuilderEditor';
 import VariableManager from './plugins/variables/ui/VariableManager.jsx';
 import { initializeCoreSystem } from './core/CoreSystemInitializer';
 import CodeMirrorEditor from './CodeMirrorEditor.jsx';
