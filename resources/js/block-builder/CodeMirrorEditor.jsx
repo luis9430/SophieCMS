@@ -15,6 +15,8 @@ import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
 import { searchKeymap } from '@codemirror/search';
 import { historyKeymap } from '@codemirror/commands';
 import { lintKeymap } from '@codemirror/lint';
+import { notifications } from '@mantine/notifications';
+
 import { 
   Paper, 
   Group, 
@@ -22,7 +24,14 @@ import {
   Tooltip, 
   Select,
   Switch,
-  Text
+  Text,
+  // NUEVOS imports para panel de componentes:
+  Badge,
+  TextInput,
+  ScrollArea,
+  Stack,
+  Card,
+  Button
 } from '@mantine/core';
 import { 
   IconCode,
@@ -31,63 +40,77 @@ import {
   IconRefresh,
   IconSettings,
   IconSun,
-  IconMoon
+  IconMoon,
+  // NUEVOS iconos:
+  IconSearch,
+  IconComponents
 } from '@tabler/icons-preact';
-import { notifications } from '@mantine/notifications';
 
 // ===================================================================
 // CONFIGURACIONES Y EXTENSIONES
 // ===================================================================
 
-const createAlpineCompletions = () => {
-  const alpineDirectives = [
-    'x-data', 'x-show', 'x-if', 'x-for', 'x-text', 'x-html',
-    'x-model', 'x-bind', 'x-on', 'x-init', 'x-transition',
-    'x-ref', 'x-cloak', 'x-ignore', 'x-effect', 'x-teleport'
-  ];
-
-  const alpineMethods = [
-    '$el', '$refs', '$event', '$dispatch', '$watch', '$nextTick',
-    '$store', '$data', '$id', '$root'
-  ];
-
+const createComponentCompletions = () => {
+  /*
   return (context) => {
-    const word = context.matchBefore(/\w*/);
+    const word = context.matchBefore(/<[\w-]*|name="[\w]*|props='[^']*'/);
     if (!word) return null;
 
-    const options = [
-      ...alpineDirectives.map(directive => ({
-        label: directive,
-        type: 'keyword',
-        info: `Alpine.js directive: ${directive}`
-      })),
-      ...alpineMethods.map(method => ({
-        label: method,
-        type: 'function',
-        info: `Alpine.js magic property: ${method}`
-      }))
-    ];
+    const beforeCursor = context.state.doc.sliceString(
+      Math.max(0, context.pos - 50), 
+      context.pos
+    );
+
+    let options = [];
+
+    // Si está escribiendo <preact-
+    if (beforeCursor.match(/<preact-?$/)) {
+      options.push({
+        label: 'preact-component',
+        type: 'element',
+        info: 'Insert Preact component',
+        apply: 'preact-component name="" props=\'{}\'/>',
+        boost: 100
+      });
+    }
+
+    // Si está escribiendo name=" en un preact-component
+    const nameMatch = beforeCursor.match(/<preact-component[^>]*name="([^"]*)?$/);
+    if (nameMatch) {
+      if (window.getAllComponents) {
+        const components = window.getAllComponents();
+        options.push(...components.map(comp => ({
+          label: comp.name,
+          type: 'class',
+          info: comp.metadata.description,
+          detail: `Category: ${comp.metadata.category}`,
+          apply: comp.name,
+          boost: 90
+        })));
+      }
+    }
+
+    const filteredOptions = options.filter(option => 
+      option.label.toLowerCase().includes(word.text.toLowerCase())
+    );
+
+    if (filteredOptions.length === 0) return null;
 
     return {
       from: word.from,
-      options: options.filter(option => 
-        option.label.toLowerCase().includes(word.text.toLowerCase())
-      )
+      options: filteredOptions
     };
   };
+  */
 };
 
-const createExtensions = (language, theme, enableAlpine = true) => {
+const createExtensions = (language, theme, enableComponents = true) => {
   const extensions = [
     basicSetup,
     EditorView.lineWrapping,
     autocompletion({
-      override: enableAlpine ? [createAlpineCompletions()] : []
-    }),
-    ...historyKeymap,
-    ...searchKeymap,
-    ...completionKeymap,
-    ...lintKeymap
+      override: enableComponents ? [createComponentCompletions] : []    
+}),
   ];
 
   // Agregar lenguaje
@@ -127,12 +150,16 @@ const CodeMirrorEditor = ({
   height = '300px',
   placeholder = 'Start typing...',
   readOnly = false,
-  enableAlpine = true,
+  enableComponents = true,
   showToolbar = true,
   theme = 'light',
   lineNumbers = true,
   autoFocus = false,
-  onSave = null
+  onSave = null,
+  // NUEVOS props para panel de componentes:
+  showComponentPanel = false,
+  onComponentInsert = null,
+  componentPanelWidth = 320
 }) => {
   // ===================================================================
   // ESTADOS Y REFERENCIAS
@@ -143,7 +170,10 @@ const CodeMirrorEditor = ({
   const [currentTheme, setCurrentTheme] = useState(theme);
   const [currentLanguage, setCurrentLanguage] = useState(language);
   const [isFullscreen, setIsFullscreen] = useState(false);
-
+// NUEVOS estados para panel de componentes
+const [availableComponents, setAvailableComponents] = useState([]);
+const [searchTerm, setSearchTerm] = useState('');
+const [selectedCategory, setSelectedCategory] = useState('all');
   // ===================================================================
   // FUNCIONES UTILITARIAS
   // ===================================================================
@@ -216,6 +246,63 @@ const CodeMirrorEditor = ({
     }
   };
 
+
+  // NUEVAS funciones para componentes
+const loadAvailableComponents = () => {
+  try {
+    if (window.getAllComponents) {
+      const components = window.getAllComponents();
+      setAvailableComponents(components);
+    }
+  } catch (error) {
+    console.error('Error cargando componentes:', error);
+  }
+};
+
+const handleInsertComponent = (component) => {
+  const exampleProps = {};
+  Object.entries(component.metadata.props || {}).forEach(([propName, propDef]) => {
+    if (propDef.default !== undefined) {
+      exampleProps[propName] = propDef.default;
+    }
+  });
+  
+  const componentTag = `<preact-component
+  name="${component.name}"
+  props='${JSON.stringify(exampleProps)}'
+/>`;
+  
+  // Insertar en el editor
+  const newValue = value + '\n\n' + componentTag;
+  onChange(newValue);
+  
+  // Callback opcional
+  if (onComponentInsert) {
+    onComponentInsert(component, componentTag);
+  }
+};
+
+const getFilteredComponents = () => {
+  return availableComponents.filter(component => {
+    const matchesCategory = selectedCategory === 'all' || component.metadata.category === selectedCategory;
+    const matchesSearch = !searchTerm || 
+      component.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      component.metadata.description.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    return matchesCategory && matchesSearch;
+  });
+};
+
+const getCategories = () => {
+  const categories = ['all'];
+  availableComponents.forEach(comp => {
+    if (!categories.includes(comp.metadata.category)) {
+      categories.push(comp.metadata.category);
+    }
+  });
+  return categories;
+};
+
   // ===================================================================
   // EFECTOS
   // ===================================================================
@@ -223,7 +310,7 @@ const CodeMirrorEditor = ({
   useEffect(() => {
     if (!editorRef.current) return;
 
-    const extensions = createExtensions(currentLanguage, currentTheme, enableAlpine);
+    const extensions = createExtensions(currentLanguage, currentTheme, enableComponents);
     
     const state = EditorState.create({
       doc: value,
@@ -289,7 +376,7 @@ const CodeMirrorEditor = ({
     return () => {
       view.destroy();
     };
-  }, [currentLanguage, currentTheme, readOnly, height, enableAlpine]);
+  }, [currentLanguage, currentTheme, readOnly, height,  enableComponents]);
 
   // Actualizar contenido cuando cambia value desde props
   useEffect(() => {
@@ -304,108 +391,181 @@ const CodeMirrorEditor = ({
     }
   }, [value]);
 
+// NUEVO useEffect para cargar componentes
+    useEffect(() => {
+      if (showComponentPanel) {
+        loadAvailableComponents();
+      }
+    }, [showComponentPanel]);
+
   // ===================================================================
   // RENDER
   // ===================================================================
 
-  return (
-    <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
-      {showToolbar && (
-        <Group 
-          justify="space-between" 
-          p="xs" 
-          style={{ 
-            borderBottom: '1px solid var(--mantine-color-gray-3)',
-            backgroundColor: 'var(--mantine-color-gray-0)'
-          }}
-        >
-          <Group gap="xs">
-            <Select
-              size="xs"
-              value={currentLanguage}
-              onChange={setCurrentLanguage}
-              data={[
-                { value: 'javascript', label: 'JavaScript' },
-                { value: 'html', label: 'HTML' },
-                { value: 'css', label: 'CSS' },
-                { value: 'php', label: 'PHP' },
-                { value: 'json', label: 'JSON' }
-              ]}
-              w={100}
-            />
-            
-            {enableAlpine && (
-              <Text size="xs" c="dimmed">
-                Alpine.js enabled
-              </Text>
-            )}
-          </Group>
+ return (
+  <div className="flex h-full">
+    {/* Editor principal */}
+    <div className={showComponentPanel ? 'flex-1 mr-4' : 'w-full'}>
+      <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
+        {showToolbar && (
+          <Group 
+            justify="space-between" 
+            p="xs" 
+            style={{ 
+              borderBottom: '1px solid var(--mantine-color-gray-3)',
+              backgroundColor: 'var(--mantine-color-gray-0)'
+            }}
+          >
+            <Group gap="xs">
+              <Select
+                size="xs"
+                value={currentLanguage}
+                onChange={setCurrentLanguage}
+                data={[
+                  { value: 'javascript', label: 'JavaScript' },
+                  { value: 'html', label: 'HTML' },
+                  { value: 'css', label: 'CSS' },
+                  { value: 'php', label: 'PHP' },
+                  { value: 'json', label: 'JSON' }
+                ]}
+                w={100}
+              />
+              
+              {enableComponents && (
+                <Badge size="sm" color="blue">
+                  Components: {availableComponents.length}
+                </Badge>
+              )}
+            </Group>
 
-          <Group gap="xs">
-            <Tooltip label="Toggle Theme">
-              <ActionIcon
-                size="sm"
-                variant="subtle"
-                onClick={() => setCurrentTheme(current => current === 'light' ? 'dark' : 'light')}
-              >
-                {currentTheme === 'light' ? <IconMoon size={14} /> : <IconSun size={14} />}
-              </ActionIcon>
-            </Tooltip>
-
-            <Tooltip label="Copy Code">
-              <ActionIcon
-                size="sm"
-                variant="subtle"
-                onClick={copyToClipboard}
-              >
-                <IconCopy size={14} />
-              </ActionIcon>
-            </Tooltip>
-
-            <Tooltip label="Download Code">
-              <ActionIcon
-                size="sm"
-                variant="subtle"
-                onClick={downloadCode}
-              >
-                <IconDownload size={14} />
-              </ActionIcon>
-            </Tooltip>
-
-            <Tooltip label="Format Code (Ctrl+F)">
-              <ActionIcon
-                size="sm"
-                variant="subtle"
-                onClick={formatCode}
-              >
-                <IconCode size={14} />
-              </ActionIcon>
-            </Tooltip>
-
-            {onSave && (
-              <Tooltip label="Save (Ctrl+S)">
+            <Group gap="xs">
+              <Tooltip label="Toggle Theme">
                 <ActionIcon
                   size="sm"
-                  variant="filled"
-                  onClick={handleSave}
+                  variant="subtle"
+                  onClick={() => setCurrentTheme(current => current === 'light' ? 'dark' : 'light')}
                 >
-                  <IconSettings size={14} />
+                  {currentTheme === 'light' ? <IconMoon size={14} /> : <IconSun size={14} />}
                 </ActionIcon>
               </Tooltip>
-            )}
-          </Group>
-        </Group>
-      )}
 
-      <div 
-        ref={editorRef}
-        style={{
-          height: height,
-          backgroundColor: currentTheme === 'dark' ? '#1e1e1e' : '#ffffff'
-        }}
-      />
-    </Paper>
-  );
+              <Tooltip label="Copy Code">
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  onClick={copyToClipboard}
+                >
+                  <IconCopy size={14} />
+                </ActionIcon>
+              </Tooltip>
+
+              <Tooltip label="Download Code">
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  onClick={downloadCode}
+                >
+                  <IconDownload size={14} />
+                </ActionIcon>
+              </Tooltip>
+
+              <Tooltip label="Format Code (Ctrl+F)">
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  onClick={formatCode}
+                >
+                  <IconCode size={14} />
+                </ActionIcon>
+              </Tooltip>
+
+              {onSave && (
+                <Tooltip label="Save (Ctrl+S)">
+                  <ActionIcon
+                    size="sm"
+                    variant="filled"
+                    onClick={handleSave}
+                  >
+                    <IconSettings size={14} />
+                  </ActionIcon>
+                </Tooltip>
+              )}
+            </Group>
+          </Group>
+        )}
+
+        <div 
+          ref={editorRef}
+          style={{
+            height: height,
+            backgroundColor: currentTheme === 'dark' ? '#1e1e1e' : '#ffffff'
+          }}
+        />
+      </Paper>
+    </div>
+
+    {/* Panel lateral de componentes */}
+    {showComponentPanel && (
+      <div style={{ width: componentPanelWidth }} className="flex-shrink-0">
+        <Card className="h-full p-4">
+          <Group className="justify-between mb-4">
+            <Group>
+              <IconComponents size={20} />
+              <Text className="font-semibold">Components</Text>
+            </Group>
+            <Badge size="sm">{getFilteredComponents().length}</Badge>
+          </Group>
+          
+          <Stack spacing="sm" className="mb-4">
+            <TextInput
+              placeholder="Search components..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              leftIcon={<IconSearch size={16} />}
+            />
+            
+            <Select
+              label="Category"
+              value={selectedCategory}
+              onChange={setSelectedCategory}
+              data={getCategories().map(cat => ({
+                value: cat,
+                label: cat === 'all' ? 'All Categories' : cat.charAt(0).toUpperCase() + cat.slice(1)
+              }))}
+            />
+          </Stack>
+          
+          <ScrollArea style={{ height: 'calc(100% - 140px)' }}>
+            <Stack spacing="xs">
+              {getFilteredComponents().map((component, index) => (
+                <Paper 
+                  key={index} 
+                  className="p-3 border cursor-pointer hover:border-blue-300 transition-colors" 
+                  onClick={() => handleInsertComponent(component)}
+                >
+                  <Group className="justify-between mb-2">
+                    <Text className="font-medium text-sm">{component.name}</Text>
+                    <Badge size="xs">{component.metadata.category}</Badge>
+                  </Group>
+                  
+                  <Text size="xs" color="dimmed">
+                    {component.metadata.description}
+                  </Text>
+                  
+                  {Object.keys(component.metadata.props || {}).length > 0 && (
+                    <Text size="xs" color="dimmed" className="mt-1">
+                      Props: {Object.keys(component.metadata.props).join(', ')}
+                    </Text>
+                  )}
+                </Paper>
+              ))}
+            </Stack>
+          </ScrollArea>
+        </Card>
+      </div>
+    )}
+  </div>
+);
 };
 
 export default CodeMirrorEditor;

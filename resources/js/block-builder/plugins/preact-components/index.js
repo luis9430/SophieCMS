@@ -259,12 +259,6 @@ const preactComponentsPlugin = {
         ];
     },
 
-    // Obtener editor personalizado
-    getEditor() {
-        // Esta función retornará el componente PreactComponentEditor
-        return () => import('./components/PreactComponentEditor.jsx');
-    },
-
     // Obtener tab principal
     getTab() {
         return () => import('./components/PreactComponentsTab.jsx');

@@ -6,8 +6,9 @@
 import { useState, useEffect, useCallback } from 'preact/hooks';
 import IntegratedPageBuilderEditor from './components/IntegratedPageBuilderEditor';
 import VariableManager from './plugins/variables/ui/VariableManager.jsx';
-import PreactComponentEditor from './plugins/preact-components/components/PreactComponentEditor.jsx';
 import { initializeCoreSystem } from './core/CoreSystemInitializer';
+import CodeMirrorEditor from './CodeMirrorEditor.jsx';
+import { Card, Text, Badge, Group } from '@mantine/core';
 
 const PageBuilder = ({ content: initialContent, onContentChange }) => {
     const [isReady, setIsReady] = useState(false);
@@ -239,29 +240,46 @@ const PageBuilder = ({ content: initialContent, onContentChange }) => {
 
             {/* Tab Content */}
             <main className="flex-1 overflow-hidden">
-                {activeTab === 'editor' && (
-                    <IntegratedPageBuilderEditor
-                        content={editorContent}
-                        onContentChange={handleContentChange}
-                        preactPlugin={preactComponentsPlugin}
-                    />
-                )}
+              {activeTab === 'editor' && (
+                <div className="h-full p-4">
+                    <Card className="mb-4 p-4">
+                        <Group className="mb-4">
+                            <Text className="font-semibold text-lg">Template Editor</Text>
+                            <Badge color="blue">Preact Components</Badge>
+                            <Badge color="green" size="sm">
+                                {window.getAllComponents()?.length || 0} Available
+                            </Badge>
+                        </Group>
+                        
+                        <Text size="sm" color="dimmed">
+                            Create templates using Preact component tags. Use autocompletion and the component panel.
+                        </Text>
+                    </Card>
+                    
+                    <CodeMirrorEditor
+                        value={editorContent}
+                        onChange={handleContentChange}
+                        language="html"
+                        height="calc(100vh - 280px)"
+                        enableComponents={true}
+                        showComponentPanel={true}
+                        placeholder="Write your template using component tags...
+
+                        Example:
+                        <div class=&quot;container mx-auto p-6&quot;>
+                        <h1 class=&quot;text-3xl font-bold&quot;>My Page</h1>
+                        
+                        <preact-component
+                            name=&quot;CounterButton&quot;
+                            props='{&quot;initialCount&quot;: 0, &quot;color&quot;: &quot;blue&quot;}'
+                        />
+                        </div>"
+                                />
+                </div>
+             )}
 
                 {activeTab === 'variables' && (
                     <VariableManager />
-                )}
-
-                {/* ✅ NUEVO: Preact Components Tab */}
-                {activeTab === 'components' && (
-                       <PreactComponentEditor 
-                        pluginInstance={preactComponentsPlugin}
-                        onSave={(componentData) => {
-                            console.log('Component saved:', componentData);
-                        }}
-                        onLoad={(componentId) => {
-                            console.log('Component loaded:', componentId);
-                        }}
-                    />
                 )}
 
                 {/* Estado de error si ningún tab coincide */}

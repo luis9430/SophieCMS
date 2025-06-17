@@ -14,6 +14,41 @@ let componentSystem = null;
 /**
  * Inicializar el plugin Preact Components con ComponentSystem
  */
+
+preactComponentsPlugin.init = async function(context) {
+    console.log('✅ Preact Components Plugin Initialized');
+    
+    // Configuración original
+    this.registerComponentTypes();
+    this.setupHooksSystem();
+    
+    // NUEVO: Conectar con ComponentSystem
+    try {
+        if (context.componentSystem) {
+            this.componentSystem = context.componentSystem;
+            
+            // Agregar métodos del ComponentSystem al plugin
+            this.getAllComponents = () => this.componentSystem.getAllComponents();
+            this.getComponent = (name) => this.componentSystem.getComponent(name);
+            this.renderComponentsInHTML = (html) => this.componentSystem.renderComponentsInHTML(html);
+            this.validateComponentTags = (html) => {
+                const components = this.componentSystem.parseComponentTags(html);
+                return components.map(({ componentName, props }) => 
+                    this.componentSystem.validateComponentProps(componentName, props)
+                );
+            };
+            
+            console.log('✅ ComponentSystem integrado con plugin');
+        } else {
+            console.warn('⚠️ ComponentSystem no disponible en contexto');
+        }
+    } catch (error) {
+        console.error('❌ Error integrando ComponentSystem:', error);
+    }
+    
+    return this;
+};
+
 export async function initializePreactComponentsPlugin() {
     if (isInitialized && pluginInstance) {
         console.log('✅ Preact Components Plugin ya inicializado');
