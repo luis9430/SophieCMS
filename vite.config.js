@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import laravel from 'laravel-vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import preact from '@preact/preset-vite';
+import path from 'path'; // ← ESTA LÍNEA FALTABA
 
 export default defineConfig({
     plugins: [
@@ -15,12 +16,13 @@ export default defineConfig({
         }),
         tailwindcss(),
         preact(), 
-
     ],
     resolve: {
         alias: {
             'react': 'preact/compat',
-            'react-dom': 'preact/compat'
+            'react-dom': 'preact/compat',
+            '@mdx-system': path.resolve(process.cwd(), './resources/js/mdx-system'), // También mejoré esta línea
+            '@': path.resolve(process.cwd(), './resources/js') // Alias adicional útil
         }
     },
     esbuild: {

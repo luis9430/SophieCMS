@@ -1,0 +1,129 @@
+// resources/js/mdx-system/templates/tailwind-landing.mdx
+export const tailwindLandingTemplate = `---
+title: "Landing Page con Tailwind"
+description: "Página de aterrizaje moderna"
+author: "Tu nombre"
+---
+
+<TailwindHero 
+  title="Transforma tu negocio hoy"
+  subtitle="La solución moderna que estabas buscando"
+  buttonText="Comenzar gratis"
+  theme="purple"
+/>
+
+<Section background="white" padding="lg">
+  <TailwindContainer size="default">
+    <div className="text-center mb-16">
+      <h2 className="text-3xl font-bold text-gray-900 mb-4">
+        ¿Por qué elegirnos?
+      </h2>
+      <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+        Combinamos lo mejor de Mantine y Tailwind para crear experiencias increíbles
+      </p>
+    </div>
+    
+    <FeatureGrid features={[
+      { 
+        icon: "⚡", 
+        title: "Super Rápido", 
+        description: "Rendimiento optimizado con las mejores prácticas" 
+      },
+      { 
+        icon: "🎨", 
+        title: "Hermoso Diseño", 
+        description: "Interfaces modernas que encantan a los usuarios" 
+      },
+      { 
+        icon: "🔧", 
+        title: "Fácil de usar", 
+        description: "Herramientas intuitivas que ahorran tiempo" 
+      },
+      { 
+        icon: "📱", 
+        title: "Responsive", 
+        description: "Perfecto en todos los dispositivos" 
+      },
+      { 
+        icon: "🚀", 
+        title: "Escalable", 
+        description: "Crece junto con tu negocio" 
+      },
+      { 
+        icon: "🔒", 
+        title: "Seguro", 
+        description: "Seguridad de nivel empresarial" 
+      }
+    ]} />
+  </TailwindContainer>
+</Section>
+
+<Section background="gradient" padding="lg">
+  <TailwindContainer size="default">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+      <div>
+        <h2 className="text-3xl font-bold text-gray-900 mb-6">
+          Características increíbles
+        </h2>
+        
+        <TailwindAlert 
+          type="success" 
+          title="¡Nuevo!" 
+          children="Ahora con soporte completo para Tailwind CSS"
+        />
+        
+        <div className="mt-6 space-y-4">
+          <TailwindCard 
+            title="Editor MDX" 
+            description="Crea contenido con Markdown + componentes React"
+            variant="primary"
+            badge="Popular"
+          />
+          
+          <TailwindCard 
+            title="Preview en tiempo real" 
+            description="Ve los cambios instantáneamente"
+            variant="success"
+            badge="Rápido"
+          />
+        </div>
+      </div>
+      
+      <div className="text-center">
+        <div className="bg-white rounded-2xl shadow-xl p-8">
+          <h3 className="text-2xl font-bold mb-4">¿Listo para empezar?</h3>
+          <p className="text-gray-600 mb-6">
+            Únete a miles de usuarios satisfechos
+          </p>
+          
+          <div className="space-y-3">
+            <TailwindButton variant="primary" size="lg">
+              Prueba gratuita
+            </TailwindButton>
+            
+            <TailwindButton variant="outline" size="md">
+              Ver demo
+            </TailwindButton>
+          </div>
+        </div>
+      </div>
+    </div>
+  </TailwindContainer>
+</Section>
+
+<Section background="dark" padding="normal">
+  <TailwindContainer size="default">
+    <div className="text-center">
+      <h2 className="text-3xl font-bold mb-4">
+        ¿Tienes preguntas?
+      </h2>
+      <p className="text-xl opacity-90 mb-8">
+        Estamos aquí para ayudarte
+      </p>
+      
+      <TailwindButton variant="primary" size="lg">
+        Contactar soporte
+      </TailwindButton>
+    </div>
+  </TailwindContainer>
+</Section>`;

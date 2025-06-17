@@ -40,6 +40,8 @@
     "@mantine/hooks": "^8.1.0",
     "@mantine/modals": "^8.1.0",
     "@mantine/notifications": "^8.1.0",
+    "@mdx-js/mdx": "^3.1.0",
+    "@mdx-js/react": "^3.1.0",
     "@monaco-editor/react": "^4.7.0",
     "@preact/preset-vite": "^2.10.1",
     "@tabler/icons-preact": "^3.34.0",
