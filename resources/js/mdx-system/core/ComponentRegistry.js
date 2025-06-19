@@ -1,9 +1,8 @@
 // ===================================================================
-// resources/js/mdx-system/core/ComponentRegistry.js - ACTUALIZADO
-// Integra los nuevos componentes UI
+// resources/js/mdx-system/core/ComponentRegistry.js - FIX NESTING P
 // ===================================================================
 
-import { Button as MantineButton, Alert as MantineAlert, Card as MantineCard, Text, Container, Grid, Paper, Badge, Group } from '@mantine/core';
+import { Button as MantineButton, Alert as MantineAlert, Card as MantineCard, Text as MantineText, Container, Grid, Paper, Badge, Group } from '@mantine/core';
 import { createElement as h } from 'preact';
 
 // ===================================================================
@@ -14,7 +13,7 @@ import { MDXComponents, ComponentMetadata } from '../components/index.js';
 export class ComponentRegistry {
   constructor() {
     this.components = new Map();
-    this.loadCustomUIComponents(); // ← PRIORIDAD: Nuestros componentes primero
+    this.loadCustomUIComponents(); 
     this.loadDefaultComponents();
     this.loadTailwindComponents();
     this.loadMissingComponents();
@@ -22,9 +21,6 @@ export class ComponentRegistry {
     console.log('🎨 ComponentRegistry initialized with', this.components.size, 'components');
   }
 
-  // ===================================================================
-  // CARGAR NUESTROS COMPONENTES PERSONALIZADOS (PRIORIDAD)
-  // ===================================================================
   loadCustomUIComponents() {
     console.log('🚀 Loading custom UI components...');
     
@@ -36,7 +32,7 @@ export class ComponentRegistry {
         category: metadata?.category || 'ui',
         description: metadata?.description || `Componente ${name}`,
         example: metadata?.example || `<${name}>Content</${name}>`,
-        priority: 'high', // ← Prioridad alta para nuestros componentes
+        priority: 'high',
         metadata
       });
     });
@@ -45,12 +41,40 @@ export class ComponentRegistry {
   }
 
   loadDefaultComponents() {
-    // Componentes Mantine básicos (con prefijo para evitar conflictos)
+    // ===================================================================
+    // FIX: Componente Text personalizado para evitar nesting de <p>
+    // ===================================================================
+    this.registerComponent('Text', ({ children, ...props }) => {
+      // Si ya estamos dentro de un párrafo MDX, usar span
+      // Si no, usar div para evitar problemas de nesting
+      return h(MantineText, {
+        ...props,
+        component: 'span', // 👈 CLAVE: Forzar renderizado como span
+        style: {
+          display: 'inline', // Mantener comportamiento inline
+          ...props.style
+        }
+      }, children);
+    }, { category: 'mantine', priority: 'high' });
+
+    // ===================================================================
+    // Componente Container mejorado
+    // ===================================================================
+    this.registerComponent('Container', ({ children, ...props }) => {
+      return h(Container, {
+        ...props,
+        style: {
+          // Asegurar que no interfiera con el layout
+          ...props.style
+        }
+      }, children);
+    }, { category: 'mantine', priority: 'medium' });
+
+    // Otros componentes Mantine básicos
     this.registerComponent('MantineButton', MantineButton, { category: 'mantine', priority: 'low' });
-    this.registerComponent('MantineAlert', MantineAlert, { category: 'mantine', priority: 'low' });
-    this.registerComponent('MantineCard', MantineCard, { category: 'mantine', priority: 'low' });
-    this.registerComponent('Text', Text, { category: 'mantine', priority: 'low' });
-    this.registerComponent('Container', Container, { category: 'mantine', priority: 'low' });
+    this.registerComponent('Button', MantineButton, { category: 'mantine', priority: 'medium' });
+    this.registerComponent('Alert', MantineAlert, { category: 'mantine', priority: 'medium' });
+    this.registerComponent('Card', MantineCard, { category: 'mantine', priority: 'medium' });
     this.registerComponent('Grid', Grid, { category: 'mantine', priority: 'low' });
     this.registerComponent('GridCol', Grid.Col, { category: 'mantine', priority: 'low' });
     this.registerComponent('Paper', Paper, { category: 'mantine', priority: 'low' });
@@ -59,11 +83,16 @@ export class ComponentRegistry {
   }
 
   loadMissingComponents() {
-    // Elementos HTML básicos
+    // ===================================================================
+    // FIX: Elementos HTML básicos con mejor manejo de párrafos
+    // ===================================================================
+    
+    // DIV seguro
     this.registerComponent('div', ({ children, className = '', style = {} }) => {
       return h('div', { className, style }, children);
     }, { category: 'html', priority: 'low' });
 
+    // Headings seguros
     this.registerComponent('h1', ({ children, className = '' }) => {
       return h('h1', { className }, children);
     }, { category: 'html', priority: 'low' });
@@ -76,15 +105,30 @@ export class ComponentRegistry {
       return h('h3', { className }, children);
     }, { category: 'html', priority: 'low' });
 
-    this.registerComponent('p', ({ children, className = '' }) => {
-      return h('p', { className }, children);
-    }, { category: 'html', priority: 'low' });
+    // ===================================================================
+    // IMPORTANTE: P mejorado para evitar anidamiento
+    // ===================================================================
+    this.registerComponent('p', ({ children, className = '', ...props }) => {
+      // Si ya hay contenido de texto, usar span para evitar nesting
+      return h('div', { 
+        className: `prose-p ${className}`, 
+        style: { 
+          marginBottom: '1rem',
+          lineHeight: '1.6',
+          ...props.style 
+        },
+        ...props 
+      }, children);
+    }, { category: 'html', priority: 'medium' });
 
+    // SPAN seguro
     this.registerComponent('span', ({ children, className = '' }) => {
       return h('span', { className }, children);
     }, { category: 'html', priority: 'low' });
 
-    // FeatureGrid helper component
+    // ===================================================================
+    // FeatureGrid mejorado
+    // ===================================================================
     this.registerComponent('FeatureGrid', ({ features = [] }) => {
       const defaultFeatures = [
         { icon: '⚡', title: 'Super Fast', description: 'Lightning fast performance' },
@@ -104,7 +148,7 @@ export class ComponentRegistry {
           }, [
             h('div', { className: 'text-4xl mb-4' }, feature.icon),
             h('h3', { className: 'text-lg font-semibold mb-2 text-gray-900' }, feature.title),
-            h('p', { className: 'text-gray-600' }, feature.description)
+            h('div', { className: 'text-gray-600' }, feature.description) // 👈 Cambio: div en lugar de p
           ])
         )
       );
@@ -154,51 +198,31 @@ export class ComponentRegistry {
   }
 
   // ===================================================================
-  // MÉTODO DE REGISTRO MEJORADO
+  // MÉTODOS DE REGISTRO Y GESTIÓN
   // ===================================================================
+  
   registerComponent(name, component, options = {}) {
-    const {
-      category = 'basic',
-      description = `Componente ${name}`,
-      example = null,
-      priority = 'medium',
-      metadata = null
-    } = options;
-
     this.components.set(name, {
       name,
       component,
-      category,
-      description,
-      priority,
-      metadata,
-      example: example || this.generateExample(name, metadata),
-      registered: new Date().toISOString()
+      category: options.category || 'custom',
+      description: options.description || '',
+      example: options.example || this.generateExample(name),
+      priority: options.priority || 'medium',
+      metadata: options.metadata || {}
     });
   }
 
-  // ===================================================================
-  // GENERADOR DE EJEMPLOS MEJORADO
-  // ===================================================================
-  generateExample(name, metadata = null) {
-    // Si tenemos metadata de nuestros componentes, usar sus ejemplos
-    if (metadata && metadata.example) {
-      return metadata.example;
-    }
-
-    // Ejemplos por defecto para nuestros componentes
+  generateExample(name) {
     const examples = {
-      // Nuestros componentes nuevos (PRIORIDAD)
-      'Button': '<Button variant="primary">Click me</Button>',
-      'Card': '<Card title="My Card" description="Beautiful card">Content here</Card>',
-      'Alert': '<Alert type="info" title="Information">This is an alert</Alert>',
-      'Hero': '<Hero title="Welcome" subtitle="Build amazing things" primaryButton="Get Started" />',
-      
-      // Subcomponentes
-      'Alert.Info': '<Alert.Info title="Info">Information message</Alert.Info>',
-      'Alert.Success': '<Alert.Success title="Success">Success message</Alert.Success>',
-      'Alert.Warning': '<Alert.Warning title="Warning">Warning message</Alert.Warning>',
-      'Alert.Error': '<Alert.Error title="Error">Error message</Alert.Error>',
+      // Mantine
+      'Text': '<Text size="lg" fw={500}>Your text here</Text>',
+      'Button': '<Button color="blue" size="md">Click me</Button>',
+      'Alert': '<Alert color="blue" title="Notice">Your message here</Alert>',
+      'Card': '<Card><Text>Card content</Text></Card>',
+      'Badge': '<Badge color="green">Status</Badge>',
+      'Container': '<Container><Text>Content</Text></Container>',
+      'Grid': '<Grid><GridCol span={6}>Column 1</GridCol><GridCol span={6}>Column 2</GridCol></Grid>',
       
       // Helpers
       'FeatureGrid': '<FeatureGrid features={[{ icon: "🚀", title: "Fast", description: "Super fast" }]} />',
@@ -235,9 +259,6 @@ export class ComponentRegistry {
     return this.getAllComponents().filter(comp => comp.category === category);
   }
 
-  // ===================================================================
-  // NUEVO: MÉTODOS ESPECÍFICOS PARA NUESTROS COMPONENTES
-  // ===================================================================
   getCustomComponents() {
     return this.getComponentsByCategory('ui').concat(this.getComponentsByCategory('layout'));
   }
@@ -248,157 +269,34 @@ export class ComponentRegistry {
   }
 
   getMDXComponents() {
-    const components = {};
+    // Retorna el mapa de componentes para MDX
+    const mdxComponents = {};
     
-    // Priorizar nuestros componentes
-    for (const [name, config] of this.components) {
-      components[name] = config.component;
+    for (const [name, comp] of this.components) {
+      mdxComponents[name] = comp.component;
     }
     
-    return components;
+    return mdxComponents;
   }
 
   // ===================================================================
-  // MÉTODOS DE BÚSQUEDA Y SUGERENCIAS
+  // DEBUG Y UTILIDADES
   // ===================================================================
-  searchComponents(query) {
-    const lowercaseQuery = query.toLowerCase();
-    return this.getAllComponents().filter(comp => 
-      comp.name.toLowerCase().includes(lowercaseQuery) ||
-      comp.description.toLowerCase().includes(lowercaseQuery) ||
-      comp.category.toLowerCase().includes(lowercaseQuery)
-    );
-  }
-
-  getComponentSuggestions(partialName) {
-    const lowercase = partialName.toLowerCase();
-    return Array.from(this.components.keys())
-      .filter(name => name.toLowerCase().startsWith(lowercase))
-      .slice(0, 5);
-  }
-
-  // ===================================================================
-  // MÉTODOS DE ANÁLISIS Y DEBUG
-  // ===================================================================
-  getStats() {
-    const components = this.getAllComponents();
+  
+  debugComponents() {
+    console.group('🎨 Component Registry Debug');
+    console.log('Total components:', this.components.size);
+    
     const categories = {};
-    const priorities = {};
-    
-    components.forEach(comp => {
-      categories[comp.category] = (categories[comp.category] || 0) + 1;
-      priorities[comp.priority] = (priorities[comp.priority] || 0) + 1;
-    });
-
-    return {
-      total: components.length,
-      categories,
-      priorities,
-      customComponents: this.getCustomComponents().length,
-      recommendedComponents: this.getRecommendedComponents().length
-    };
-  }
-
-  debugMissingComponent(componentName) {
-    console.log(`❌ Componente faltante: ${componentName}`);
-    
-    // Mostrar componentes disponibles por categoría
-    const byCategory = {};
     this.getAllComponents().forEach(comp => {
-      if (!byCategory[comp.category]) byCategory[comp.category] = [];
-      byCategory[comp.category].push(comp.name);
+      if (!categories[comp.category]) categories[comp.category] = [];
+      categories[comp.category].push(comp.name);
     });
     
-    console.log('✅ Componentes disponibles por categoría:', byCategory);
+    Object.entries(categories).forEach(([category, components]) => {
+      console.log(`${category}:`, components);
+    });
     
-    // Sugerir componentes similares
-    const suggestions = this.getComponentSuggestions(componentName);
-    if (suggestions.length > 0) {
-      console.log('🔍 Sugerencias:', suggestions);
-    }
-
-    // Buscar por descripción
-    const searchResults = this.searchComponents(componentName);
-    if (searchResults.length > 0) {
-      console.log('📝 Encontrados por búsqueda:', searchResults.map(c => c.name));
-    }
-  }
-
-  // ===================================================================
-  // MÉTODO PARA EXPORTAR CONFIGURACIÓN
-  // ===================================================================
-  exportConfig() {
-    return {
-      components: Object.fromEntries(this.components),
-      stats: this.getStats(),
-      categories: [...new Set(this.getAllComponents().map(c => c.category))],
-      customComponents: this.getCustomComponents().map(c => c.name),
-      recommendedComponents: this.getRecommendedComponents().map(c => c.name)
-    };
+    console.groupEnd();
   }
 }
-
-// ===================================================================
-// UTILIDADES GLOBALES PARA DEBUG
-// ===================================================================
-if (typeof window !== 'undefined') {
-  window.debugComponents = {
-    registry: null,
-    
-    init() {
-      this.registry = new ComponentRegistry();
-      return this.registry;
-    },
-
-    listAll() {
-      if (!this.registry) this.init();
-      console.table(this.registry.getAllComponents().map(c => ({
-        name: c.name,
-        category: c.category,
-        description: c.description,
-        hasMetadata: !!c.metadata
-      })));
-    },
-    
-    listByCategory(category) {
-      if (!this.registry) this.init();
-      const components = this.registry.getComponentsByCategory(category);
-      console.table(components.map(c => ({
-        name: c.name,
-        description: c.description
-      })));
-    },
-
-    stats() {
-      if (!this.registry) this.init();
-      console.log('📊 Component Registry Stats:', this.registry.getStats());
-    },
-    
-    checkComponent(name) {
-      if (!this.registry) this.init();
-      const component = this.registry.getComponent(name);
-      if (component) {
-        console.log('✅ Componente encontrado:', component);
-        console.log('📄 Ejemplo:', component.example);
-      } else {
-        this.registry.debugMissingComponent(name);
-      }
-    },
-
-    search(query) {
-      if (!this.registry) this.init();
-      const results = this.registry.searchComponents(query);
-      console.log(`🔍 Resultados para "${query}":`, results.map(c => c.name));
-      return results;
-    },
-
-    suggest(partial) {
-      if (!this.registry) this.init();
-      const suggestions = this.registry.getComponentSuggestions(partial);
-      console.log(`💡 Sugerencias para "${partial}":`, suggestions);
-      return suggestions;
-    }
-  };
-}
-
-export default ComponentRegistry;

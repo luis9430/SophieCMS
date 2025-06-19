@@ -1,5 +1,5 @@
 // ===================================================================
-// resources/js/app.jsx - VERSIÓN SIMPLIFICADA Y SEGURA
+// resources/js/app.jsx - VERSIÓN CORREGIDA SIN NESTING PROBLEMS
 // ===================================================================
 
 import { render } from 'preact';
@@ -7,7 +7,7 @@ import { MantineProvider } from '@mantine/core';
 
 // Import directo para evitar problemas
 import MDXEditor from './mdx-system/editor/MDXEditor.jsx';
-import '../css/app.css'; // Debería incluir Tailwind
+import '../css/app.css'; 
 
 // Estilos
 import '@mantine/core/styles.css';
@@ -26,6 +26,9 @@ function App() {
     }, 500);
   };
 
+  // ===================================================================
+  // CONTENIDO INICIAL CORREGIDO - Sin problemas de nesting
+  // ===================================================================
   const initialContent = `---
 title: "Mi primera página MDX"
 description: "Testing del sistema"
@@ -35,10 +38,12 @@ date: "2024-01-01"
 
 # ¡Bienvenido al sistema MDX! 🎉
 
-Este es tu **primer contenido** usando nuestro editor.
+<div>
+  <Text size="lg" fw={500}>Este es tu primer contenido usando nuestro editor.</Text>
+</div>
 
 <Alert color="blue" title="¡Sistema funcionando!">
-  El editor MDX está funcionando correctamente con Mantine + Preact.
+  <Text>El editor MDX está funcionando correctamente con Mantine + Preact.</Text>
 </Alert>
 
 ## Prueba de componentes
@@ -65,7 +70,9 @@ Este es tu **primer contenido** usando nuestro editor.
 
 ## Texto y más componentes
 
-Puedes escribir **texto normal** en markdown y mezclarlo con componentes.
+<div>
+  <Text>Puedes escribir texto normal usando componentes Text y mezclarlo con otros elementos.</Text>
+</div>
 
 <Container>
   <Grid>
@@ -78,7 +85,9 @@ Puedes escribir **texto normal** en markdown y mezclarlo con componentes.
   </Grid>
 </Container>
 
-¡Ahora puedes crear contenido increíble! 🚀`;
+<div>
+  <Text size="xl" fw={600}>¡Ahora puedes crear contenido increíble! 🚀</Text>
+</div>`;
 
   return (
     <MantineProvider>
@@ -106,7 +115,11 @@ function initApp() {
     // Debug helper
     window.mdxDebug = {
       test: () => console.log('✅ Sistema funcionando'),
-      reload: () => window.location.reload()
+      reload: () => window.location.reload(),
+      checkComponents: () => {
+        // Helper para debuggear componentes registrados
+        console.table(Object.keys(window.componentRegistry?.getAllComponents?.() || {}));
+      }
     };
   } else {
     console.error('❌ Elemento #app no encontrado en el DOM');
