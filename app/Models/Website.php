@@ -54,3 +54,4 @@ class Website extends Model
         return $protocol . $this->domain;
     }
 }
+    

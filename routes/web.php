@@ -3,8 +3,8 @@
 use App\Http\Controllers\PageBuilderController;
 use App\Http\Controllers\PageController;
 
-// Rutas del Page Builder
-Route::prefix('admin')->group(function () {    
+// Rutas del Page Builder (interfaz)
+Route::prefix('admin')->group(function () {   
     Route::get('/page-builder', [PageBuilderController::class, 'index'])
         ->name('page-builder.index');
     
@@ -16,7 +16,7 @@ Route::prefix('admin')->group(function () {
 });
 
 // API Routes para el Page Builder
-Route::middleware(['auth'])->prefix('api')->group(function () {
+Route::prefix('api')->group(function () {
     // Pages
     Route::post('/pages/{page}/save', [PageBuilderController::class, 'save']);
     Route::post('/pages/{page}/publish', [PageBuilderController::class, 'publish']);
@@ -28,12 +28,11 @@ Route::middleware(['auth'])->prefix('api')->group(function () {
     Route::get('/components', [PageBuilderController::class, 'getComponents']);
     Route::get('/components/{component}/template', [PageBuilderController::class, 'getComponentTemplate']);
     
-    // Preview
-    Route::post('/page-builder/preview', [PageBuilderController::class, 'preview']);
+    // Preview - ESTA ES LA RUTA QUE NECESITA EL JS
+    Route::match(['GET', 'POST'], '/page-builder/preview', [PageBuilderController::class, 'preview']);
 });
 
 // Rutas públicas para mostrar las páginas
 Route::get('/{page:slug}', [PageController::class, 'show'])
-    ->where('page', '^(?!admin|api).*$') // Excluir rutas admin y api
+    ->where('page', '^(?!admin|api).*$')
     ->name('page.show');
-

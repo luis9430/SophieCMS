@@ -1,5 +1,6 @@
 <?php
 
+// app/Providers/MoonShineServiceProvider.php
 declare(strict_types=1);
 
 namespace App\Providers;
@@ -27,8 +28,11 @@ class MoonShineServiceProvider extends ServiceProvider
     {
         $core
             ->resources([
+                // Resources del sistema
                 MoonShineUserResource::class,
                 MoonShineUserRoleResource::class,
+                
+                // Resources del Page Builder
                 WebsiteResource::class,
                 PageBuilderResource::class,
                 ComponentResource::class,
