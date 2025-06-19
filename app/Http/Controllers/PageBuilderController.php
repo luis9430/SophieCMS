@@ -1,384 +1,295 @@
 <?php
-// app/Http/Controllers/PageBuilderController.php
 
+// app/Http/Controllers/PageBuilderController.php
 namespace App\Http\Controllers;
 
+use App\Models\Page;
+use App\Models\Component;
+use App\Models\Template;
+use App\Models\Website;
 use Illuminate\Http\Request;
-use App\Services\BlockBuilder\BlockRegistry;
-use App\Services\BlockBuilder\BlockRenderer;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 
 class PageBuilderController extends Controller
 {
+    /**
+     * Mostrar el editor principal del page builder
+     */
     public function index()
     {
-        $availableBlocks = BlockRegistry::getBlocksInfo();
+        $websites = Website::all();
+        $templates = Template::where('is_active', true)->get();
         
-        // DEBUG: Verificar qué datos estamos enviando
-        \Log::info('Available blocks:', $availableBlocks);
-        
-        return view('page-builder.index', compact('availableBlocks'));
+        return view('page-builder.index', compact('websites', 'templates'));
     }
-    
+
+    /**
+     * Editar una página específica
+     */
+    public function edit(Page $page)
+    {
+        $components = Component::where('is_active', true)
+            ->orderBy('category')
+            ->orderBy('name')
+            ->get()
+            ->groupBy('category');
+            
+        $templates = Template::where('is_active', true)->get();
+        
+        return view('page-builder.edit', compact('page', 'components', 'templates'));
+    }
+
+    /**
+     * Crear nueva página y redirigir al editor
+     */
+    public function create(Request $request)
+    {
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'website_id' => 'required|exists:websites,id',
+            'template_id' => 'nullable|exists:templates,id',
+        ]);
+
+        $page = Page::create([
+            'title' => $request->title,
+            'slug' => Str::slug($request->title),
+            'website_id' => $request->website_id,
+            'template_id' => $request->template_id,
+            'status' => 'draft',
+            'content' => $this->getInitialContent($request->template_id),
+        ]);
+
+        return redirect()->route('page-builder.edit', $page);
+    }
+
+    /**
+     * Guardar el contenido de la página
+     */
+    public function save(Request $request, Page $page)
+    {
+        $request->validate([
+            'content' => 'required|string',
+            'title' => 'sometimes|string|max:255',
+        ]);
+
+        $updateData = ['content' => $request->content];
+        
+        if ($request->has('title')) {
+            $updateData['title'] = $request->title;
+            $updateData['slug'] = Str::slug($request->title);
+        }
+
+        $page->update($updateData);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Página guardada correctamente',
+            'page' => $page->fresh()
+        ]);
+    }
+
+    /**
+     * Generar preview del contenido
+     */
     public function preview(Request $request)
     {
-        $blockData = $request->input('blocks.0'); // Solo el primer bloque para preview
-        
-        try {
-            // Crear el bloque manualmente para preview
-            $block = BlockRegistry::create(
-                $blockData['type'], 
-                $blockData['config'] ?? [], 
-                $blockData['styles'] ?? []
-            );
-            
-            $html = $block->render();
-            return response()->json(['html' => $html]);
-        } catch (\Exception $e) {
-            \Log::error('Preview error:', ['error' => $e->getMessage()]);
-            return response()->json(['error' => $e->getMessage()], 400);
-        }
-    }
-    
-    public function save(Request $request)
-    {
-        $blocksData = $request->input('blocks', []);
+        $content = $request->input('content', '');
         $pageId = $request->input('page_id');
         
-        return response()->json(['success' => true, 'message' => 'Página guardada']);
-    }
-    
-    /**
-     * Obtener la plantilla Blade para un tipo de bloque
-     */
-    public function getBlockTemplate(Request $request)
-    {
-        $type = $request->input('type');
-        $config = $request->input('config', []);
-        $styles = $request->input('styles', []);
-        
-        // Obtener la plantilla Blade correspondiente
-        $template = $this->getTemplateForBlockType($type);
-        
-        // Renderizar la plantilla para la vista previa
-        $rendered = $this->renderTemplate($template, [
-            'config' => $config,
-            'styles' => $styles,
-            'cssClasses' => $this->generateCssClasses($styles)
-        ]);
-        
-        return response()->json([
-            'template' => $template,
-            'rendered' => $rendered
-        ]);
-    }
-    
-    /**
-     * Previsualizar una plantilla Blade
-     */
-    public function previewBlockTemplate(Request $request)
-    {
-        $template = $request->input('template');
-        $config = $request->input('config', []);
-        $styles = $request->input('styles', []);
-        
-        // Crear un archivo temporal con el template
-        $tempFile = storage_path('app/temp_' . uniqid() . '.blade.php');
-        File::put($tempFile, $template);
-        
         try {
-            // Renderizar el template
-            $html = View::file($tempFile, [
-                'config' => $config,
-                'styles' => $styles,
-                'cssClasses' => $this->generateCssClasses($styles)
-            ])->render();
-            
-            // Eliminar el archivo temporal
-            File::delete($tempFile);
-            
-            return response()->json(['html' => $html]);
-        } catch (\Exception $e) {
-            // Eliminar el archivo temporal en caso de error
-            if (File::exists($tempFile)) {
-                File::delete($tempFile);
+            // Si hay un page_id, cargar datos de la página
+            $pageData = [];
+            if ($pageId) {
+                $page = Page::find($pageId);
+                if ($page) {
+                    $pageData = [
+                        'page' => $page,
+                        'website' => $page->website,
+                    ];
+                }
             }
-            
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
-    }
-    
-    /**
-     * Actualizar la configuración de un bloque a partir de una plantilla
-     */
-    public function updateBlockTemplate(Request $request)
-    {
-        $id = $request->input('id');
-        $type = $request->input('type');
-        $template = $request->input('template');
-        
-        // Extraer la configuración del template
-        $config = $this->extractConfigFromTemplate($template, $type);
-        
-        return response()->json(['config' => $config]);
-    }
-    
-    /**
-     * Obtener la plantilla para un tipo de bloque
-     */
-    private function getTemplateForBlockType($type)
-    {
-        // Obtener el contenido del archivo de plantilla
-        $path = resource_path("views/blocks/{$type}.blade.php");
-        
-        if (File::exists($path)) {
-            return File::get($path);
-        }
-        
-        // Plantilla por defecto si no existe
-        return '<div>Plantilla no encontrada para el tipo: ' . $type . '</div>';
-    }
-    
-    /**
-     * Renderizar una plantilla Blade
-     */
-    private function renderTemplate($template, $data)
-    {
-        // Crear un archivo temporal con el template
-        $tempFile = storage_path('app/temp_' . uniqid() . '.blade.php');
-        File::put($tempFile, $template);
-        
-        try {
-            // Renderizar el template
-            $html = View::file($tempFile, $data)->render();
-            
-            // Eliminar el archivo temporal
-            File::delete($tempFile);
-            
-            return $html;
-        } catch (\Exception $e) {
-            // Eliminar el archivo temporal en caso de error
-            if (File::exists($tempFile)) {
-                File::delete($tempFile);
-            }
-            
-            throw $e;
-        }
-    }
-    
-    /**
-     * Generar clases CSS a partir de estilos
-     */
-    private function generateCssClasses($styles)
-    {
-        $classes = [];
-        
-        // Mapear estilos a clases de Tailwind
-        if (!empty($styles['textAlign'])) {
-            $classes[] = 'text-' . $styles['textAlign'];
-        }
-        
-        if (!empty($styles['padding'])) {
-            $paddingMap = [
-                'xs' => 'p-2',
-                'sm' => 'p-4',
-                'md' => 'p-6',
-                'lg' => 'p-8',
-                'xl' => 'p-10'
-            ];
-            $classes[] = $paddingMap[$styles['padding']] ?? 'p-4';
-        }
-        
-        if (!empty($styles['margin'])) {
-            $marginMap = [
-                'xs' => 'm-2',
-                'sm' => 'm-4',
-                'md' => 'm-6',
-                'lg' => 'm-8',
-                'xl' => 'm-10'
-            ];
-            $classes[] = $marginMap[$styles['margin']] ?? 'm-4';
-        }
-        
-        if (!empty($styles['backgroundColor']) && $styles['backgroundColor'] !== 'transparent') {
-            $classes[] = 'bg-' . $styles['backgroundColor'];
-        }
-        
-        return implode(' ', $classes);
-    }
-    
-    /**
-     * Extraer configuración de una plantilla Blade
-     */
-    private function extractConfigFromTemplate($template, $type)
-    {
-        $config = [];
-        
-        // Extraer configuración según el tipo de bloque
-        switch ($type) {
-            case 'hero':
-                // Extraer título
-                if (preg_match('/\{\{\s*\$config\[\'title\'\]\s*\?\?\s*\'([^\']*)\'\s*\}\}/s', $template, $matches)) {
-                    $config['title'] = $matches[1];
-                }
-                
-                // Extraer subtítulo
-                if (preg_match('/\{\{\s*\$config\[\'subtitle\'\]\s*\?\?\s*\'([^\']*)\'\s*\}\}/s', $template, $matches)) {
-                    $config['subtitle'] = $matches[1];
-                }
-                
-                // Extraer texto del botón
-                if (preg_match('/\{\{\s*\$config\[\'buttonText\'\]\s*\?\?\s*\'([^\']*)\'\s*\}\}/s', $template, $matches)) {
-                    $config['buttonText'] = $matches[1];
-                }
-                
-                // Extraer URL del botón
-                if (preg_match('/\{\{\s*\$config\[\'buttonUrl\'\]\s*\?\?\s*\'([^\']*)\'\s*\}\}/s', $template, $matches)) {
-                    $config['buttonUrl'] = $matches[1];
-                }
-                break;
-                
-            case 'text':
-                // Extraer contenido
-                if (preg_match('/\{\{\s*\$config\[\'content\'\]\s*\?\?\s*\'([^\']*)\'\s*\}\}/s', $template, $matches)) {
-                    $config['content'] = $matches[1];
-                }
-                break;
-                
-            // Otros tipos de bloques...
-        }
-        
-        return $config;
-    }
 
-    /**
-     * Preview template with variables processing
-     */
-    public function previewTemplate(Request $request)
-    {
-        try {
-            $content = $request->input('content', '');
-            $config = $request->input('config', []);
-            $styles = $request->input('styles', []);
-
-            // Procesar variables en el contenido
-            $processedContent = $this->processVariablesInContent($content);
+            $html = $this->renderPageContent($content, $pageData);
             
-            // Procesar configuración si es necesario
-            $processedContent = $this->processConfigInContent($processedContent, $config);
-
             return response()->json([
                 'success' => true,
-                'html' => $processedContent,
-                'rendered' => $processedContent,
-                'config' => $config,
-                'styles' => $styles
+                'html' => $html
             ]);
-
+            
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'error' => 'Failed to preview template',
-                'message' => $e->getMessage()
+                'error' => $e->getMessage()
             ], 500);
         }
     }
 
     /**
-     * Procesar variables en el contenido
+     * Obtener componentes disponibles para el sidebar
      */
-    private function processVariablesInContent($content)
+    public function getComponents()
     {
-        try {
-            // Obtener variables resueltas
-            $variables = \App\Models\Variable::getAllForFrontend();
-            
-            // Reemplazar variables en el contenido
-            foreach ($variables as $key => $value) {
-                // Convertir objetos/arrays a string de manera segura
-                $stringValue = $this->convertValueToString($value);
-                
-                // Crear patrones individuales (no arrays)
-                $patterns = [
-                    '/\{\{\s*' . preg_quote($key, '/') . '\s*\}\}/',   // {{variable}}
-                    '/\$\{\s*' . preg_quote($key, '/') . '\s*\}/',     // ${variable}
-                ];
-                
-                // Aplicar cada patrón individualmente
-                foreach ($patterns as $pattern) {
-                    $content = preg_replace($pattern, $stringValue, $content);
-                }
-            }
-            
-            return $content;
-            
-        } catch (\Exception $e) {
-            \Log::error('Error processing variables in content: ' . $e->getMessage());
-            return $content; // Devolver contenido original si hay error
-        }
-    }
+        $components = Component::where('is_active', true)
+            ->select('id', 'name', 'identifier', 'category', 'description', 'default_config', 'preview_image')
+            ->orderBy('category')
+            ->orderBy('name')
+            ->get()
+            ->groupBy('category');
 
-    private function convertValueToString($value)
-    {
-        if ($value === null) {
-            return '';
-        }
-        
-        if (is_bool($value)) {
-            return $value ? 'true' : 'false';
-        }
-        
-        if (is_array($value) || is_object($value)) {
-            // Para objetos complejos, extraer valor si es posible
-            if (is_array($value) && isset($value['count'])) {
-                return (string) $value['count'];
-            }
-            
-            if (is_object($value) && property_exists($value, 'count')) {
-                return (string) $value->count;
-            }
-            
-            // Para otros casos, convertir a JSON
-            try {
-                return json_encode($value, JSON_UNESCAPED_UNICODE);
-            } catch (\Exception $e) {
-                return '[Object]';
-            }
-        }
-        
-        // Para valores escalares, convertir a string directamente
-        return (string) $value;
+        return response()->json($components);
     }
-
 
     /**
-     * Procesar configuración en el contenido
+     * Obtener template de un componente específico
      */
-    private function processConfigInContent($content, $config)
+    public function getComponentTemplate(Component $component)
+    {
+        return response()->json([
+            'template' => $component->blade_template,
+            'default_config' => $component->default_config,
+            'identifier' => $component->identifier,
+        ]);
+    }
+
+    /**
+     * Publicar una página
+     */
+    public function publish(Page $page)
+    {
+        $page->update([
+            'status' => 'published',
+            'published_at' => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Página publicada correctamente'
+        ]);
+    }
+
+    /**
+     * Despublicar una página
+     */
+    public function unpublish(Page $page)
+    {
+        $page->update([
+            'status' => 'draft',
+            'published_at' => null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Página despublicada correctamente'
+        ]);
+    }
+
+    /**
+     * Duplicar una página
+     */
+    public function duplicate(Page $page)
+    {
+        $newPage = $page->replicate();
+        $newPage->title = $page->title . ' (Copia)';
+        $newPage->slug = Str::slug($newPage->title);
+        $newPage->status = 'draft';
+        $newPage->published_at = null;
+        $newPage->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Página duplicada correctamente',
+            'new_page' => $newPage
+        ]);
+    }
+
+    /**
+     * Exportar página como HTML estático
+     */
+    public function export(Page $page)
     {
         try {
-            // Procesar sintaxis de configuración como {{ $config['title'] }}
-            foreach ($config as $key => $value) {
-                $stringValue = $this->convertValueToString($value);
-                
-                $patterns = [
-                    '/\{\{\s*\$config\[\s*[\'"]' . preg_quote($key, '/') . '[\'"]\s*\]\s*\}\}/',
-                    '/\{\{\s*\$config\[' . preg_quote($key, '/') . '\]\s*\}\}/',
-                ];
-                
-                // Aplicar cada patrón individualmente
-                foreach ($patterns as $pattern) {
-                    $content = preg_replace($pattern, $stringValue, $content);
-                }
-            }
+            $html = $this->renderPageContent($page->content, [
+                'page' => $page,
+                'website' => $page->website,
+            ]);
+
+            $filename = Str::slug($page->title) . '.html';
             
-            return $content;
-            
+            return response($html)
+                ->header('Content-Type', 'text/html')
+                ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
+                
         } catch (\Exception $e) {
-            \Log::error('Error processing config in content: ' . $e->getMessage());
-            return $content;
+            return response()->json([
+                'success' => false,
+                'error' => 'Error al exportar: ' . $e->getMessage()
+            ], 500);
         }
     }
 
+    /**
+     * Renderizar contenido de página
+     */
+    private function renderPageContent(string $content, array $data = [])
+    {
+        // Crear archivo temporal para renderizar
+        $tempFile = storage_path('app/temp_' . uniqid() . '.blade.php');
+        
+        // Preparar el contenido con el layout base
+        $wrappedContent = $this->wrapContentWithLayout($content);
+        
+        File::put($tempFile, $wrappedContent);
+        
+        try {
+            $html = View::file($tempFile, $data)->render();
+            File::delete($tempFile);
+            return $html;
+        } catch (\Exception $e) {
+            if (File::exists($tempFile)) {
+                File::delete($tempFile);
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Envolver contenido con layout básico
+     */
+    private function wrapContentWithLayout(string $content)
+    {
+        return '<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Preview</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body>
+    ' . $content . '
+</body>
+</html>';
+    }
+
+    /**
+     * Obtener contenido inicial basado en template
+     */
+    private function getInitialContent($templateId = null)
+    {
+        if ($templateId) {
+            $template = Template::find($templateId);
+            if ($template) {
+                return $template->content;
+            }
+        }
+
+        // Contenido por defecto
+        return '<div class="container mx-auto p-8">
+    <h1 class="text-3xl font-bold text-center mb-8">Página Nueva</h1>
+    <p class="text-center text-gray-600">Comienza a agregar componentes desde el sidebar</p>
+</div>';
+    }
 }
