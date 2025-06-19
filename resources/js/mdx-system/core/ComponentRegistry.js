@@ -1,98 +1,90 @@
 // ===================================================================
-// resources/js/mdx-system/core/ComponentRegistry.js - FIX COMPLETO
+// resources/js/mdx-system/core/ComponentRegistry.js - ACTUALIZADO
+// Integra los nuevos componentes UI
 // ===================================================================
 
-import { Button, Alert, Card, Text, Container, Grid, Paper, Badge, Group } from '@mantine/core';
+import { Button as MantineButton, Alert as MantineAlert, Card as MantineCard, Text, Container, Grid, Paper, Badge, Group } from '@mantine/core';
 import { createElement as h } from 'preact';
+
+// ===================================================================
+// IMPORTAR NUESTROS NUEVOS COMPONENTES
+// ===================================================================
+import { MDXComponents, ComponentMetadata } from '../components/index.js';
 
 export class ComponentRegistry {
   constructor() {
     this.components = new Map();
+    this.loadCustomUIComponents(); // ← PRIORIDAD: Nuestros componentes primero
     this.loadDefaultComponents();
     this.loadTailwindComponents();
-    this.loadMissingComponents(); // ← NUEVO: Agregar componentes faltantes
+    this.loadMissingComponents();
+    
+    console.log('🎨 ComponentRegistry initialized with', this.components.size, 'components');
+  }
+
+  // ===================================================================
+  // CARGAR NUESTROS COMPONENTES PERSONALIZADOS (PRIORIDAD)
+  // ===================================================================
+  loadCustomUIComponents() {
+    console.log('🚀 Loading custom UI components...');
+    
+    // Registrar nuestros componentes principales con alta prioridad
+    Object.entries(MDXComponents).forEach(([name, component]) => {
+      const metadata = ComponentMetadata[name.split('.')[0]];
+      
+      this.registerComponent(name, component, {
+        category: metadata?.category || 'ui',
+        description: metadata?.description || `Componente ${name}`,
+        example: metadata?.example || `<${name}>Content</${name}>`,
+        priority: 'high', // ← Prioridad alta para nuestros componentes
+        metadata
+      });
+    });
+
+    console.log('✅ Custom UI components loaded:', Object.keys(MDXComponents));
   }
 
   loadDefaultComponents() {
-    // Componentes Mantine básicos
-    this.registerComponent('Button', Button);
-    this.registerComponent('Alert', Alert);
-    this.registerComponent('Card', Card);
-    this.registerComponent('Text', Text);
-    this.registerComponent('Container', Container);
-    this.registerComponent('Grid', Grid);
-    this.registerComponent('GridCol', Grid.Col);
-    this.registerComponent('Paper', Paper);
-    this.registerComponent('Badge', Badge);
-    this.registerComponent('Group', Group);
+    // Componentes Mantine básicos (con prefijo para evitar conflictos)
+    this.registerComponent('MantineButton', MantineButton, { category: 'mantine', priority: 'low' });
+    this.registerComponent('MantineAlert', MantineAlert, { category: 'mantine', priority: 'low' });
+    this.registerComponent('MantineCard', MantineCard, { category: 'mantine', priority: 'low' });
+    this.registerComponent('Text', Text, { category: 'mantine', priority: 'low' });
+    this.registerComponent('Container', Container, { category: 'mantine', priority: 'low' });
+    this.registerComponent('Grid', Grid, { category: 'mantine', priority: 'low' });
+    this.registerComponent('GridCol', Grid.Col, { category: 'mantine', priority: 'low' });
+    this.registerComponent('Paper', Paper, { category: 'mantine', priority: 'low' });
+    this.registerComponent('Badge', Badge, { category: 'mantine', priority: 'low' });
+    this.registerComponent('Group', Group, { category: 'mantine', priority: 'low' });
   }
 
-  // ===================================================================
-  // FIX: AGREGAR COMPONENTES FALTANTES
-  // ===================================================================
-  
   loadMissingComponents() {
-    // Hero original (Mantine style) - FALTABA ESTE
-    this.registerComponent('Hero', ({ title = 'Título Hero', subtitle = 'Subtítulo', buttonText = 'Botón' }) => {
-      return h('div', { 
-        style: { 
-          textAlign: 'center', 
-          padding: '3rem 1rem',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          color: 'white',
-          borderRadius: '8px',
-          margin: '2rem 0'
-        } 
-      }, [
-        h('h1', { 
-          style: { 
-            fontSize: '2.5rem', 
-            marginBottom: '1rem', 
-            fontWeight: 'bold' 
-          } 
-        }, title),
-        h('p', { 
-          style: { 
-            fontSize: '1.2rem', 
-            marginBottom: '2rem',
-            opacity: 0.9
-          } 
-        }, subtitle),
-        h(Button, { 
-          color: 'white', 
-          variant: 'outline',
-          size: 'lg',
-          style: { borderColor: 'white', color: 'white' }
-        }, buttonText)
-      ]);
-    });
-
-    // Elementos HTML básicos que pueden faltar
+    // Elementos HTML básicos
     this.registerComponent('div', ({ children, className = '', style = {} }) => {
       return h('div', { className, style }, children);
-    });
+    }, { category: 'html', priority: 'low' });
 
     this.registerComponent('h1', ({ children, className = '' }) => {
       return h('h1', { className }, children);
-    });
+    }, { category: 'html', priority: 'low' });
 
     this.registerComponent('h2', ({ children, className = '' }) => {
       return h('h2', { className }, children);
-    });
+    }, { category: 'html', priority: 'low' });
 
     this.registerComponent('h3', ({ children, className = '' }) => {
       return h('h3', { className }, children);
-    });
+    }, { category: 'html', priority: 'low' });
 
     this.registerComponent('p', ({ children, className = '' }) => {
       return h('p', { className }, children);
-    });
+    }, { category: 'html', priority: 'low' });
 
     this.registerComponent('span', ({ children, className = '' }) => {
       return h('span', { className }, children);
-    });
+    }, { category: 'html', priority: 'low' });
 
-    // Componente FeatureGrid mejorado (que se usa en templates)
+    // FeatureGrid helper component
     this.registerComponent('FeatureGrid', ({ features = [] }) => {
       const defaultFeatures = [
         { icon: '⚡', title: 'Super Fast', description: 'Lightning fast performance' },
@@ -116,152 +108,14 @@ export class ComponentRegistry {
           ])
         )
       );
-    });
+    }, { category: 'helper', priority: 'medium' });
   }
 
   loadTailwindComponents() {
-    // TailwindHero
-    this.registerComponent('TailwindHero', ({ 
-      title = 'Amazing Title', 
-      subtitle = 'Beautiful subtitle', 
-      buttonText = 'Get Started',
-      theme = 'blue'
-    }) => {
-      const themes = {
-        blue: 'from-blue-600 to-purple-600',
-        green: 'from-green-500 to-teal-600',
-        red: 'from-red-500 to-pink-600',
-        purple: 'from-purple-600 to-indigo-600'
-      };
-
-      return h('div', {
-        className: `bg-gradient-to-r ${themes[theme]} text-white py-20 px-6`
-      }, [
-        h('div', { className: 'max-w-4xl mx-auto text-center' }, [
-          h('h1', { 
-            className: 'text-5xl md:text-6xl font-bold mb-6' 
-          }, title),
-          h('p', { 
-            className: 'text-xl md:text-2xl mb-8 opacity-90' 
-          }, subtitle),
-          h('button', {
-            className: 'bg-white text-gray-900 px-8 py-4 rounded-full font-semibold text-lg hover:bg-gray-100 transform hover:scale-105 transition-all duration-200 shadow-lg'
-          }, buttonText)
-        ])
-      ]);
-    });
-
-    // TailwindCard
-    this.registerComponent('TailwindCard', ({ 
-      title = 'Card Title',
-      description = 'Card description',
-      image = null,
-      badge = null,
-      variant = 'default'
-    }) => {
-      const variants = {
-        default: 'bg-white border-gray-200',
-        primary: 'bg-blue-50 border-blue-200',
-        success: 'bg-green-50 border-green-200',
-        warning: 'bg-yellow-50 border-yellow-200'
-      };
-
-      return h('div', {
-        className: `${variants[variant]} border-2 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden`
-      }, [
-        image && h('img', {
-          src: image,
-          alt: title,
-          className: 'w-full h-48 object-cover'
-        }),
-        h('div', { className: 'p-6' }, [
-          h('div', { className: 'flex items-start justify-between mb-3' }, [
-            h('h3', { className: 'text-xl font-semibold text-gray-900' }, title),
-            badge && h('span', {
-              className: 'px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800'
-            }, badge)
-          ]),
-          h('p', { className: 'text-gray-600 leading-relaxed' }, description)
-        ])
-      ]);
-    });
-
-    // TailwindButton
-    this.registerComponent('TailwindButton', ({ 
-      children = 'Button',
-      variant = 'primary',
-      size = 'md',
-      disabled = false
-    }) => {
-      const variants = {
-        primary: 'bg-blue-600 hover:bg-blue-700 text-white',
-        secondary: 'bg-gray-600 hover:bg-gray-700 text-white',
-        outline: 'border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white',
-        ghost: 'text-blue-600 hover:bg-blue-50'
-      };
-
-      const sizes = {
-        sm: 'px-3 py-1.5 text-sm',
-        md: 'px-4 py-2 text-base',
-        lg: 'px-6 py-3 text-lg'
-      };
-
-      return h('button', {
-        className: `
-          ${variants[variant]} 
-          ${sizes[size]} 
-          font-medium rounded-lg transition-all duration-200 
-          focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-          ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:transform hover:scale-105'}
-        `,
-        disabled
-      }, children);
-    });
-
-    // TailwindAlert
-    this.registerComponent('TailwindAlert', ({ 
-      type = 'info',
-      title = 'Information',
-      children = 'This is an alert message',
-      dismissible = false
-    }) => {
-      const types = {
-        info: 'bg-blue-50 border-blue-200 text-blue-800',
-        success: 'bg-green-50 border-green-200 text-green-800',
-        warning: 'bg-yellow-50 border-yellow-200 text-yellow-800',
-        error: 'bg-red-50 border-red-200 text-red-800'
-      };
-
-      const icons = {
-        info: 'ℹ️',
-        success: '✅',
-        warning: '⚠️',
-        error: '❌'
-      };
-
-      return h('div', {
-        className: `${types[type]} border-l-4 p-4 rounded-r-lg relative`
-      }, [
-        h('div', { className: 'flex' }, [
-          h('div', { className: 'flex-shrink-0 mr-3' }, [
-            h('span', { className: 'text-lg' }, icons[type])
-          ]),
-          h('div', { className: 'flex-1' }, [
-            h('h4', { className: 'font-semibold mb-1' }, title),
-            h('p', { className: 'text-sm opacity-90' }, children)
-          ]),
-          dismissible && h('button', {
-            className: 'absolute top-2 right-2 p-1 rounded-full hover:bg-black hover:bg-opacity-10 transition-colors'
-          }, '×')
-        ])
-      ]);
-    });
-
-    // TailwindContainer
+    // Componentes legacy Tailwind (mantener compatibilidad)
     this.registerComponent('TailwindContainer', ({ 
       children,
-      size = 'default',
-      className = ''
+      size = 'default'
     }) => {
       const sizes = {
         sm: 'max-w-3xl',
@@ -271,11 +125,10 @@ export class ComponentRegistry {
       };
 
       return h('div', {
-        className: `${sizes[size]} mx-auto px-4 sm:px-6 lg:px-8 ${className}`
+        className: `${sizes[size]} mx-auto px-4 sm:px-6 lg:px-8`
       }, children);
-    });
+    }, { category: 'legacy', priority: 'low' });
 
-    // Section
     this.registerComponent('Section', ({ 
       children,
       background = 'white',
@@ -285,12 +138,10 @@ export class ComponentRegistry {
         white: 'bg-white',
         gray: 'bg-gray-50',
         dark: 'bg-gray-900 text-white',
-        blue: 'bg-blue-50',
         gradient: 'bg-gradient-to-r from-blue-50 to-purple-50'
       };
 
       const paddings = {
-        none: '',
         sm: 'py-8',
         normal: 'py-16',
         lg: 'py-24'
@@ -299,107 +150,255 @@ export class ComponentRegistry {
       return h('section', {
         className: `${backgrounds[background]} ${paddings[padding]}`
       }, children);
-    });
+    }, { category: 'legacy', priority: 'low' });
   }
 
-  registerComponent(name, component) {
+  // ===================================================================
+  // MÉTODO DE REGISTRO MEJORADO
+  // ===================================================================
+  registerComponent(name, component, options = {}) {
+    const {
+      category = 'basic',
+      description = `Componente ${name}`,
+      example = null,
+      priority = 'medium',
+      metadata = null
+    } = options;
+
     this.components.set(name, {
       name,
       component,
-      category: name.startsWith('Tailwind') ? 'tailwind' : 'basic',
-      description: `Componente ${name}`,
-      example: this.generateExample(name)
+      category,
+      description,
+      priority,
+      metadata,
+      example: example || this.generateExample(name, metadata),
+      registered: new Date().toISOString()
     });
   }
 
-  generateExample(name) {
+  // ===================================================================
+  // GENERADOR DE EJEMPLOS MEJORADO
+  // ===================================================================
+  generateExample(name, metadata = null) {
+    // Si tenemos metadata de nuestros componentes, usar sus ejemplos
+    if (metadata && metadata.example) {
+      return metadata.example;
+    }
+
+    // Ejemplos por defecto para nuestros componentes
     const examples = {
-      // Mantine
-      'Button': '<Button color="blue">Mi botón</Button>',
-      'Alert': '<Alert color="blue" title="Información">Mensaje de alerta</Alert>',
-      'Card': '<Card withBorder><Text>Contenido de la card</Text></Card>',
-      'Hero': '<Hero title="Mi Hero" subtitle="Subtítulo" buttonText="Acción" />',
+      // Nuestros componentes nuevos (PRIORIDAD)
+      'Button': '<Button variant="primary">Click me</Button>',
+      'Card': '<Card title="My Card" description="Beautiful card">Content here</Card>',
+      'Alert': '<Alert type="info" title="Information">This is an alert</Alert>',
+      'Hero': '<Hero title="Welcome" subtitle="Build amazing things" primaryButton="Get Started" />',
       
-      // Tailwind
-      'TailwindHero': '<TailwindHero title="¡Increíble!" subtitle="El futuro es ahora" buttonText="Comenzar" theme="blue" />',
-      'TailwindCard': '<TailwindCard title="Mi Card" description="Descripción con Tailwind" badge="Nuevo" variant="primary" />',
-      'FeatureGrid': '<FeatureGrid features={[{ icon: "🚀", title: "Rápido", description: "Super rápido" }]} />',
-      'TailwindButton': '<TailwindButton variant="primary" size="lg">Mi Botón</TailwindButton>',
-      'TailwindAlert': '<TailwindAlert type="success" title="¡Éxito!" children="Todo funcionó correctamente" />',
-      'TailwindContainer': '<TailwindContainer size="lg">Contenido aquí</TailwindContainer>',
-      'Section': '<Section background="gradient" padding="lg">Contenido de sección</Section>',
+      // Subcomponentes
+      'Alert.Info': '<Alert.Info title="Info">Information message</Alert.Info>',
+      'Alert.Success': '<Alert.Success title="Success">Success message</Alert.Success>',
+      'Alert.Warning': '<Alert.Warning title="Warning">Warning message</Alert.Warning>',
+      'Alert.Error': '<Alert.Error title="Error">Error message</Alert.Error>',
+      
+      // Helpers
+      'FeatureGrid': '<FeatureGrid features={[{ icon: "🚀", title: "Fast", description: "Super fast" }]} />',
+      'Section': '<Section background="gradient" padding="lg">Content here</Section>',
+      'TailwindContainer': '<TailwindContainer>Content here</TailwindContainer>',
       
       // HTML básico
-      'div': '<div className="p-4">Contenido</div>',
-      'h1': '<h1 className="text-3xl font-bold">Título</h1>',
-      'h2': '<h2 className="text-2xl font-semibold">Subtítulo</h2>',
-      'p': '<p className="text-gray-600">Párrafo de texto</p>'
+      'div': '<div className="p-4">Content</div>',
+      'h1': '<h1 className="text-3xl font-bold">Title</h1>',
+      'h2': '<h2 className="text-2xl font-semibold">Subtitle</h2>',
+      'p': '<p className="text-gray-600">Paragraph text</p>'
     };
     
-    return examples[name] || `<${name}>Contenido</${name}>`;
+    return examples[name] || `<${name}>Content</${name}>`;
   }
 
+  // ===================================================================
+  // MÉTODOS PÚBLICOS MEJORADOS
+  // ===================================================================
   getComponent(name) {
     return this.components.get(name);
   }
 
   getAllComponents() {
-    return Array.from(this.components.values());
+    // Ordenar por prioridad: high -> medium -> low
+    const priorityOrder = { high: 3, medium: 2, low: 1 };
+    
+    return Array.from(this.components.values()).sort((a, b) => {
+      return (priorityOrder[b.priority] || 2) - (priorityOrder[a.priority] || 2);
+    });
   }
 
   getComponentsByCategory(category) {
     return this.getAllComponents().filter(comp => comp.category === category);
   }
 
+  // ===================================================================
+  // NUEVO: MÉTODOS ESPECÍFICOS PARA NUESTROS COMPONENTES
+  // ===================================================================
+  getCustomComponents() {
+    return this.getComponentsByCategory('ui').concat(this.getComponentsByCategory('layout'));
+  }
+
+  getRecommendedComponents() {
+    // Componentes recomendados para empezar
+    return ['Button', 'Card', 'Alert', 'Hero'].map(name => this.getComponent(name)).filter(Boolean);
+  }
+
   getMDXComponents() {
     const components = {};
+    
+    // Priorizar nuestros componentes
     for (const [name, config] of this.components) {
       components[name] = config.component;
     }
+    
     return components;
   }
 
-  // Debug helper
+  // ===================================================================
+  // MÉTODOS DE BÚSQUEDA Y SUGERENCIAS
+  // ===================================================================
+  searchComponents(query) {
+    const lowercaseQuery = query.toLowerCase();
+    return this.getAllComponents().filter(comp => 
+      comp.name.toLowerCase().includes(lowercaseQuery) ||
+      comp.description.toLowerCase().includes(lowercaseQuery) ||
+      comp.category.toLowerCase().includes(lowercaseQuery)
+    );
+  }
+
+  getComponentSuggestions(partialName) {
+    const lowercase = partialName.toLowerCase();
+    return Array.from(this.components.keys())
+      .filter(name => name.toLowerCase().startsWith(lowercase))
+      .slice(0, 5);
+  }
+
+  // ===================================================================
+  // MÉTODOS DE ANÁLISIS Y DEBUG
+  // ===================================================================
+  getStats() {
+    const components = this.getAllComponents();
+    const categories = {};
+    const priorities = {};
+    
+    components.forEach(comp => {
+      categories[comp.category] = (categories[comp.category] || 0) + 1;
+      priorities[comp.priority] = (priorities[comp.priority] || 0) + 1;
+    });
+
+    return {
+      total: components.length,
+      categories,
+      priorities,
+      customComponents: this.getCustomComponents().length,
+      recommendedComponents: this.getRecommendedComponents().length
+    };
+  }
+
   debugMissingComponent(componentName) {
     console.log(`❌ Componente faltante: ${componentName}`);
-    console.log('✅ Componentes disponibles:', Array.from(this.components.keys()));
+    
+    // Mostrar componentes disponibles por categoría
+    const byCategory = {};
+    this.getAllComponents().forEach(comp => {
+      if (!byCategory[comp.category]) byCategory[comp.category] = [];
+      byCategory[comp.category].push(comp.name);
+    });
+    
+    console.log('✅ Componentes disponibles por categoría:', byCategory);
     
     // Sugerir componentes similares
-    const available = Array.from(this.components.keys());
-    const similar = available.filter(name => 
-      name.toLowerCase().includes(componentName.toLowerCase()) ||
-      componentName.toLowerCase().includes(name.toLowerCase())
-    );
-    
-    if (similar.length > 0) {
-      console.log('🔍 Componentes similares:', similar);
+    const suggestions = this.getComponentSuggestions(componentName);
+    if (suggestions.length > 0) {
+      console.log('🔍 Sugerencias:', suggestions);
     }
+
+    // Buscar por descripción
+    const searchResults = this.searchComponents(componentName);
+    if (searchResults.length > 0) {
+      console.log('📝 Encontrados por búsqueda:', searchResults.map(c => c.name));
+    }
+  }
+
+  // ===================================================================
+  // MÉTODO PARA EXPORTAR CONFIGURACIÓN
+  // ===================================================================
+  exportConfig() {
+    return {
+      components: Object.fromEntries(this.components),
+      stats: this.getStats(),
+      categories: [...new Set(this.getAllComponents().map(c => c.category))],
+      customComponents: this.getCustomComponents().map(c => c.name),
+      recommendedComponents: this.getRecommendedComponents().map(c => c.name)
+    };
   }
 }
 
 // ===================================================================
-// DEBUG HELPER GLOBAL
+// UTILIDADES GLOBALES PARA DEBUG
 // ===================================================================
-
 if (typeof window !== 'undefined') {
   window.debugComponents = {
-    listAll: () => {
-      const registry = new ComponentRegistry();
-      console.table(registry.getAllComponents().map(c => ({
+    registry: null,
+    
+    init() {
+      this.registry = new ComponentRegistry();
+      return this.registry;
+    },
+
+    listAll() {
+      if (!this.registry) this.init();
+      console.table(this.registry.getAllComponents().map(c => ({
         name: c.name,
         category: c.category,
-        description: c.description
+        description: c.description,
+        hasMetadata: !!c.metadata
       })));
     },
     
-    checkComponent: (name) => {
-      const registry = new ComponentRegistry();
-      const component = registry.getComponent(name);
+    listByCategory(category) {
+      if (!this.registry) this.init();
+      const components = this.registry.getComponentsByCategory(category);
+      console.table(components.map(c => ({
+        name: c.name,
+        description: c.description
+      })));
+    },
+
+    stats() {
+      if (!this.registry) this.init();
+      console.log('📊 Component Registry Stats:', this.registry.getStats());
+    },
+    
+    checkComponent(name) {
+      if (!this.registry) this.init();
+      const component = this.registry.getComponent(name);
       if (component) {
         console.log('✅ Componente encontrado:', component);
+        console.log('📄 Ejemplo:', component.example);
       } else {
-        registry.debugMissingComponent(name);
+        this.registry.debugMissingComponent(name);
       }
+    },
+
+    search(query) {
+      if (!this.registry) this.init();
+      const results = this.registry.searchComponents(query);
+      console.log(`🔍 Resultados para "${query}":`, results.map(c => c.name));
+      return results;
+    },
+
+    suggest(partial) {
+      if (!this.registry) this.init();
+      const suggestions = this.registry.getComponentSuggestions(partial);
+      console.log(`💡 Sugerencias para "${partial}":`, suggestions);
+      return suggestions;
     }
   };
 }
+
+export default ComponentRegistry;
