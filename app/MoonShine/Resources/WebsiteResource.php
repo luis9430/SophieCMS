@@ -14,7 +14,7 @@ use MoonShine\UI\Components\Layout\Box;
 use MoonShine\UI\Components\Layout\Column;
 use MoonShine\UI\Components\Layout\Grid;
 use MoonShine\UI\Components\Layout\Flex;
-use MoonShine\Fields\ID;
+use MoonShine\UI\Fields\ID;
 use MoonShine\UI\Fields\Text;
 use MoonShine\UI\Fields\Select;
 use MoonShine\Laravel\Fields\Slug;
@@ -39,7 +39,7 @@ class WebsiteResource extends ModelResource
         return [
             ID::make()->sortable(),
             Text::make('Título', 'name')->sortable(),
-            Slug::make('Slug')->hideOnIndex(fn() => false), // Para mostrarlo, hideOnIndex debe retornar false
+            Slug::make('Slug')->when(true, fn($field) => $field->sortable()),
             Select::make('Estado', 'status')
                 ->options([
                     'draft' => 'Borrador',

@@ -31,7 +31,12 @@ use MoonShine\UI\Components\{Breadcrumbs,
     Layout\TopBar,
     Layout\Wrapper,
     When};
+
+// Importar todos los Resources
 use App\MoonShine\Resources\WebsiteResource;
+use App\MoonShine\Resources\PageBuilderResource;
+use App\MoonShine\Resources\ComponentResource;
+use App\MoonShine\Resources\TemplateResource;
 
 final class MoonShineLayout extends AppLayout
 {
@@ -46,7 +51,12 @@ final class MoonShineLayout extends AppLayout
     {
         return [
             ...parent::menu(),
+            
+            // Agregar todos los Resources del Page Builder
             MenuItem::make('Websites', WebsiteResource::class),
+            MenuItem::make('Páginas', PageBuilderResource::class),
+            MenuItem::make('Componentes', ComponentResource::class),
+            MenuItem::make('Templates', TemplateResource::class),
         ];
     }
 
@@ -56,8 +66,6 @@ final class MoonShineLayout extends AppLayout
     protected function colors(ColorManagerContract $colorManager): void
     {
         parent::colors($colorManager);
-
-        // $colorManager->primary('#00000');
     }
 
     public function build(): Layout

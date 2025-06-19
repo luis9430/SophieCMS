@@ -28,12 +28,10 @@ class ComponentResource extends ModelResource
             ID::make()->sortable(),
             
             Text::make('Nombre', 'name')
-                ->sortable()
-                ->searchable(),
+                ->sortable(), // ← CORREGIDO
                 
             Text::make('Identificador', 'identifier')
-                ->sortable()
-                ->searchable(),
+                ->sortable(), // ← CORREGIDO
                 
             Select::make('Categoría', 'category')
                 ->options([
@@ -73,12 +71,24 @@ class ComponentResource extends ModelResource
                 ->required()
                 ->placeholder('Contenido del template Blade'),
                 
-            Json::make('Configuración por defecto', 'default_config'),
-            
+Textarea::make('Configuración por defecto (JSON)', 'default_config')
+    ->placeholder('{"title": "Valor ejemplo", "subtitle": "Otro valor"}')
+    ->hint('Configuración en formato JSON. Cada componente usa diferentes propiedades.')
+    ->nullable(),       
             Image::make('Imagen Preview', 'preview_image'),
             
             Switcher::make('Activo', 'is_active')
                 ->default(true),
+        ];
+    }
+
+    // Agregar método search para habilitar búsqueda
+    protected function search(): array
+    {
+        return [
+            'name',
+            'identifier',
+            'description'
         ];
     }
 }
