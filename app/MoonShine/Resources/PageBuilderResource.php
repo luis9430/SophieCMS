@@ -36,15 +36,13 @@ class PageBuilderResource extends ModelResource
             ID::make()->sortable(),
             
             Text::make('Título', 'title')
-                ->sortable()
-                ->searchable(),
+                ->sortable(),
                 
             Slug::make('Slug', 'slug')
                 ->from('title')
                 ->sortable(),
                 
-            BelongsTo::make('Website', 'website', resource: WebsiteResource::class)
-                ->searchable(),
+            BelongsTo::make('Website', 'website', resource: WebsiteResource::class),
                 
             BelongsTo::make('Template', 'template', resource: TemplateResource::class)
                 ->nullable(),
@@ -56,13 +54,9 @@ class PageBuilderResource extends ModelResource
                 ])
                 ->badge(fn(string $value): string => $value === 'published' ? 'green' : 'gray'),
                 
-            // Botón personalizado para abrir el page builder
-            ActionButton::make('Editar', route: fn($item) => route('page-builder.edit', $item->id))
-                ->icon('pencil')
-                ->primary(),
+            // Quitar el ActionButton problemático por ahora
         ];
     }
-
     public function formFields(): array
     {
         return [
