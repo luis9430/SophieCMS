@@ -25,12 +25,38 @@
     <div class="w-80 bg-white border-r border-gray-200 flex flex-col">
         <!-- Header del sidebar -->
         <div class="p-4 border-b border-gray-200">
-            <h2 class="text-lg font-semibold text-gray-800">Componentes</h2>
-            <div class="mt-2">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="text-lg font-semibold text-gray-800">Componentes</h2>
+                
+                <!-- Botón para crear componente -->
+                <a href="{{ route('component-builder.create') }}" 
+                class="inline-flex items-center px-3 py-1 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                title="Crear nuevo componente">
+                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                    </svg>
+                    Crear
+                </a>
+            </div>
+            
+            <!-- Search -->
+            <div class="relative">
                 <input type="text" 
-                       x-model="componentSearch" 
-                       placeholder="Buscar componentes..."
-                       class="w-full px-3 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    x-model="componentSearch" 
+                    placeholder="Buscar componentes..."
+                    class="w-full px-3 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                
+                <!-- Link to Component Builder -->
+                <div class="mt-2">
+                    <a href="{{ route('component-builder.index') }}" 
+                    class="inline-flex items-center text-xs text-blue-600 hover:text-blue-800 transition-colors">
+                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                        Gestionar Componentes
+                    </a>
+                </div>
             </div>
         </div>
         
@@ -40,15 +66,60 @@
                 <!-- Componentes por categoría -->
                 <template x-for="(components, category) in filteredComponents" :key="category">
                     <div>
-                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2" x-text="categoryNames[category]"></h3>
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide" x-text="categoryNames[category]"></h3>
+                            
+                            <!-- Indicador de componentes avanzados -->
+                            <template x-if="components.some(c => c.is_advanced)">
+                                <span class="px-1 py-0.5 text-xs bg-purple-100 text-purple-800 rounded">
+                                    Avanzados
+                                </span>
+                            </template>
+                        </div>
+                        
                         <div class="grid grid-cols-1 gap-2">
                             <template x-for="component in components" :key="component.id">
-                                <button @click="addComponent(component)" 
-                                        class="component-card text-left p-3 rounded-lg border transition-colors hover:shadow-md"
-                                        :class="getCategoryStyle(category)">
-                                    <div class="font-medium" x-text="component.name"></div>
-                                    <div class="text-xs opacity-75" x-text="component.description"></div>
-                                </button>
+                                <div class="relative">
+                                    <button @click="addComponent(component)" 
+                                            class="component-card w-full text-left p-3 rounded-lg border transition-colors hover:shadow-md"
+                                            :class="getCategoryStyle(category)">
+                                        <div class="flex items-start justify-between">
+                                            <div class="flex-1">
+                                                <div class="font-medium" x-text="component.name"></div>
+                                                <div class="text-xs opacity-75" x-text="component.description"></div>
+                                                
+                                                <!-- Assets indicators -->
+                                                <template x-if="component.external_assets && component.external_assets.length > 0">
+                                                    <div class="flex flex-wrap gap-1 mt-1">
+                                                        <template x-for="asset in component.external_assets.slice(0, 2)" :key="asset">
+                                                            <span class="text-xs bg-purple-100 text-purple-700 px-1 py-0.5 rounded" x-text="asset"></span>
+                                                        </template>
+                                                        <template x-if="component.external_assets.length > 2">
+                                                            <span class="text-xs text-gray-500" x-text="'+' + (component.external_assets.length - 2)"></span>
+                                                        </template>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                            
+                                            <!-- Edit button for advanced components -->
+                                            <template x-if="component.is_advanced">
+                                                <a :href="`/admin/page-builder/components/${component.id}/edit`"
+                                                @click.stop
+                                                class="ml-2 p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                                                title="Editar componente">
+                                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                                    </svg>
+                                                </a>
+                                            </template>
+                                        </div>
+                                    </button>
+                                    
+                                    <!-- Version indicator for advanced components -->
+                                    <template x-if="component.is_advanced">
+                                        <div class="absolute top-1 right-1 px-1 py-0.5 text-xs bg-blue-100 text-blue-800 rounded" x-text="'v' + component.version"></div>
+                                    </template>
+                                </div>
                             </template>
                         </div>
                     </div>
@@ -56,7 +127,8 @@
             </div>
         </div>
     </div>
-    
+
+
     <!-- Área principal -->
     <div class="flex-1 flex flex-col">
         <!-- Toolbar -->
