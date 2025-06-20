@@ -64,6 +64,35 @@ class PageBuilderController extends Controller
         return redirect()->route('page-builder.edit', $page);
     }
 
+
+    public function update(Request $request, Page $page)
+    {
+        $request->validate([
+            'content' => 'required|string',
+            'title' => 'sometimes|string|max:255',
+            'status' => 'sometimes|in:draft,published',
+        ]);
+
+        $updateData = ['content' => $request->content];
+        
+        if ($request->has('title')) {
+            $updateData['title'] = $request->title;
+            $updateData['slug'] = Str::slug($request->title);
+        }
+        
+        if ($request->has('status')) {
+            $updateData['status'] = $request->status;
+        }
+
+        $page->update($updateData);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Página actualizada correctamente',
+            'page' => $page->fresh()
+        ]);
+    }
+
     /**
      * Guardar el contenido de la página
      */
@@ -95,12 +124,24 @@ class PageBuilderController extends Controller
      */
     public function preview(Request $request)
     {
-        $content = $request->input('content', '');
-        $pageId = $request->input('page_id');
-        
         try {
-            // Si hay un page_id, cargar datos de la página
-            $pageData = [];
+            $content = $request->input('content', '');
+            $pageId = $request->input('page_id');
+            
+            // Validar que el contenido no esté completamente vacío
+            if (empty(trim($content))) {
+                return response()->json([
+                    'success' => true,
+                    'html' => '<div class="p-8 text-center text-gray-500">El contenido está vacío</div>'
+                ]);
+            }
+
+            // Preparar datos de la página
+            $pageData = [
+                'page' => null,
+                'website' => null,
+            ];
+
             if ($pageId) {
                 $page = Page::find($pageId);
                 if ($page) {
@@ -111,20 +152,112 @@ class PageBuilderController extends Controller
                 }
             }
 
-            $html = $this->renderPageContent($content, $pageData);
+            // Renderizar contenido de forma segura
+            $html = $this->renderPageContentSafely($content, $pageData);
             
             return response()->json([
                 'success' => true,
                 'html' => $html
             ]);
             
-        } catch (\Exception $e) {
+        } catch (\ParseError $e) {
             return response()->json([
                 'success' => false,
-                'error' => $e->getMessage()
-            ], 500);
+                'error' => 'Error de sintaxis en el contenido: ' . $e->getMessage(),
+                'type' => 'syntax_error'
+            ]);
+            
+        } catch (\Throwable $e) {
+            // Log del error para debugging
+            \Log::error('Preview error', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'content_preview' => substr($request->input('content', ''), 0, 200)
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Error al procesar el contenido: ' . $e->getMessage(),
+                'type' => 'processing_error'
+            ]);
         }
     }
+
+
+    private function renderPageContentSafely(string $content, array $data = [])
+    {
+        // Limpiar y validar el contenido
+        $cleanContent = $this->sanitizeContent($content);
+        
+        // Crear archivo temporal con nombre único
+        $tempFile = storage_path('app/temp_' . uniqid() . '_' . time() . '.blade.php');
+        
+        // Asegurar que el directorio temp existe
+        $tempDir = dirname($tempFile);
+        if (!is_dir($tempDir)) {
+            mkdir($tempDir, 0755, true);
+        }
+        
+        // Preparar el contenido con el layout base
+        $wrappedContent = $this->wrapContentWithLayoutSafely($cleanContent);
+        
+        try {
+            File::put($tempFile, $wrappedContent);
+            
+            // Renderizar con timeout
+            $html = View::file($tempFile, $data)->render();
+            
+            return $html;
+            
+        } catch (\Exception $e) {
+            throw new \Exception('Error al renderizar la vista: ' . $e->getMessage());
+        } finally {
+            // Limpiar archivo temporal
+            if (File::exists($tempFile)) {
+                File::delete($tempFile);
+            }
+        }
+    }
+
+    private function sanitizeContent(string $content): string
+        {
+            // Remover caracteres problemáticos
+            $content = trim($content);
+            
+            // Validar que no tenga PHP tags maliciosos
+            if (strpos($content, '<?php') !== false || strpos($content, '<?=') !== false) {
+                throw new \Exception('No se permite código PHP en el contenido');
+            }
+            
+            return $content;
+        }
+
+
+        private function wrapContentWithLayoutSafely(string $content)
+        {
+            return '<!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Preview</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+            <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+            <style>
+                /* Estilos para el preview */
+                body { font-family: system-ui, -apple-system, sans-serif; }
+                .preview-container { min-height: 100vh; }
+            </style>
+        </head>
+        <body class="preview-container">
+            <div class="w-full">
+                ' . $content . '
+            </div>
+        </body>
+        </html>';
+        }
+
 
     /**
      * Obtener componentes disponibles para el sidebar
@@ -260,18 +393,18 @@ class PageBuilderController extends Controller
     private function wrapContentWithLayout(string $content)
     {
         return '<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Preview</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-</head>
-<body>
-    ' . $content . '
-</body>
-</html>';
+            <html lang="es">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Preview</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+                <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+            </head>
+            <body>
+                ' . $content . '
+            </body>
+            </html>';
     }
 
     /**
@@ -286,10 +419,10 @@ class PageBuilderController extends Controller
             }
         }
 
-        // Contenido por defecto
-        return '<div class="container mx-auto p-8">
-    <h1 class="text-3xl font-bold text-center mb-8">Página Nueva</h1>
-    <p class="text-center text-gray-600">Comienza a agregar componentes desde el sidebar</p>
-</div>';
+                // Contenido por defecto
+                return '<div class="container mx-auto p-8">
+            <h1 class="text-3xl font-bold text-center mb-8">Página Nueva</h1>
+            <p class="text-center text-gray-600">Comienza a agregar componentes desde el sidebar</p>
+        </div>';
     }
 }

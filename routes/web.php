@@ -17,19 +17,35 @@ Route::prefix('admin')->group(function () {
 
 // API Routes para el Page Builder
 Route::prefix('api')->group(function () {
-    // Pages
-    Route::post('/pages/{page}/save', [PageBuilderController::class, 'save']);
-    Route::post('/pages/{page}/publish', [PageBuilderController::class, 'publish']);
-    Route::post('/pages/{page}/unpublish', [PageBuilderController::class, 'unpublish']);
-    Route::post('/pages/{page}/duplicate', [PageBuilderController::class, 'duplicate']);
-    Route::get('/pages/{page}/export', [PageBuilderController::class, 'export']);
+    // Pages - CORREGIDAS Y CON NOMBRES
+    Route::post('/pages/{page}/save', [PageBuilderController::class, 'save'])
+        ->name('pagebuilder.save');
+    
+    Route::put('/pages/{page}/update', [PageBuilderController::class, 'update'])
+        ->name('pagebuilder.update');
+    
+    Route::post('/pages/{page}/publish', [PageBuilderController::class, 'publish'])
+        ->name('pagebuilder.publish');
+    
+    Route::post('/pages/{page}/unpublish', [PageBuilderController::class, 'unpublish'])
+        ->name('pagebuilder.unpublish');
+    
+    Route::post('/pages/{page}/duplicate', [PageBuilderController::class, 'duplicate'])
+        ->name('pagebuilder.duplicate');
+    
+    Route::get('/pages/{page}/export', [PageBuilderController::class, 'export'])
+        ->name('pagebuilder.export');
     
     // Components
-    Route::get('/components', [PageBuilderController::class, 'getComponents']);
-    Route::get('/components/{component}/template', [PageBuilderController::class, 'getComponentTemplate']);
+    Route::get('/components', [PageBuilderController::class, 'getComponents'])
+        ->name('pagebuilder.components');
     
-    // Preview - ESTA ES LA RUTA QUE NECESITA EL JS
-    Route::match(['GET', 'POST'], '/page-builder/preview', [PageBuilderController::class, 'preview']);
+    Route::get('/components/{component}/template', [PageBuilderController::class, 'getComponentTemplate'])
+        ->name('pagebuilder.component.template');
+    
+    // Preview - CORREGIDA CON NOMBRE
+    Route::match(['GET', 'POST'], '/page-builder/preview', [PageBuilderController::class, 'preview'])
+        ->name('pagebuilder.preview');
 });
 
 // Rutas públicas para mostrar las páginas
