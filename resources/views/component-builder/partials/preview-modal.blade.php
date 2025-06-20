@@ -1,6 +1,6 @@
 {{-- resources/views/component-builder/partials/preview-modal.blade.php --}}
 
-<!-- Preview Modal para Index -->
+<!-- Preview Modal - SOLO para Index (no se incluye en Edit) -->
 <div x-show="showPreviewModal" 
      x-transition:enter="ease-out duration-300"
      x-transition:enter-start="opacity-0"
@@ -10,7 +10,17 @@
      x-transition:leave-end="opacity-0"
      class="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50"
      @click.self="showPreviewModal = false"
-     style="display: none;">
+     style="display: none;"
+     x-data="{
+        // Variables locales para el modal por si no existen en el contexto padre
+        get modalData() {
+            return this.previewComponent || {
+                name: 'Preview',
+                description: 'Vista previa del componente',
+                external_assets: []
+            };
+        }
+     }">
      
     <div class="flex items-center justify-center min-h-screen p-4">
         <div @click.stop 
@@ -20,8 +30,8 @@
             <div class="p-6 border-b border-gray-200">
                 <div class="flex items-center justify-between">
                     <div>
-                        <h3 class="text-lg font-medium text-gray-900" x-text="previewComponent?.name || 'Preview'"></h3>
-                        <p class="text-sm text-gray-600" x-text="previewComponent?.description || 'Vista previa del componente'"></p>
+                        <h3 class="text-lg font-medium text-gray-900" x-text="modalData.name"></h3>
+                        <p class="text-sm text-gray-600" x-text="modalData.description"></p>
                     </div>
                     <button @click="showPreviewModal = false" 
                             class="text-gray-400 hover:text-gray-600">
@@ -46,23 +56,23 @@
             <!-- Footer -->
             <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between">
                 <div class="flex items-center gap-2 text-sm text-gray-600">
-                    <template x-if="previewComponent?.external_assets?.length > 0">
+                    <template x-if="modalData.external_assets && modalData.external_assets.length > 0">
                         <div class="flex gap-1">
                             <span>Assets:</span>
-                            <template x-for="asset in previewComponent.external_assets" :key="asset">
+                            <template x-for="asset in modalData.external_assets" :key="asset">
                                 <span class="px-2 py-0.5 bg-purple-100 text-purple-800 rounded text-xs" x-text="asset"></span>
                             </template>
                         </div>
                     </template>
                     
-                    <template x-if="!previewComponent?.external_assets?.length">
+                    <template x-if="!modalData.external_assets || modalData.external_assets.length === 0">
                         <span class="text-gray-400">Sin assets externos</span>
                     </template>
                 </div>
                 
                 <div class="flex gap-2">
-                    <template x-if="previewComponent">
-                        <a :href="`/admin/page-builder/components/${previewComponent.id}/edit`" 
+                    <template x-if="modalData.id">
+                        <a :href="`/admin/page-builder/components/${modalData.id}/edit`" 
                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
                             Editar
                         </a>

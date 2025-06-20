@@ -43,123 +43,72 @@
                            name="search" 
                            value="{{ request('search') }}"
                            placeholder="Buscar por nombre o descripción..."
-                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                           class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                 </div>
-
+                
                 <!-- Category Filter -->
-                <div class="w-48">
+                <div class="min-w-48">
                     <label class="block text-sm font-medium text-gray-700 mb-2">
                         Categoría
                     </label>
-                    <select name="category" 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <select name="category" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                         <option value="">Todas las categorías</option>
-                        @foreach($categories as $category)
-                            <option value="{{ $category }}" {{ request('category') === $category ? 'selected' : '' }}>
-                                {{ ucfirst($category) }}
-                            </option>
-                        @endforeach
+                        <option value="layout" {{ request('category') === 'layout' ? 'selected' : '' }}>Layout</option>
+                        <option value="content" {{ request('category') === 'content' ? 'selected' : '' }}>Contenido</option>
+                        <option value="form" {{ request('category') === 'form' ? 'selected' : '' }}>Formularios</option>
+                        <option value="navigation" {{ request('category') === 'navigation' ? 'selected' : '' }}>Navegación</option>
+                        <option value="media" {{ request('category') === 'media' ? 'selected' : '' }}>Media</option>
+                        <option value="interactive" {{ request('category') === 'interactive' ? 'selected' : '' }}>Interactivo</option>
+                        <option value="ecommerce" {{ request('category') === 'ecommerce' ? 'selected' : '' }}>E-commerce</option>
                     </select>
                 </div>
-
-                <!-- Actions -->
-                <div class="flex gap-2">
+                
+                <!-- Status Filter -->
+                <div class="min-w-32">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Estado
+                    </label>
+                    <select name="status" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <option value="">Todos</option>
+                        <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Activos</option>
+                        <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>Inactivos</option>
+                    </select>
+                </div>
+                
+                <!-- Filter Button -->
+                <div>
                     <button type="submit" 
                             class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
                         Filtrar
                     </button>
-                    <a href="{{ route('component-builder.index') }}" 
-                       class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
-                        Limpiar
-                    </a>
                 </div>
+                
+                <!-- Clear Filters -->
+                @if(request()->anyFilled(['search', 'category', 'status']))
+                    <div>
+                        <a href="{{ route('component-builder.index') }}" 
+                           class="px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors">
+                            Limpiar filtros
+                        </a>
+                    </div>
+                @endif
             </form>
-        </div>
-
-        <!-- Stats -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div class="bg-white rounded-lg shadow-sm p-6">
-                <div class="flex items-center">
-                    <div class="p-2 bg-blue-500 rounded-lg">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-                        </svg>
-                    </div>
-                    <div class="ml-4">
-                        <p class="text-2xl font-semibold text-gray-900">{{ $components->total() }}</p>
-                        <p class="text-gray-600">Total Componentes</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-white rounded-lg shadow-sm p-6">
-                <div class="flex items-center">
-                    <div class="p-2 bg-green-500 rounded-lg">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                    </div>
-                    <div class="ml-4">
-                        <p class="text-2xl font-semibold text-gray-900">{{ $components->where('is_active', true)->count() }}</p>
-                        <p class="text-gray-600">Activos</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-white rounded-lg shadow-sm p-6">
-                <div class="flex items-center">
-                    <div class="p-2 bg-purple-500 rounded-lg">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                        </svg>
-                    </div>
-                    <div class="ml-4">
-                        <p class="text-2xl font-semibold text-gray-900">{{ $components->where('external_assets', '!=', '[]')->count() }}</p>
-                        <p class="text-gray-600">Con Librerías</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-white rounded-lg shadow-sm p-6">
-                <div class="flex items-center">
-                    <div class="p-2 bg-orange-500 rounded-lg">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
-                        </svg>
-                    </div>
-                    <div class="ml-4">
-                        <p class="text-2xl font-semibold text-gray-900">{{ $categories->count() }}</p>
-                        <p class="text-gray-600">Categorías</p>
-                    </div>
-                </div>
-            </div>
         </div>
 
         <!-- Components Grid -->
         @if($components->count() > 0)
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 @foreach($components as $component)
-                    <div class="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow duration-200">
-                        <!-- Preview Image -->
-                        <div class="aspect-video bg-gray-100 rounded-t-lg overflow-hidden">
-                            @if($component->preview_image)
-                                <img src="{{ asset('storage/' . $component->preview_image) }}" 
-                                     alt="{{ $component->name }}" 
-                                     class="w-full h-full object-cover">
-                            @else
-                                <div class="w-full h-full flex items-center justify-center text-gray-400">
-                                    <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-                                    </svg>
+                    <div class="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow">
+                        <div class="p-6">
+                            <div class="flex items-start justify-between mb-3">
+                                <div class="flex-1">
+                                    <h3 class="text-lg font-semibold text-gray-900 mb-1">{{ $component->name }}</h3>
+                                    <span class="text-xs text-gray-500 font-mono bg-gray-100 px-2 py-1 rounded">
+                                        {{ $component->identifier }}
+                                    </span>
                                 </div>
-                            @endif
-                        </div>
-
-                        <!-- Content -->
-                        <div class="p-4">
-                            <div class="flex items-start justify-between mb-2">
-                                <h3 class="text-lg font-semibold text-gray-900 truncate">{{ $component->name }}</h3>
-                                <span class="px-2 py-1 text-xs rounded {{ $component->is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }}">
+                                <span class="ml-3 px-2 py-1 text-xs rounded-full {{ $component->is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }}">
                                     {{ $component->is_active ? 'Activo' : 'Inactivo' }}
                                 </span>
                             </div>
@@ -194,7 +143,7 @@
                                 </div>
 
                                 <div class="flex gap-1">
-                                    <button @click="previewComponent({{ $component->id }})" 
+                                    <button @click="showComponentPreview({{ $component->id }})" 
                                             class="p-1 text-gray-400 hover:text-gray-600">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
@@ -251,8 +200,6 @@
 
 @section('custom-scripts')
 <script>
-// Reemplazar todo el script del index.blade.php con esto:
-
 function componentIndex() {
     return {
         // State
@@ -264,9 +211,14 @@ function componentIndex() {
             message: ''
         },
 
-        // Preview component
-        async previewComponent(componentId) {
-            console.log('Preview component ID:', componentId); // Debug
+        // Init method
+        init() {
+            console.log('ComponentIndex initialized');
+        },
+
+        // Preview component method - RENOMBRADO para evitar conflicto
+        async showComponentPreview(componentId) {
+            console.log('Preview component ID:', componentId);
             
             if (!componentId) {
                 this.showNotification('error', 'ID del componente no válido');
@@ -274,7 +226,16 @@ function componentIndex() {
             }
 
             try {
-                const response = await fetch(`/api/component-builder/components/${componentId}/preview`, {
+                // Crear datos mock del componente para el modal
+                this.previewComponent = {
+                    id: componentId,
+                    name: 'Componente ' + componentId,
+                    description: 'Vista previa del componente',
+                    external_assets: []
+                };
+
+                // Hacer la preview con la URL CORRECTA
+                const previewResponse = await fetch(`/admin/page-builder/components/${componentId}/preview`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -283,55 +244,40 @@ function componentIndex() {
                     body: JSON.stringify({
                         test_data: {
                             title: 'Título de Prueba',
-                            description: 'Esta es una descripción de prueba para el componente.'
+                            description: 'Esta es una descripción de prueba para el componente.',
+                            content: 'Contenido de ejemplo para testing.',
+                            image: 'https://via.placeholder.com/400x200/6366f1/ffffff?text=Preview',
+                            url: '#',
+                            button_text: 'Ver más'
                         }
                     })
                 });
 
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                if (!previewResponse.ok) {
+                    throw new Error(`Preview error: ${previewResponse.status}`);
                 }
 
-                const data = await response.json();
+                const previewHtml = await previewResponse.text();
                 
-                if (data.success) {
-                    this.previewComponent = data.component;
-                    this.showPreviewModal = true;
-                    
-                    // Renderizar preview en el iframe del modal
-                    this.$nextTick(() => {
-                        this.renderModalPreview(data.html);
-                    });
-                } else {
-                    this.showNotification('error', 'Error al cargar preview: ' + data.error);
-                }
+                // Mostrar el modal
+                this.showPreviewModal = true;
+                
+                // Cargar el HTML en el iframe después de que el modal se muestre
+                this.$nextTick(() => {
+                    const iframe = this.$refs.modalPreviewFrame;
+                    if (iframe) {
+                        iframe.srcdoc = previewHtml;
+                    }
+                });
+
             } catch (error) {
-                console.error('Error previewing component:', error);
-                this.showNotification('error', 'Error al cargar preview del componente');
+                console.error('Error in showComponentPreview:', error);
+                this.showNotification('error', 'Error al cargar preview: ' + error.message);
             }
-        },
-
-        // Renderizar preview en modal
-        renderModalPreview(html) {
-            const iframe = this.$refs.modalPreviewFrame;
-            if (!iframe) {
-                console.error('Modal preview iframe not found');
-                return;
-            }
-
-            const doc = iframe.contentDocument || iframe.contentWindow.document;
-            doc.open();
-            doc.write(html);
-            doc.close();
         },
 
         // Duplicate component
         async duplicateComponent(componentId) {
-            if (!componentId) {
-                this.showNotification('error', 'ID del componente no válido');
-                return;
-            }
-
             if (!confirm('¿Estás seguro de que quieres duplicar este componente?')) {
                 return;
             }
@@ -340,6 +286,7 @@ function componentIndex() {
                 const response = await fetch(`/admin/page-builder/components/${componentId}/duplicate`, {
                     method: 'POST',
                     headers: {
+                        'Content-Type': 'application/json',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                     }
                 });
@@ -348,22 +295,19 @@ function componentIndex() {
 
                 if (data.success) {
                     this.showNotification('success', 'Componente duplicado exitosamente');
-                    setTimeout(() => location.reload(), 1500);
+                    setTimeout(() => window.location.reload(), 1500);
                 } else {
-                    this.showNotification('error', data.error || 'Error al duplicar');
+                    throw new Error(data.message || 'Error al duplicar componente');
                 }
+
             } catch (error) {
-                this.showNotification('error', 'Error de conexión');
+                console.error('Error duplicating component:', error);
+                this.showNotification('error', 'Error al duplicar componente: ' + error.message);
             }
         },
 
         // Delete component
         async deleteComponent(componentId) {
-            if (!componentId) {
-                this.showNotification('error', 'ID del componente no válido');
-                return;
-            }
-
             if (!confirm('¿Estás seguro de que quieres eliminar este componente? Esta acción no se puede deshacer.')) {
                 return;
             }
@@ -372,6 +316,7 @@ function componentIndex() {
                 const response = await fetch(`/admin/page-builder/components/${componentId}`, {
                     method: 'DELETE',
                     headers: {
+                        'Content-Type': 'application/json',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                     }
                 });
@@ -380,24 +325,36 @@ function componentIndex() {
 
                 if (data.success) {
                     this.showNotification('success', 'Componente eliminado exitosamente');
-                    setTimeout(() => location.reload(), 1500);
+                    setTimeout(() => window.location.reload(), 1500);
                 } else {
-                    this.showNotification('error', data.error || 'Error al eliminar');
+                    throw new Error(data.message || 'Error al eliminar componente');
                 }
+
             } catch (error) {
-                this.showNotification('error', 'Error de conexión');
+                console.error('Error deleting component:', error);
+                this.showNotification('error', 'Error al eliminar componente: ' + error.message);
             }
         },
 
-        // Notifications
+        // Show notification
         showNotification(type, message) {
-            this.notification = { show: true, type, message };
+            this.notification = {
+                show: true,
+                type: type,
+                message: message
+            };
+
+            // Auto-hide after 5 seconds
             setTimeout(() => {
                 this.notification.show = false;
-            }, 3000);
-        }
-    }
-}
+            }, 5000);
+        },
 
+        // Close notification
+        closeNotification() {
+            this.notification.show = false;
+        }
+    };
+}
 </script>
 @endsection

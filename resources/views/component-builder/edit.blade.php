@@ -314,7 +314,8 @@ function componentEditor() {
         isUpdatingPreview: false,
         previewTimeout: null,
         hasChanges: false,
-        
+        showPreviewModal: false,
+        previewComponent: null,
         // Component data - cargado de forma ultra segura
         component: {
             id: {{ $component->id }},
@@ -323,25 +324,70 @@ function componentEditor() {
             category: "{{ addslashes($component->category ?? 'content') }}",
             description: "{{ addslashes($component->description ?? '') }}",
             blade_template: `{!! addslashes($component->blade_template ?? '') !!}`,
-            external_assets: @json($component->external_assets ?? [])
+            external_assets: @json($component->external_assets ?? []),
+            communication_config: @json($component->communication_config ?? ['emits' => [], 'listens' => [], 'state' => []]),
+            props_schema: @json($component->props_schema ?? (object)[]),
+            preview_config: @json($component->preview_config ?? (object)[])
         },
 
-        // Notification simple
+        // Notification
         notification: {
             show: false,
             type: 'info',
             message: ''
         },
 
-        // Inicialización
+        // Available assets
+        availableAssets: @json($availableAssets ?? []),
+
+        // Init
         init() {
-            console.log('Component editor initialized for:', this.component.name);
+            console.log('Component Editor initialized');
             this.updatePreview();
+            this.setupAutoSave();
         },
 
-        // Marcar cambios
-        markAsChanged() {
-            this.hasChanges = true;
+        // Setup auto-save
+        setupAutoSave() {
+            this.$watch('component', () => {
+                this.hasChanges = true;
+                this.debouncedAutoSave();
+            }, { deep: true });
+        },
+
+        // Debounced auto-save
+        debouncedAutoSave() {
+            clearTimeout(this.autoSaveTimeout);
+            this.autoSaveTimeout = setTimeout(() => {
+                this.autoSave();
+            }, 3000);
+        },
+
+        // Auto-save
+        async autoSave() {
+            if (!this.hasChanges || this.isSaving) return;
+
+            this.autoSaving = true;
+            try {
+                await this.saveComponent(false); // false = no mostrar notificación
+                this.hasChanges = false;
+            } catch (error) {
+                console.error('Auto-save failed:', error);
+            } finally {
+                this.autoSaving = false;
+            }
+        },
+
+        // Update identifier based on name
+        updateIdentifier() {
+            if (!this.component.identifier) {
+                this.component.identifier = this.component.name
+                    .toLowerCase()
+                    .replace(/[^a-z0-9\s-]/g, '')
+                    .replace(/\s+/g, '-')
+                    .replace(/-+/g, '-')
+                    .trim('-');
+            }
         },
 
         // Asset management
@@ -349,122 +395,113 @@ function componentEditor() {
             const index = this.component.external_assets.indexOf(asset);
             if (index > -1) {
                 this.component.external_assets.splice(index, 1);
-                this.markAsChanged();
                 this.updatePreview();
             }
         },
 
-        // Preview con debounce
-        debouncedUpdatePreview() {
-            if (this.previewTimeout) {
-                clearTimeout(this.previewTimeout);
-            }
+        // Communication events
+        addEmittedEvent() {
+            this.component.communication_config.emits.push({
+                name: '',
+                type: 'normal'
+            });
+        },
+
+        removeEmittedEvent(index) {
+            this.component.communication_config.emits.splice(index, 1);
+        },
+
+        addListenedEvent() {
+            this.component.communication_config.listens.push({
+                name: '',
+                callback: ''
+            });
+        },
+
+        removeListenedEvent(index) {
+            this.component.communication_config.listens.splice(index, 1);
+        },
+
+        addStateKey() {
+            this.component.communication_config.state.push({
+                key: '',
+                defaultValue: '',
+                type: 'string'
+            });
+        },
+
+        removeStateKey(index) {
+            this.component.communication_config.state.splice(index, 1);
+        },
+
+        // Preview updates
+        updatePreview() {
+            if (this.isUpdatingPreview) return;
             
+            clearTimeout(this.previewTimeout);
             this.previewTimeout = setTimeout(() => {
-                this.updatePreview();
-            }, 800);
+                this.generatePreview();
+            }, 500);
         },
 
-        async updatePreview() {
+        // Generate preview
+        async generatePreview() {
             if (this.isUpdatingPreview) return;
             
             this.isUpdatingPreview = true;
-
+            
             try {
-                const response = await fetch('/api/component-builder/preview', {
+                const response = await fetch(`/admin/page-builder/components/${this.component.id}/preview`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                     },
                     body: JSON.stringify({
-                        component_code: this.component.blade_template,
+                        blade_template: this.component.blade_template,
                         external_assets: this.component.external_assets,
                         test_data: {
-                            title: 'Título de Prueba',
-                            subtitle: 'Subtítulo de prueba',
-                            description: 'Esta es una descripción de prueba para el componente.'
+                            title: 'Título de Ejemplo',
+                            description: 'Descripción de ejemplo para el preview.',
+                            content: 'Contenido de prueba para verificar el componente.',
+                            image: 'https://via.placeholder.com/400x200/6366f1/ffffff?text=Preview',
+                            url: '#',
+                            button_text: 'Ver más',
+                            price: '$99.99',
+                            date: new Date().toLocaleDateString('es-ES'),
+                            author: 'Usuario de Prueba'
                         }
                     })
                 });
 
-                const data = await response.json();
-                
-                if (data.success) {
-                    this.renderPreview(data.html);
-                } else {
-                    this.renderPreview(`<div class="p-8 text-center text-red-500">
-                        <h3 class="font-bold mb-2">Error en el componente</h3>
-                        <p class="text-sm">${data.error}</p>
-                    </div>`);
+                if (!response.ok) {
+                    throw new Error(`Preview error: ${response.status}`);
                 }
+
+                const previewHtml = await response.text();
+                
+                // Update preview iframe
+                this.$nextTick(() => {
+                    const iframe = this.$refs.previewFrame;
+                    if (iframe) {
+                        iframe.srcdoc = previewHtml;
+                    }
+                });
+
             } catch (error) {
                 console.error('Preview error:', error);
-                this.renderPreview(`<div class="p-8 text-center text-red-500">
-                    <h3 class="font-bold mb-2">Error de conexión</h3>
-                    <p class="text-sm">${error.message}</p>
-                </div>`);
+                this.showNotification('error', 'Error al generar preview: ' + error.message);
             } finally {
                 this.isUpdatingPreview = false;
             }
         },
 
-        renderPreview(html) {
-            const iframe = this.$refs.previewFrame;
-            if (!iframe) return;
-
-            const doc = iframe.contentDocument || iframe.contentWindow.document;
-            doc.open();
-            doc.write(html);
-            doc.close();
-        },
-
-        // Validación simple
-        async validateCode() {
-            try {
-                const response = await fetch('/api/component-builder/validate', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                    },
-                    body: JSON.stringify({
-                        code: this.component.blade_template
-                    })
-                });
-
-                const data = await response.json();
-                
-                if (data.success) {
-                    this.showNotification('success', 'Código válido');
-                } else {
-                    this.showNotification('error', `Error: ${data.error}`);
-                }
-            } catch (error) {
-                this.showNotification('error', 'Error de validación');
-            }
-        },
-
-        // Formatear código básico
-        formatCode() {
-            let code = this.component.blade_template;
-            
-            // Formateo básico
-            code = code.replace(/(<[^>]+>)/g, '\n$1\n');
-            code = code.replace(/\n\s*\n/g, '\n');
-            code = code.trim();
-            
-            this.component.blade_template = code;
-            this.markAsChanged();
-            this.showNotification('info', 'Código formateado');
-        },
-
-        // Guardar componente
-        async saveComponent() {
+        // Save component
+        async saveComponent(showNotification = true) {
             if (this.isSaving) return;
             
             this.isSaving = true;
-
+            
             try {
                 const response = await fetch(`/admin/page-builder/components/${this.component.id}`, {
                     method: 'PUT',
@@ -479,26 +516,131 @@ function componentEditor() {
 
                 if (data.success) {
                     this.hasChanges = false;
-                    this.showNotification('success', 'Componente actualizado exitosamente');
+                    if (showNotification) {
+                        this.showNotification('success', 'Componente guardado exitosamente');
+                    }
                 } else {
-                    this.showNotification('error', data.error || 'Error al actualizar');
+                    throw new Error(data.message || 'Error al guardar');
                 }
+
             } catch (error) {
                 console.error('Save error:', error);
-                this.showNotification('error', 'Error de conexión');
+                this.showNotification('error', 'Error al guardar componente: ' + error.message);
             } finally {
                 this.isSaving = false;
             }
         },
 
-        // Sistema de notificaciones simple
+        // Publish component
+        async publishComponent() {
+            if (!confirm('¿Estás seguro de que quieres publicar este componente?')) {
+                return;
+            }
+
+            try {
+                this.component.is_active = true;
+                await this.saveComponent();
+                this.showNotification('success', 'Componente publicado exitosamente');
+            } catch (error) {
+                this.showNotification('error', 'Error al publicar componente');
+            }
+        },
+
+        // Show notification
         showNotification(type, message) {
-            this.notification = { show: true, type, message };
+            this.notification = {
+                show: true,
+                type: type,
+                message: message
+            };
+
             setTimeout(() => {
                 this.notification.show = false;
-            }, 4000);
+            }, 5000);
+        },
+
+        // Close notification
+        closeNotification() {
+            this.notification.show = false;
+        },
+
+        async showComponentPreview() {
+            try {
+                // Usar los datos del componente actual
+                this.previewComponent = {
+                    id: this.component.id,
+                    name: this.component.name,
+                    description: this.component.description,
+                    external_assets: this.component.external_assets
+                };
+
+                // Generar preview con el código actual
+                const previewResponse = await fetch(`/admin/page-builder/components/${this.component.id}/preview`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify({
+                        blade_template: this.component.blade_template,
+                        external_assets: this.component.external_assets,
+                        test_data: {
+                            title: 'Título de Ejemplo',
+                            description: 'Descripción de ejemplo para el preview.',
+                            content: 'Contenido de prueba para verificar el componente.',
+                            image: 'https://via.placeholder.com/400x200/6366f1/ffffff?text=Preview',
+                            url: '#',
+                            button_text: 'Ver más'
+                        }
+                    })
+                });
+
+                if (!previewResponse.ok) {
+                    throw new Error(`Preview error: ${previewResponse.status}`);
+                }
+
+                const previewHtml = await previewResponse.text();
+                
+                // Mostrar el modal
+                this.showPreviewModal = true;
+                
+                // Cargar el HTML en el iframe después de que el modal se muestre
+                this.$nextTick(() => {
+                    const iframe = this.$refs.modalPreviewFrame;
+                    if (iframe) {
+                        iframe.srcdoc = previewHtml;
+                    }
+                });
+
+            } catch (error) {
+                console.error('Error in showComponentPreview:', error);
+                this.showNotification('error', 'Error al cargar preview: ' + error.message);
+            }
+        },
+
+        // Agregar método faltante
+        markAsChanged() {
+            this.hasChanges = true;
+        },
+
+        // Debounced update preview (faltaba)
+        debouncedUpdatePreview() {
+            clearTimeout(this.previewTimeout);
+            this.previewTimeout = setTimeout(() => {
+                this.updatePreview();
+            }, 1000);
+        },
+
+        // Handle form submission
+        async submitForm() {
+            await this.saveComponent();
+        },
+
+        // Navigate back
+        goBack() {
+            window.location.href = '{{ route("component-builder.index") }}';
         }
-    }
+    };
 }
 </script>
 @endsection

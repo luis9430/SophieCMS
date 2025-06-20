@@ -182,58 +182,71 @@ class ComponentBuilderController extends Controller
         ];
     }
 
-    /**
-     * Actualizar componente
-     */
-    public function update(Request $request, Component $component)
+    public function update(Request $request, $id)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'identifier' => 'required|string|max:255|unique:components,identifier,' . $component->id,
-            'category' => 'required|string|max:50',
-            'description' => 'nullable|string|max:500',
-            'blade_template' => 'required|string',
-            'external_assets' => 'nullable|array',
-            'communication_config' => 'nullable|array',
-            'props_schema' => 'nullable|array',
-            'preview_config' => 'nullable|array',
-        ]);
-
         try {
-            // Validar código Blade
-            $this->validateBladeCode($validated['blade_template']);
-
-            // Incrementar versión si cambió el template
-            $newVersion = $component->version;
-            if ($component->blade_template !== $validated['blade_template']) {
-                $newVersion = $this->incrementVersion($component->version);
-            }
-
-            $component->update([
-                'name' => $validated['name'],
-                'identifier' => $validated['identifier'],
-                'category' => $validated['category'],
-                'description' => $validated['description'] ?? '',
-                'blade_template' => $validated['blade_template'],
-                'external_assets' => $validated['external_assets'] ?? [],
-                'communication_config' => $validated['communication_config'] ?? [],
-                'props_schema' => $validated['props_schema'] ?? [],
-                'preview_config' => $validated['preview_config'] ?? [],
-                'last_edited_at' => now(),
-                'version' => $newVersion,
+            $component = Component::findOrFail($id);
+            
+            // Validar datos
+            $validatedData = $request->validate([
+                'name' => 'required|string|max:255',
+                'identifier' => 'required|string|max:255|unique:components,identifier,' . $id,
+                'category' => 'required|string|max:100',
+                'description' => 'nullable|string',
+                'blade_template' => 'required|string',
+                'external_assets' => 'array',
+                'external_assets.*' => 'string',
+                'communication_config' => 'array',
+                'props_schema' => 'array',
+                'preview_config' => 'array',
+                'is_active' => 'boolean'
             ]);
-
+            
+            // Incrementar versión correctamente
+            $currentVersion = $component->version ?? '1.0.0';
+            $newVersion = $this->incrementVersion($currentVersion);
+            
+            // Actualizar componente
+            $component->update([
+                'name' => $validatedData['name'],
+                'identifier' => $validatedData['identifier'],
+                'category' => $validatedData['category'],
+                'description' => $validatedData['description'] ?? '',
+                'blade_template' => $validatedData['blade_template'],
+                'external_assets' => $validatedData['external_assets'] ?? [],
+                'communication_config' => $validatedData['communication_config'] ?? [],
+                'props_schema' => $validatedData['props_schema'] ?? (object)[],
+                'preview_config' => $validatedData['preview_config'] ?? (object)[],
+                'is_active' => $validatedData['is_active'] ?? $component->is_active,
+                'last_edited_at' => now(),
+                'version' => $newVersion
+            ]);
+            
             return response()->json([
                 'success' => true,
                 'message' => 'Componente actualizado exitosamente',
                 'component' => $component->fresh()
             ]);
-
-        } catch (\Exception $e) {
+            
+        } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
-                'error' => 'Error al actualizar: ' . $e->getMessage()
+                'message' => 'Datos de validación incorrectos',
+                'errors' => $e->errors()
             ], 422);
+            
+        } catch (\Exception $e) {
+            \Log::error('Update component error: ' . $e->getMessage(), [
+                'component_id' => $id,
+                'request_data' => $request->all(),
+                'error_line' => $e->getLine(),
+                'error_file' => $e->getFile()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al actualizar componente: ' . $e->getMessage()
+            ], 500);
         }
     }
 
@@ -257,67 +270,82 @@ class ComponentBuilderController extends Controller
         ]);
     }
 
-    /**
-     * Duplicar componente
-     */
-    public function duplicate(Component $component)
-    {
-        $newComponent = $component->replicate();
-        $newComponent->name = $component->name . ' (Copia)';
-        $newComponent->identifier = $component->identifier . '-copy-' . time();
-        $newComponent->created_by_user_id = Auth::id();
-        $newComponent->last_edited_at = now();
-        $newComponent->version = '1.0.0';
-        $newComponent->preview_image = null;
-        $newComponent->save();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Componente duplicado exitosamente',
-            'component' => $newComponent
-        ]);
-    }
-
-    /**
-     * Preview de componente en tiempo real
-     */
-        public function preview(Request $request)
+        public function preview(Request $request, $id)
         {
             try {
-                $content = $request->input('component_code', '');
-                $externalAssets = $request->input('external_assets', []);
+                $component = Component::findOrFail($id);
+                
+                // Si se envía blade_template en el request, usar ese (para edit.blade.php)
+                // Si no, usar el del componente (para index.blade.php)
+                $bladeTemplate = $request->input('blade_template', $component->blade_template);
+                $externalAssets = $request->input('external_assets', $component->external_assets ?? []);
                 $testData = $request->input('test_data', []);
-
-                // Verificar que el contenido no esté vacío
-                if (empty(trim($content))) {
-                    return response()->json([
-                        'success' => true,
-                        'html' => '<div class="p-8 text-center text-gray-500">El código del componente está vacío</div>'
-                    ]);
-                }
-
-                // Generar HTML con assets
-                $html = $this->generateComponentPreviewSafe($content, $externalAssets, $testData);
-
-                return response()->json([
-                    'success' => true,
-                    'html' => $html
-                ]);
-
+                
+                // Datos por defecto si no se proporcionan
+                $defaultTestData = [
+                    'title' => 'Título de Ejemplo',
+                    'description' => 'Descripción de ejemplo para el componente.',
+                    'content' => 'Contenido de prueba para verificar el componente.',
+                    'image' => 'https://via.placeholder.com/400x200/6366f1/ffffff?text=Preview',
+                    'url' => '#',
+                    'button_text' => 'Ver más',
+                    'price' => '$99.99',
+                    'date' => now()->format('d/m/Y'),
+                    'author' => 'Usuario de Prueba',
+                    'items' => [
+                        ['name' => 'Item 1', 'value' => 'Valor 1'],
+                        ['name' => 'Item 2', 'value' => 'Valor 2'],
+                        ['name' => 'Item 3', 'value' => 'Valor 3']
+                    ]
+                ];
+                
+                $finalTestData = array_merge($defaultTestData, $testData);
+                
+                $html = $this->generateComponentPreviewSafe(
+                    $bladeTemplate,
+                    $externalAssets,
+                    $finalTestData
+                );
+                
+                return response($html)->header('Content-Type', 'text/html');
+                
             } catch (\Exception $e) {
-                \Log::error('Preview error', [
+                \Log::error('Preview error: ' . $e->getMessage(), [
+                    'component_id' => $id,
                     'error' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine()
+                    'trace' => $e->getTraceAsString(),
+                    'request_data' => $request->all()
                 ]);
-
-                return response()->json([
-                    'success' => false,
-                    'error' => 'Error en preview: ' . $e->getMessage()
-                ]);
+                
+                $errorHtml = '<!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Error en Preview</title>
+                    <script src="https://cdn.tailwindcss.com"></script>
+                </head>
+                <body class="bg-gray-50 p-8">
+                    <div class="max-w-md mx-auto bg-white rounded-lg shadow p-6">
+                        <div class="text-red-600 mb-4 text-center">
+                            <svg class="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-medium text-gray-900 text-center mb-2">Error en Preview</h3>
+                        <p class="text-sm text-gray-600 text-center mb-4">' . htmlspecialchars($e->getMessage()) . '</p>
+                        <div class="text-xs text-gray-400 text-center">
+                            <details>
+                                <summary class="cursor-pointer hover:text-gray-600">Ver detalles técnicos</summary>
+                                <pre class="mt-2 text-left whitespace-pre-wrap">' . htmlspecialchars($e->getTraceAsString()) . '</pre>
+                            </details>
+                        </div>
+                    </div>
+                </body>
+                </html>';
+                
+                return response($errorHtml)->header('Content-Type', 'text/html');
             }
         }
-
     /**
      * Preview multi-componente para testear comunicación
      */
@@ -564,59 +592,148 @@ class ComponentBuilderController extends Controller
     }
 
 
-    private function incrementVersion(string $version): string
-    {
-        $parts = explode('.', $version);
-        $parts[2] = (int)$parts[2] + 1;
-        return implode('.', $parts);
-    }
+        private function incrementVersion(string $version): string
+        {
+            // Manejar diferentes formatos de versión
+            if (preg_match('/^(\d+)\.(\d+)\.(\d+)$/', $version, $matches)) {
+                // Formato x.y.z - incrementar el patch
+                $major = (int)$matches[1];
+                $minor = (int)$matches[2];
+                $patch = (int)$matches[3] + 1;
+                return "{$major}.{$minor}.{$patch}";
+            } elseif (preg_match('/^(\d+)\.(\d+)$/', $version, $matches)) {
+                // Formato x.y - incrementar el minor
+                $major = (int)$matches[1];
+                $minor = (int)$matches[2] + 1;
+                return "{$major}.{$minor}";
+            } elseif (is_numeric($version)) {
+                // Solo número - incrementar
+                return (string)((float)$version + 0.1);
+            } else {
+                // Formato desconocido - devolver versión por defecto
+                return '1.0.1';
+            }
+        }
+        public function previewById(Component $component, Request $request)
+        {
+            try {
+                $testData = $request->input('test_data', [
+                    'title' => 'Título de Prueba',
+                    'description' => 'Esta es una descripción de prueba para el componente.'
+                ]);
 
-            public function previewById(Component $component, Request $request)
-            {
-                try {
-                    $testData = $request->input('test_data', [
-                        'title' => 'Título de Prueba',
-                        'description' => 'Esta es una descripción de prueba para el componente.'
-                    ]);
-
-                    // Verificar que el componente tiene contenido
-                    if (empty($component->blade_template)) {
-                        return response()->json([
-                            'success' => false,
-                            'error' => 'El componente no tiene código definido'
-                        ]);
-                    }
-
-                    $html = $this->generateComponentPreview(
-                        $component->blade_template,
-                        $component->external_assets ?? [],
-                        $testData
-                    );
-
-                    return response()->json([
-                        'success' => true,
-                        'html' => $html,
-                        'component' => [
-                            'id' => $component->id,
-                            'name' => $component->name,
-                            'description' => $component->description,
-                            'external_assets' => $component->external_assets ?? []
-                        ]
-                    ]);
-
-                } catch (\Exception $e) {
-                    \Log::error('Component preview by ID error', [
-                        'component_id' => $component->id,
-                        'error' => $e->getMessage(),
-                        'line' => $e->getLine(),
-                        'file' => $e->getFile()
-                    ]);
-
+                // Verificar que el componente tiene contenido
+                if (empty($component->blade_template)) {
                     return response()->json([
                         'success' => false,
-                        'error' => 'Error al generar preview: ' . $e->getMessage()
+                        'error' => 'El componente no tiene código definido'
                     ]);
                 }
+
+                $html = $this->generateComponentPreview(
+                    $component->blade_template,
+                    $component->external_assets ?? [],
+                    $testData
+                );
+
+                return response()->json([
+                    'success' => true,
+                    'html' => $html,
+                    'component' => [
+                        'id' => $component->id,
+                        'name' => $component->name,
+                        'description' => $component->description,
+                        'external_assets' => $component->external_assets ?? []
+                    ]
+                ]);
+
+            } catch (\Exception $e) {
+                \Log::error('Component preview by ID error', [
+                    'component_id' => $component->id,
+                    'error' => $e->getMessage(),
+                    'line' => $e->getLine(),
+                    'file' => $e->getFile()
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Error al generar preview: ' . $e->getMessage()
+                ]);
             }
+        }
+
+
+    public function getComponentData($id)
+{
+    try {
+        $component = Component::findOrFail($id);
+        
+        return response()->json([
+            'success' => true,
+            'component' => $component
+        ]);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Componente no encontrado'
+        ], 404);
+    }
+}
+
+        /**
+         * Preview de componente (método específico para API)
+         */
+        public function apiPreview(Request $request, $id)
+        {
+            try {
+                $component = Component::findOrFail($id);
+                $testData = $request->input('test_data', []);
+                
+                $html = $this->generateComponentPreviewSafe(
+                    $component->blade_template,
+                    $component->external_assets ?? [],
+                    $testData
+                );
+                
+                return response($html)->header('Content-Type', 'text/html');
+                
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+        }
+
+        /**
+         * Duplicar componente
+         */
+        public function duplicate($id)
+        {
+            try {
+                $original = Component::findOrFail($id);
+                
+                $duplicate = $original->replicate();
+                $duplicate->name = $original->name . ' (Copia)';
+                $duplicate->identifier = $original->identifier . '_copy_' . time();
+                $duplicate->is_active = false; // Las copias inician inactivas
+                $duplicate->created_at = now();
+                $duplicate->updated_at = now();
+                $duplicate->save();
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Componente duplicado exitosamente',
+                    'component' => $duplicate
+                ]);
+                
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error al duplicar componente: ' . $e->getMessage()
+                ], 500);
+            }
+        }
 
 }

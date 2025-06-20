@@ -17,7 +17,6 @@ Route::prefix('admin')->group(function () {
         
 });
 
-
 Route::prefix('admin/page-builder')->group(function () {
     
     // Component Builder - CRUD de componentes
@@ -39,11 +38,19 @@ Route::prefix('admin/page-builder')->group(function () {
     Route::delete('/components/{component}', [ComponentBuilderController::class, 'destroy'])
         ->name('component-builder.destroy');
     
-    // Duplicate component
+    // Preview del componente - UNA SOLA RUTA
+    Route::post('/components/{component}/preview', [ComponentBuilderController::class, 'preview'])
+        ->name('component-builder.preview');
+    
+    // Para duplicar componente
     Route::post('/components/{component}/duplicate', [ComponentBuilderController::class, 'duplicate'])
         ->name('component-builder.duplicate');
+    
+    // Para obtener datos del componente en JSON
+    Route::get('/components/{component}/data', [ComponentBuilderController::class, 'getComponentData'])
+        ->name('component-builder.data');
+        
 });
-
 
 
 Route::prefix('api/component-builder')->middleware(['auth'])->group(function () {
