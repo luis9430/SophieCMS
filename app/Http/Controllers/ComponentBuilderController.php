@@ -1014,378 +1014,152 @@ class ComponentBuilderController extends Controller
 
         private function getComponentSystemJS(): string
         {
+            // Cargar solo el core + scripts de plugins necesarios
+            $coreJS = $this->loadComponentManagerCore();
+            $pluginsJS = $this->loadRequiredPlugins();
+            $initJS = $this->getInitializationJS();
+            
+            return $coreJS . $pluginsJS . $initJS;
+        }
+
+
+        private function loadComponentManagerCore(): string
+        {
+            $coreFile = public_path('js/component-system/core/ComponentManager.js');
+            
+            if (file_exists($coreFile)) {
+                return "\n// ComponentManager Core\n" . file_get_contents($coreFile) . "\n";
+            }
+            
+            // Fallback básico si el archivo no existe
+            return $this->getCoreComponentSystemFallback();
+        }
+
+        private function getCoreComponentSystemFallback(): string
+        {
             return '
-                // ComponentSystem v2.0 - Core + Plugins integrados
-                window.ComponentSystem = {
+                // ComponentManager Fallback
+                window.ComponentManager = {
                     activeComponents: new Map(),
                     loadedPlugins: new Set(),
                     
                     init() {
-                        console.log("🚀 ComponentSystem v2.0 initialized");
-                        this.setupGlobalComponents();
+                        console.log("🚀 ComponentManager (fallback) initialized");
+                        this.waitForAlpine();
                     },
                     
-                    setupGlobalComponents() {
-                        // Registrar componentes básicos cuando Alpine esté listo
-                        document.addEventListener("alpine:init", () => {
-                            this.registerSwiperComponents();
-                            this.registerGSAPComponents();
-                            console.log("📦 All components registered");
+                    waitForAlpine() {
+                        if (typeof window.Alpine !== "undefined") {
+                            document.addEventListener("alpine:init", () => {
+                                this.initializePlugins();
+                            });
+                        } else {
+                            setTimeout(() => this.waitForAlpine(), 50);
+                        }
+                    },
+                    
+                    initializePlugins() {
+                        // Auto-inicializar plugins disponibles
+                        const plugins = ["SwiperPlugin", "GSAPPlugin"];
+                        
+                        plugins.forEach(pluginName => {
+                            if (window[pluginName]) {
+                                try {
+                                    const plugin = new window[pluginName]();
+                                    plugin.init().then(() => {
+                                        plugin.registerAlpineComponents();
+                                        this.loadedPlugins.add(pluginName.replace("Plugin", ""));
+                                        console.log(`✅ ${pluginName} loaded`);
+                                    });
+                                } catch (error) {
+                                    console.error(`❌ Error loading ${pluginName}:`, error);
+                                }
+                            }
                         });
-                    },
-                    
-                    registerSwiperComponents() {
-                        if (typeof window.Swiper === "undefined") {
-                            console.warn("⚠️ Swiper not loaded, skipping Swiper components");
-                            return;
-                        }
-                        
-                        // Swiper Básico
-                        Alpine.data("swiperBasic", (config = {}) => ({
-                            swiper: null,
-                            config: {
-                                navigation: true,
-                                pagination: true,
-                                slidesPerView: 1,
-                                spaceBetween: 30,
-                                loop: false,
-                                autoplay: false,
-                                ...config
-                            },
-                            componentId: null,
-                            
-                            init() {
-                                this.componentId = ComponentSystem.generateId();
-                                ComponentSystem.registerComponent("swiperBasic", this.componentId, this.$el);
-                                
-                                this.$nextTick(() => {
-                                    this.initSwiper();
-                                });
-                            },
-                            
-                            initSwiper() {
-                                try {
-                                    const swiperEl = this.$el.querySelector(".swiper");
-                                    if (!swiperEl) {
-                                        console.error("🎠 Swiper container not found");
-                                        return;
-                                    }
-                                    
-                                    // Configurar navegación si está habilitada
-                                    if (this.config.navigation === true) {
-                                        this.config.navigation = {
-                                            nextEl: ".swiper-button-next",
-                                            prevEl: ".swiper-button-prev",
-                                        };
-                                    }
-                                    
-                                    // Configurar paginación si está habilitada
-                                    if (this.config.pagination === true) {
-                                        this.config.pagination = {
-                                            el: ".swiper-pagination",
-                                            clickable: true,
-                                        };
-                                    }
-                                    
-                                    this.swiper = new Swiper(swiperEl, this.config);
-                                    
-                                    console.log("🎠 Basic Swiper initialized:", this.componentId);
-                                } catch (error) {
-                                    console.error("🎠 Swiper initialization error:", error);
-                                }
-                            },
-                            
-                            destroy() {
-                                if (this.swiper) {
-                                    this.swiper.destroy(true, true);
-                                }
-                                ComponentSystem.unregisterComponent(this.componentId);
-                            }
-                        }));
-                        
-                        // Swiper Avanzado
-                        Alpine.data("swiperAdvanced", (config = {}) => ({
-                            swiper: null,
-                            config: {
-                                navigation: {
-                                    nextEl: ".swiper-button-next",
-                                    prevEl: ".swiper-button-prev",
-                                },
-                                pagination: {
-                                    el: ".swiper-pagination",
-                                    clickable: true,
-                                    dynamicBullets: true,
-                                },
-                                breakpoints: {
-                                    640: { slidesPerView: 1, spaceBetween: 20 },
-                                    768: { slidesPerView: 2, spaceBetween: 30 },
-                                    1024: { slidesPerView: 3, spaceBetween: 40 }
-                                },
-                                effect: "slide",
-                                ...config
-                            },
-                            componentId: null,
-                            
-                            init() {
-                                this.componentId = ComponentSystem.generateId();
-                                ComponentSystem.registerComponent("swiperAdvanced", this.componentId, this.$el);
-                                
-                                this.$nextTick(() => {
-                                    this.initSwiper();
-                                });
-                            },
-                            
-                            initSwiper() {
-                                try {
-                                    const swiperEl = this.$el.querySelector(".swiper");
-                                    if (!swiperEl) return;
-                                    
-                                    this.swiper = new Swiper(swiperEl, this.config);
-                                    
-                                    // Eventos personalizados
-                                    this.swiper.on("slideChange", () => {
-                                        this.$dispatch("swiper-change", {
-                                            activeIndex: this.swiper.activeIndex,
-                                            componentId: this.componentId
-                                        });
-                                    });
-                                    
-                                    console.log("🎠 Advanced Swiper initialized:", this.componentId);
-                                } catch (error) {
-                                    console.error("🎠 Advanced Swiper error:", error);
-                                }
-                            },
-                            
-                            // Métodos públicos
-                            nextSlide() {
-                                if (this.swiper) this.swiper.slideNext();
-                            },
-                            
-                            prevSlide() {
-                                if (this.swiper) this.swiper.slidePrev();
-                            },
-                            
-                            goToSlide(index) {
-                                if (this.swiper) this.swiper.slideTo(index);
-                            },
-                            
-                            destroy() {
-                                if (this.swiper) {
-                                    this.swiper.destroy(true, true);
-                                }
-                                ComponentSystem.unregisterComponent(this.componentId);
-                            }
-                        }));
-                        
-                        // Swiper E-commerce
-                        Alpine.data("swiperEcommerce", (config = {}) => ({
-                            swiper: null,
-                            config: {
-                                slidesPerView: 1,
-                                spaceBetween: 10,
-                                navigation: {
-                                    nextEl: ".swiper-button-next",
-                                    prevEl: ".swiper-button-prev",
-                                },
-                                pagination: {
-                                    el: ".swiper-pagination",
-                                    clickable: true,
-                                },
-                                breakpoints: {
-                                    640: { slidesPerView: 2, spaceBetween: 20 },
-                                    768: { slidesPerView: 3, spaceBetween: 30 },
-                                    1024: { slidesPerView: 4, spaceBetween: 30 }
-                                },
-                                watchSlidesProgress: true,
-                                watchSlidesVisibility: true,
-                                ...config
-                            },
-                            componentId: null,
-                            
-                            init() {
-                                this.componentId = ComponentSystem.generateId();
-                                ComponentSystem.registerComponent("swiperEcommerce", this.componentId, this.$el);
-                                
-                                this.$nextTick(() => {
-                                    this.initSwiper();
-                                });
-                            },
-                            
-                            initSwiper() {
-                                try {
-                                    const swiperEl = this.$el.querySelector(".swiper");
-                                    if (!swiperEl) return;
-                                    
-                                    this.swiper = new Swiper(swiperEl, this.config);
-                                    
-                                    this.swiper.on("slideChange", () => {
-                                        this.$dispatch("product-change", {
-                                            activeIndex: this.swiper.activeIndex,
-                                            componentId: this.componentId
-                                        });
-                                    });
-                                    
-                                    console.log("🛒 E-commerce Swiper initialized:", this.componentId);
-                                } catch (error) {
-                                    console.error("🛒 E-commerce Swiper error:", error);
-                                }
-                            },
-                            
-                            destroy() {
-                                if (this.swiper) {
-                                    this.swiper.destroy(true, true);
-                                }
-                                ComponentSystem.unregisterComponent(this.componentId);
-                            }
-                        }));
-                        
-                        ComponentSystem.loadedPlugins.add("swiper");
-                        console.log("🎠 Swiper components registered");
-                    },
-                    
-                    registerGSAPComponents() {
-                        if (typeof window.gsap === "undefined") {
-                            console.warn("⚠️ GSAP not loaded, skipping GSAP components");
-                            return;
-                        }
-                        
-                        // GSAP Fade
-                        Alpine.data("gsapFade", (config = {}) => ({
-                            config: {
-                                duration: 1,
-                                delay: 0,
-                                direction: "in",
-                                trigger: "scroll",
-                                ease: "power2.out",
-                                ...config
-                            },
-                            componentId: null,
-                            animation: null,
-                            
-                            init() {
-                                this.componentId = ComponentSystem.generateId();
-                                ComponentSystem.registerComponent("gsapFade", this.componentId, this.$el);
-                                
-                                this.$nextTick(() => {
-                                    this.setupAnimation();
-                                });
-                            },
-                            
-                            setupAnimation() {
-                                if (this.config.direction === "in") {
-                                    gsap.set(this.$el, { opacity: 0 });
-                                }
-                                
-                                this.createAnimation();
-                                
-                                if (this.config.trigger === "scroll") {
-                                    this.setupScrollTrigger();
-                                } else if (this.config.trigger === "init") {
-                                    this.play();
-                                }
-                            },
-                            
-                            createAnimation() {
-                                if (this.config.direction === "in") {
-                                    this.animation = gsap.to(this.$el, {
-                                        opacity: 1,
-                                        duration: this.config.duration,
-                                        delay: this.config.delay,
-                                        ease: this.config.ease,
-                                        paused: true
-                                    });
-                                }
-                            },
-                            
-                            setupScrollTrigger() {
-                                const observer = new IntersectionObserver((entries) => {
-                                    entries.forEach(entry => {
-                                        if (entry.isIntersecting) {
-                                            this.play();
-                                            observer.unobserve(this.$el);
-                                        }
-                                    });
-                                }, { threshold: 0.1 });
-                                
-                                observer.observe(this.$el);
-                            },
-                            
-                            play() {
-                                if (this.animation) {
-                                    this.animation.play();
-                                }
-                            },
-                            
-                            destroy() {
-                                if (this.animation) {
-                                    this.animation.kill();
-                                }
-                                ComponentSystem.unregisterComponent(this.componentId);
-                            }
-                        }));
-                        
-                        ComponentSystem.loadedPlugins.add("gsap");
-                        console.log("✨ GSAP components registered");
                     },
                     
                     registerComponent(type, id, element) {
-                        this.activeComponents.set(id, {
-                            type,
-                            element,
-                            createdAt: Date.now()
-                        });
-                        
-                        if (window.location.hostname.includes("local") || window.location.hostname === "localhost") {
-                            console.log(`📝 Component registered: ${type} (${id})`);
-                        }
+                        this.activeComponents.set(id, { type, element, createdAt: Date.now() });
+                        console.log(`📝 Component registered: ${type} (${id})`);
                     },
                     
                     unregisterComponent(id) {
-                        const component = this.activeComponents.get(id);
-                        if (component) {
-                            this.activeComponents.delete(id);
-                            
-                            if (window.location.hostname.includes("local") || window.location.hostname === "localhost") {
-                                console.log(`🗑️ Component unregistered: ${component.type} (${id})`);
-                            }
-                        }
+                        this.activeComponents.delete(id);
                     },
                     
                     generateId() {
-                        return "comp_" + Math.random().toString(36).substr(2, 9) + "_" + Date.now().toString(36);
+                        return "comp_" + Math.random().toString(36).substr(2, 9);
                     },
                     
                     getStats() {
-                        const stats = {
+                        return {
                             totalComponents: this.activeComponents.size,
                             loadedPlugins: Array.from(this.loadedPlugins),
-                            version: "2.0",
-                            componentsByType: {}
+                            version: "2.0-fallback"
                         };
-                        
-                        for (let [id, component] of this.activeComponents.entries()) {
-                            const type = component.type;
-                            stats.componentsByType[type] = (stats.componentsByType[type] || 0) + 1;
-                        }
-                        
-                        return stats;
                     }
                 };
-                
-                // Auto-inicializar
-                if (document.readyState === "loading") {
-                    document.addEventListener("DOMContentLoaded", () => {
-                        ComponentSystem.init();
-                    });
-                } else {
-                    ComponentSystem.init();
-                }
-                
-                // Helper global para debug
-                window.debugComponents = () => {
-                    console.table(ComponentSystem.getStats());
-                };
             ';
+        }
+
+
+        public function debugFiles()
+        {
+            $coreFile = public_path('js/component-system/core/ComponentManager.js');
+            $pluginsDir = public_path('js/component-system/plugins');
+            
+            $result = [
+                'core_exists' => file_exists($coreFile),
+                'core_path' => $coreFile,
+                'plugins_dir_exists' => is_dir($pluginsDir),
+                'plugins_dir' => $pluginsDir,
+                'available_plugins' => $this->detectAvailablePlugins(),
+                'public_path' => public_path(),
+            ];
+            
+            return response()->json($result);
+        }
+
+        /**
+         * Cargar plugins requeridos basado en detección automática
+         */
+        private function loadRequiredPlugins(): string
+        {
+            $js = '';
+            
+            // Detectar qué plugins están disponibles
+            $availablePlugins = $this->detectAvailablePlugins();
+            
+            foreach ($availablePlugins as $plugin) {
+                $pluginFile = public_path("js/component-system/plugins/{$plugin}.js");
+                
+                if (file_exists($pluginFile)) {
+                    $js .= "\n// {$plugin}\n";
+                    $js .= file_get_contents($pluginFile) . "\n";
+                }
+            }
+            
+            return $js;
+        }
+
+        /**
+         * Detectar plugins disponibles en el directorio
+         */
+        private function detectAvailablePlugins(): array
+        {
+            $pluginsDir = public_path('js/component-system/plugins');
+            $plugins = [];
+            
+            if (is_dir($pluginsDir)) {
+                $files = glob($pluginsDir . '/*.js');
+                
+                foreach ($files as $file) {
+                    $filename = basename($file, '.js');
+                    $plugins[] = $filename;
+                }
+            }
+            
+            return $plugins;
         }
 
 
@@ -1544,54 +1318,25 @@ class ComponentBuilderController extends Controller
         }
 
 
-        private function getInitializationJS(array $requiredLibraries): string
+        private function getInitializationJS(): string
         {
-            $js = '';
-            
-            // Auto-inicializar ComponentSystem
-            $js .= '
-                // Auto-inicialización
+            return '
+                // Auto-inicialización del sistema
                 if (document.readyState === "loading") {
                     document.addEventListener("DOMContentLoaded", () => {
-                        ComponentSystem.init();
-                    });
-                } else {
-                    ComponentSystem.init();
-                }
-            ';
-            
-            // Inicialización específica por librería
-            if (in_array('aos', $requiredLibraries)) {
-                $js .= '
-                    // Inicializar AOS automáticamente
-                    document.addEventListener("DOMContentLoaded", () => {
-                        if (typeof AOS !== "undefined") {
-                            AOS.init({
-                                duration: 800,
-                                once: true,
-                                offset: 100
-                            });
-                            console.log("🎭 AOS initialized");
+                        if (window.ComponentManager) {
+                            ComponentManager.init();
                         }
                     });
-                ';
-            }
-            
-            // Debug info para desarrollo
-            if (config('app.env') === 'local') {
-                $js .= '
-                    // Debug info para desarrollo
-                    console.log("📊 Libraries detected:", ' . json_encode($requiredLibraries) . ');
-                    console.log("🛠️ Environment: development");
-                    
-                    // Helper global para debug
-                    window.debugComponents = () => {
-                        console.table(ComponentSystem.getStats());
-                    };
-                ';
-            }
-            
-            return $js;
+                } else {
+                    if (window.ComponentManager) {
+                        ComponentManager.init();
+                    }
+                }
+                
+                // Debug info
+                console.log("📦 Component System loaded with plugins:", Object.keys(window).filter(key => key.endsWith("Plugin")));
+            ';
         }
 
 

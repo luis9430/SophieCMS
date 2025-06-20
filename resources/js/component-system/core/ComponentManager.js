@@ -221,6 +221,14 @@ window.ComponentManager = {
         window.debugComponents = () => {
             console.table(this.getStats());
         };
+        
+        // Helper para testing
+        window.testPlugin = async (pluginName) => {
+            console.log(`🧪 Testing plugin: ${pluginName}`);
+            const result = await this.loadPlugin(pluginName);
+            console.log(`Result:`, result ? '✅ Success' : '❌ Failed');
+            return result;
+        };
     }
 };
 

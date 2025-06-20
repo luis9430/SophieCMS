@@ -118,6 +118,9 @@ Route::prefix('api')->group(function () {
         ->name('pagebuilder.preview');
 });
 
+Route::get('/debug-component-files', [ComponentBuilderController::class, 'debugFiles']);
+
+
 // Rutas públicas para mostrar las páginas
 Route::get('/{page:slug}', [PageController::class, 'show'])
     ->where('page', '^(?!admin|api).*$')
