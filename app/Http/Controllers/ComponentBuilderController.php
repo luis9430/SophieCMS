@@ -156,45 +156,6 @@ class ComponentBuilderController extends Controller
         ];
     }
 
-    private function getAvailableAssetsList(): array
-        {
-            return [
-                'swiper' => [
-                    'name' => 'Swiper (Seguro)',
-                    'description' => 'Mobile touch slider con sistema seguro',
-                    'url' => 'https://cdn.jsdelivr.net/npm/swiper@10/swiper-bundle.min.js',
-                    'css' => 'https://cdn.jsdelivr.net/npm/swiper@10/swiper-bundle.min.css',
-                    'version' => '10.0.0',
-                    'integrity' => 'sha384-...', // Agregar SRI
-                    'component_type' => 'safeSwiper'
-                ],
-                'aos' => [
-                    'name' => 'AOS (Seguro)',
-                    'description' => 'Animate On Scroll con sistema seguro',
-                    'url' => 'https://unpkg.com/aos@2.3.1/dist/aos.js',
-                    'css' => 'https://unpkg.com/aos@2.3.1/dist/aos.css',
-                    'version' => '2.3.1',
-                    'integrity' => 'sha384-...',
-                    'component_type' => 'safeAOS'
-                ],
-                'gsap' => [
-                    'name' => 'GSAP (Seguro)',
-                    'description' => 'GreenSock Animation Platform con sistema seguro',
-                    'url' => 'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js',
-                    'version' => '3.12.2',
-                    'integrity' => 'sha384-...',
-                    'component_type' => 'safeGSAP'
-                ],
-                'dompurify' => [
-                    'name' => 'DOMPurify',
-                    'description' => 'Sanitización XSS (Sistema de seguridad)',
-                    'url' => 'https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js',
-                    'version' => '3.0.5',
-                    'integrity' => 'sha384-...',
-                    'required' => true // Siempre incluido
-                ]
-            ];
-        }
 
     public function update(Request $request, $id)
     {
@@ -404,17 +365,6 @@ class ComponentBuilderController extends Controller
     }
 
     /**
-     * Obtener assets disponibles
-     */
-    public function getAvailableAssets()
-    {
-        return response()->json([
-            'success' => true,
-            'assets' => $this->getAvailableAssetsList()
-        ]);
-    }
-
-    /**
      * Validar código Blade
      */
     public function validateCode(Request $request)
@@ -597,37 +547,7 @@ class ComponentBuilderController extends Controller
                 }
             }
 
-            /**
-             * Generar preview de error
-             */
-            private function generateErrorPreview(string $errorMessage): string
-            {
-                $errorHtml = '<!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Error en Preview</title>
-                    <script src="https://cdn.tailwindcss.com"></script>
-                </head>
-                <body class="bg-gray-50 p-8">
-                    <div class="max-w-md mx-auto bg-white rounded-lg shadow p-6">
-                        <div class="text-red-600 mb-4 text-center">
-                            <svg class="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z"></path>
-                            </svg>
-                        </div>
-                        <h3 class="text-lg font-medium text-gray-900 text-center mb-2">Error en Preview</h3>
-                        <p class="text-sm text-gray-600 text-center mb-4">' . htmlspecialchars($errorMessage) . '</p>
-                        <div class="text-xs text-gray-400 text-center">
-                            <p>Revisa la sintaxis de tu componente Blade</p>
-                        </div>
-                    </div>
-                </body>
-                </html>';
-                
-                return $errorHtml;
-            }
-
-    private function generateMultiComponentPreview(string $main, array $testComponents, array $config, array $assets): string
+            private function generateMultiComponentPreview(string $main, array $testComponents, array $config, array $assets): string
     {
         $content = '<div class="multi-component-preview p-4 space-y-8">';
         
@@ -745,260 +665,8 @@ class ComponentBuilderController extends Controller
         </html>';
     }
 
-      private function getComponentSystemJS(): string
-    {
-        return '
-        window.ComponentSystem = {
-            activeComponents: new Map(),
-            
-            init() {
-                console.log("🚀 ComponentSystem initialized (basic version)");
-                this.setupGlobalComponents();
-            },
-            
-            setupGlobalComponents() {
-                // Swiper Component Seguro - CORREGIDO
-                Alpine.data("safeSwiper", (config = {}) => ({
-                    swiper: null,
-                    config: config,
-                    
-                    init() {
-                        // Esperar a que Swiper esté disponible
-                        this.waitForSwiper();
-                    },
-                    
-                    waitForSwiper() {
-                        if (typeof window.Swiper !== "undefined") {
-                            this.$nextTick(() => {
-                                this.initSwiper();
-                            });
-                        } else {
-                            console.log("⏳ Waiting for Swiper...");
-                            setTimeout(() => this.waitForSwiper(), 100);
-                        }
-                    },
-                    
-                    initSwiper() {
-                        try {
-                            // Buscar el elemento .swiper dentro del contenedor
-                            const swiperElement = this.$el.querySelector(".swiper");
-                            
-                            if (!swiperElement) {
-                                throw new Error("No se encontró elemento .swiper");
-                            }
-                            
-                            console.log("🎯 Initializing Swiper on:", swiperElement);
-                            console.log("🔧 Config:", this.config);
-                            
-                            this.swiper = new Swiper(swiperElement, {
-                                // Configuración base
-                                navigation: {
-                                    nextEl: ".swiper-button-next",
-                                    prevEl: ".swiper-button-prev",
-                                },
-                                pagination: {
-                                    el: ".swiper-pagination",
-                                    clickable: true
-                                },
-                                // Configuración por defecto segura
-                                slidesPerView: 1,
-                                spaceBetween: 10,
-                                loop: false,
-                                // Merge configuración del usuario
-                                ...this.config
-                            });
-                            
-                            console.log("✅ Swiper initialized successfully:", this.swiper);
-                            
-                            // Registrar en el sistema
-                            ComponentSystem.register("swiper", this.swiper, this.$el);
-                            
-                        } catch (error) {
-                            console.error("❌ Swiper init error:", error);
-                            this.$el.innerHTML = "<div class=\"error\">Error initializing slider: " + error.message + "</div>";
-                        }
-                    },
-                    
-                    destroy() {
-                        if (this.swiper) {
-                            this.swiper.destroy(true, true);
-                            ComponentSystem.unregister("swiper", this.$el);
-                        }
-                    }
-                }));
-                
-                // AOS Component Seguro
-                Alpine.data("safeAOS", (config = {}) => ({
-                    config: config,
-                    
-                    init() {
-                        this.waitForAOS();
-                    },
-                    
-                    waitForAOS() {
-                        if (typeof window.AOS !== "undefined") {
-                            this.$nextTick(() => {
-                                this.initAOS();
-                            });
-                        } else {
-                            setTimeout(() => this.waitForAOS(), 100);
-                        }
-                    },
-                    
-                    initAOS() {
-                        try {
-                            Object.entries(this.config).forEach(([key, value]) => {
-                                this.$el.setAttribute(`data-aos-${key}`, value);
-                            });
-                            
-                            // Refresh AOS to pickup new elements
-                            AOS.refresh();
-                            console.log("✅ AOS initialized");
-                            
-                        } catch (error) {
-                            console.error("❌ AOS init error:", error);
-                        }
-                    }
-                }));
-                
-                // GSAP Component Seguro  
-                Alpine.data("safeGSAP", (config = {}) => ({
-                    config: config,
-                    animation: null,
-                    
-                    init() {
-                        this.waitForGSAP();
-                    },
-                    
-                    waitForGSAP() {
-                        if (typeof window.gsap !== "undefined") {
-                            this.$nextTick(() => {
-                                this.initGSAP();
-                            });
-                        } else {
-                            setTimeout(() => this.waitForGSAP(), 100);
-                        }
-                    },
-                    
-                    initGSAP() {
-                        try {
-                            this.animation = gsap.from(this.$el, {
-                                opacity: 0,
-                                y: 30,
-                                duration: 1,
-                                ...this.config
-                            });
-                            
-                            console.log("✅ GSAP initialized");
-                            
-                        } catch (error) {
-                            console.error("❌ GSAP init error:", error);
-                        }
-                    },
-                    
-                    destroy() {
-                        if (this.animation) {
-                            this.animation.kill();
-                        }
-                    }
-                }));
-            },
-            
-            register(type, instance, element) {
-                const id = this.generateId();
-                this.activeComponents.set(id, {
-                    type,
-                    instance,
-                    element,
-                    createdAt: Date.now()
-                });
-                console.log(`📝 Component registered: ${type} (${id})`);
-            },
-            
-            unregister(type, element) {
-                // Buscar y remover por elemento
-                for (let [id, component] of this.activeComponents.entries()) {
-                    if (component.element === element) {
-                        this.activeComponents.delete(id);
-                        console.log(`🗑️ Component unregistered: ${type} (${id})`);
-                        break;
-                    }
-                }
-            },
-            
-            generateId() {
-                return "comp_" + Math.random().toString(36).substr(2, 9);
-            },
-            
-            getStats() {
-                const stats = {
-                    total: this.activeComponents.size,
-                    version: "basic"
-                };
-                
-                for (let [id, component] of this.activeComponents.entries()) {
-                    stats[component.type] = (stats[component.type] || 0) + 1;
-                }
-                
-                return stats;
-            }
-        };
-        
-        // Inicializar cuando Alpine esté listo
-        document.addEventListener("alpine:init", () => {
-            ComponentSystem.init();
-        });
-        ';
-    }
 
-        private function generateAssetTags(array $assets): string
-        {
-            $tags = '';
-            $availableAssets = $this->getAvailableAssetsList();
-            $enableSRI = config('app.env') === 'production'; // Solo en producción
-            
-            // Siempre incluir DOMPurify primero
-            if (isset($availableAssets['dompurify'])) {
-                $dompurify = $availableAssets['dompurify'];
-                $tags .= '<script src="' . $dompurify['url'] . '"';
-                
-                if ($enableSRI && isset($dompurify['integrity'])) {
-                    $tags .= ' integrity="' . $dompurify['integrity'] . '" crossorigin="anonymous"';
-                }
-                
-                $tags .= '></script>' . "\n";
-            }
-            
-            foreach ($assets as $assetKey) {
-                if (isset($availableAssets[$assetKey])) {
-                    $asset = $availableAssets[$assetKey];
-                    
-                    // CSS con SRI opcional
-                    if (isset($asset['css'])) {
-                        $tags .= '<link rel="stylesheet" href="' . $asset['css'] . '"';
-                        
-                        if ($enableSRI && isset($asset['css_integrity'])) {
-                            $tags .= ' integrity="' . $asset['css_integrity'] . '" crossorigin="anonymous"';
-                        }
-                        
-                        $tags .= '>' . "\n";
-                    }
-                    
-                    // JS con SRI opcional
-                    if (isset($asset['url'])) {
-                        $tags .= '<script src="' . $asset['url'] . '"';
-                        
-                        if ($enableSRI && isset($asset['integrity'])) {
-                            $tags .= ' integrity="' . $asset['integrity'] . '" crossorigin="anonymous"';
-                        }
-                        
-                        $tags .= '></script>' . "\n";
-                    }
-                }
-            }
-            
-            return $tags;
-        }
+
 
     private function generateCommunicationScript(array $config): string
     {
@@ -1089,23 +757,24 @@ class ComponentBuilderController extends Controller
         }
 
 
+
     public function getComponentData($id)
-{
-    try {
-        $component = Component::findOrFail($id);
-        
-        return response()->json([
-            'success' => true,
-            'component' => $component
-        ]);
-        
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Componente no encontrado'
-        ], 404);
+    {
+        try {
+            $component = Component::findOrFail($id);
+            
+            return response()->json([
+                'success' => true,
+                'component' => $component
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Componente no encontrado'
+            ], 404);
+        }
     }
-}
 
         /**
          * Preview de componente (método específico para API)
@@ -1161,5 +830,1064 @@ class ComponentBuilderController extends Controller
                 ], 500);
             }
         }
+        
+            /*** nuevo metodos  */
+
+
+        private function detectRequiredLibraries(string $bladeCode): array
+        {
+            $libraries = [];
+            
+            // Patrones de detección para cada librería
+            $patterns = [
+                'swiper' => [
+                    '/x-data=["\'].*swiper/i',
+                    '/Swiper/i',
+                    '/swiper-/i',
+                    '/\.swiper\b/i'
+                ],
+                'gsap' => [
+                    '/x-data=["\'].*gsap/i',
+                    '/gsap\./i',
+                    '/GSAP/i',
+                    '/\.to\(/i',
+                    '/\.from\(/i',
+                    '/\.timeline/i'
+                ],
+                'fullcalendar' => [
+                    '/FullCalendar/i',
+                    '/fullcalendar/i',
+                    '/@fullcalendar/i'
+                ],
+                'aos' => [
+                    '/AOS\./i',
+                    '/aos-/i',
+                    '/data-aos/i'
+                ],
+                'chart' => [
+                    '/Chart\.js/i',
+                    '/chart\.js/i',
+                    '/new Chart/i',
+                    '/chartjs/i'
+                ]
+            ];
+            
+            foreach ($patterns as $library => $libraryPatterns) {
+                foreach ($libraryPatterns as $pattern) {
+                    if (preg_match($pattern, $bladeCode)) {
+                        $libraries[] = $library;
+                        break; // Solo agregar una vez por librería
+                    }
+                }
+            }
+            
+            return array_unique($libraries);
+        }
+
+
+        private function getOptimizedAssets(array $requiredLibraries): array
+        {
+            $allAssets = $this->getAvailableAssetsList();
+            $optimizedAssets = [];
+            
+            foreach ($requiredLibraries as $library) {
+                if (isset($allAssets[$library])) {
+                    $optimizedAssets[$library] = $allAssets[$library];
+                }
+            }
+            
+            return $optimizedAssets;
+        }
+
+
+        private function getAvailableAssetsList(): array
+        {
+            return [
+                'swiper' => [
+                    'name' => 'Swiper',
+                    'description' => 'Carrusel/Slider moderno y responsive',
+                    'css' => 'https://unpkg.com/swiper/swiper-bundle.min.css',
+                    'js' => 'https://unpkg.com/swiper/swiper-bundle.min.js',
+                    'version' => '11.0.5',
+                    'plugin' => 'SwiperPlugin',
+                    'auto_detect' => true,
+                    'components' => ['swiperBasic', 'swiperAdvanced', 'swiperEcommerce', 'swiperTestimonials', 'swiperHero']
+                ],
+                'gsap' => [
+                    'name' => 'GSAP',
+                    'description' => 'Librería de animaciones profesional',
+                    'js' => 'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js',
+                    'version' => '3.12.2',
+                    'plugin' => 'GSAPPlugin',
+                    'auto_detect' => true,
+                    'components' => ['gsapFade', 'gsapSlide', 'gsapScale', 'gsapText', 'gsapTimeline', 'gsapCounter', 'gsapScroll']
+                ],
+                'fullcalendar' => [
+                    'name' => 'FullCalendar',
+                    'description' => 'Calendario interactivo completo',
+                    'css' => 'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css',
+                    'js' => 'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js',
+                    'version' => '6.1.10',
+                    'plugin' => 'FullCalendarPlugin',
+                    'auto_detect' => true,
+                    'components' => ['fullCalendarBasic', 'fullCalendarEvents']
+                ],
+                'aos' => [
+                    'name' => 'AOS (Animate On Scroll)',
+                    'description' => 'Animaciones activadas por scroll',
+                    'css' => 'https://unpkg.com/aos@2.3.1/dist/aos.css',
+                    'js' => 'https://unpkg.com/aos@2.3.1/dist/aos.js',
+                    'version' => '2.3.1',
+                    'plugin' => 'AOSPlugin',
+                    'auto_detect' => true,
+                    'components' => ['aosBasic']
+                ],
+                'chart' => [
+                    'name' => 'Chart.js',
+                    'description' => 'Gráficos y charts interactivos',
+                    'js' => 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js',
+                    'version' => '4.4.0',
+                    'plugin' => 'ChartPlugin',
+                    'auto_detect' => true,
+                    'components' => ['chartLine', 'chartBar', 'chartPie', 'chartDoughnut']
+                ],
+                'dompurify' => [
+                    'name' => 'DOMPurify',
+                    'description' => 'Sanitización XSS (Sistema de seguridad)',
+                    'js' => 'https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js',
+                    'version' => '3.0.5',
+                    'required' => true // Siempre incluido por seguridad
+                ]
+            ];
+        }
+
+
+        private function generateOptimizedAssetTags(array $requiredLibraries): string
+        {
+            $tags = '';
+            $assets = $this->getOptimizedAssets($requiredLibraries);
+            $enableSRI = config('app.env') === 'production';
+            
+            // Siempre incluir DOMPurify primero (seguridad)
+            $allAssets = $this->getAvailableAssetsList();
+            if (isset($allAssets['dompurify'])) {
+                $dompurify = $allAssets['dompurify'];
+                $tags .= '<script src="' . $dompurify['js'] . '"';
+                if ($enableSRI && isset($dompurify['js_integrity'])) {
+                    $tags .= ' integrity="' . $dompurify['js_integrity'] . '" crossorigin="anonymous"';
+                }
+                $tags .= '></script>' . "\n";
+            }
+            
+            // Generar tags para librerías requeridas
+            foreach ($assets as $assetKey => $asset) {
+                // CSS primero
+                if (isset($asset['css'])) {
+                    $tags .= '<link rel="stylesheet" href="' . $asset['css'] . '"';
+                    if ($enableSRI && isset($asset['css_integrity'])) {
+                        $tags .= ' integrity="' . $asset['css_integrity'] . '" crossorigin="anonymous"';
+                    }
+                    $tags .= '>' . "\n";
+                }
+                
+                // JavaScript después
+                if (isset($asset['js'])) {
+                    $tags .= '<script src="' . $asset['js'] . '"';
+                    if ($enableSRI && isset($asset['js_integrity'])) {
+                        $tags .= ' integrity="' . $asset['js_integrity'] . '" crossorigin="anonymous"';
+                    }
+                    $tags .= '></script>' . "\n";
+                }
+            }
+            
+            return $tags;
+        }
+
+
+        private function generateAssetTags(array $assets): string
+        {
+            // Usar el nuevo método optimizado pero manteniendo la estructura del método original
+            return $this->generateOptimizedAssetTags($assets);
+        }
+
+
+
+        private function getComponentSystemJS(): string
+        {
+            return '
+                // ComponentSystem v2.0 - Core + Plugins integrados
+                window.ComponentSystem = {
+                    activeComponents: new Map(),
+                    loadedPlugins: new Set(),
+                    
+                    init() {
+                        console.log("🚀 ComponentSystem v2.0 initialized");
+                        this.setupGlobalComponents();
+                    },
+                    
+                    setupGlobalComponents() {
+                        // Registrar componentes básicos cuando Alpine esté listo
+                        document.addEventListener("alpine:init", () => {
+                            this.registerSwiperComponents();
+                            this.registerGSAPComponents();
+                            console.log("📦 All components registered");
+                        });
+                    },
+                    
+                    registerSwiperComponents() {
+                        if (typeof window.Swiper === "undefined") {
+                            console.warn("⚠️ Swiper not loaded, skipping Swiper components");
+                            return;
+                        }
+                        
+                        // Swiper Básico
+                        Alpine.data("swiperBasic", (config = {}) => ({
+                            swiper: null,
+                            config: {
+                                navigation: true,
+                                pagination: true,
+                                slidesPerView: 1,
+                                spaceBetween: 30,
+                                loop: false,
+                                autoplay: false,
+                                ...config
+                            },
+                            componentId: null,
+                            
+                            init() {
+                                this.componentId = ComponentSystem.generateId();
+                                ComponentSystem.registerComponent("swiperBasic", this.componentId, this.$el);
+                                
+                                this.$nextTick(() => {
+                                    this.initSwiper();
+                                });
+                            },
+                            
+                            initSwiper() {
+                                try {
+                                    const swiperEl = this.$el.querySelector(".swiper");
+                                    if (!swiperEl) {
+                                        console.error("🎠 Swiper container not found");
+                                        return;
+                                    }
+                                    
+                                    // Configurar navegación si está habilitada
+                                    if (this.config.navigation === true) {
+                                        this.config.navigation = {
+                                            nextEl: ".swiper-button-next",
+                                            prevEl: ".swiper-button-prev",
+                                        };
+                                    }
+                                    
+                                    // Configurar paginación si está habilitada
+                                    if (this.config.pagination === true) {
+                                        this.config.pagination = {
+                                            el: ".swiper-pagination",
+                                            clickable: true,
+                                        };
+                                    }
+                                    
+                                    this.swiper = new Swiper(swiperEl, this.config);
+                                    
+                                    console.log("🎠 Basic Swiper initialized:", this.componentId);
+                                } catch (error) {
+                                    console.error("🎠 Swiper initialization error:", error);
+                                }
+                            },
+                            
+                            destroy() {
+                                if (this.swiper) {
+                                    this.swiper.destroy(true, true);
+                                }
+                                ComponentSystem.unregisterComponent(this.componentId);
+                            }
+                        }));
+                        
+                        // Swiper Avanzado
+                        Alpine.data("swiperAdvanced", (config = {}) => ({
+                            swiper: null,
+                            config: {
+                                navigation: {
+                                    nextEl: ".swiper-button-next",
+                                    prevEl: ".swiper-button-prev",
+                                },
+                                pagination: {
+                                    el: ".swiper-pagination",
+                                    clickable: true,
+                                    dynamicBullets: true,
+                                },
+                                breakpoints: {
+                                    640: { slidesPerView: 1, spaceBetween: 20 },
+                                    768: { slidesPerView: 2, spaceBetween: 30 },
+                                    1024: { slidesPerView: 3, spaceBetween: 40 }
+                                },
+                                effect: "slide",
+                                ...config
+                            },
+                            componentId: null,
+                            
+                            init() {
+                                this.componentId = ComponentSystem.generateId();
+                                ComponentSystem.registerComponent("swiperAdvanced", this.componentId, this.$el);
+                                
+                                this.$nextTick(() => {
+                                    this.initSwiper();
+                                });
+                            },
+                            
+                            initSwiper() {
+                                try {
+                                    const swiperEl = this.$el.querySelector(".swiper");
+                                    if (!swiperEl) return;
+                                    
+                                    this.swiper = new Swiper(swiperEl, this.config);
+                                    
+                                    // Eventos personalizados
+                                    this.swiper.on("slideChange", () => {
+                                        this.$dispatch("swiper-change", {
+                                            activeIndex: this.swiper.activeIndex,
+                                            componentId: this.componentId
+                                        });
+                                    });
+                                    
+                                    console.log("🎠 Advanced Swiper initialized:", this.componentId);
+                                } catch (error) {
+                                    console.error("🎠 Advanced Swiper error:", error);
+                                }
+                            },
+                            
+                            // Métodos públicos
+                            nextSlide() {
+                                if (this.swiper) this.swiper.slideNext();
+                            },
+                            
+                            prevSlide() {
+                                if (this.swiper) this.swiper.slidePrev();
+                            },
+                            
+                            goToSlide(index) {
+                                if (this.swiper) this.swiper.slideTo(index);
+                            },
+                            
+                            destroy() {
+                                if (this.swiper) {
+                                    this.swiper.destroy(true, true);
+                                }
+                                ComponentSystem.unregisterComponent(this.componentId);
+                            }
+                        }));
+                        
+                        // Swiper E-commerce
+                        Alpine.data("swiperEcommerce", (config = {}) => ({
+                            swiper: null,
+                            config: {
+                                slidesPerView: 1,
+                                spaceBetween: 10,
+                                navigation: {
+                                    nextEl: ".swiper-button-next",
+                                    prevEl: ".swiper-button-prev",
+                                },
+                                pagination: {
+                                    el: ".swiper-pagination",
+                                    clickable: true,
+                                },
+                                breakpoints: {
+                                    640: { slidesPerView: 2, spaceBetween: 20 },
+                                    768: { slidesPerView: 3, spaceBetween: 30 },
+                                    1024: { slidesPerView: 4, spaceBetween: 30 }
+                                },
+                                watchSlidesProgress: true,
+                                watchSlidesVisibility: true,
+                                ...config
+                            },
+                            componentId: null,
+                            
+                            init() {
+                                this.componentId = ComponentSystem.generateId();
+                                ComponentSystem.registerComponent("swiperEcommerce", this.componentId, this.$el);
+                                
+                                this.$nextTick(() => {
+                                    this.initSwiper();
+                                });
+                            },
+                            
+                            initSwiper() {
+                                try {
+                                    const swiperEl = this.$el.querySelector(".swiper");
+                                    if (!swiperEl) return;
+                                    
+                                    this.swiper = new Swiper(swiperEl, this.config);
+                                    
+                                    this.swiper.on("slideChange", () => {
+                                        this.$dispatch("product-change", {
+                                            activeIndex: this.swiper.activeIndex,
+                                            componentId: this.componentId
+                                        });
+                                    });
+                                    
+                                    console.log("🛒 E-commerce Swiper initialized:", this.componentId);
+                                } catch (error) {
+                                    console.error("🛒 E-commerce Swiper error:", error);
+                                }
+                            },
+                            
+                            destroy() {
+                                if (this.swiper) {
+                                    this.swiper.destroy(true, true);
+                                }
+                                ComponentSystem.unregisterComponent(this.componentId);
+                            }
+                        }));
+                        
+                        ComponentSystem.loadedPlugins.add("swiper");
+                        console.log("🎠 Swiper components registered");
+                    },
+                    
+                    registerGSAPComponents() {
+                        if (typeof window.gsap === "undefined") {
+                            console.warn("⚠️ GSAP not loaded, skipping GSAP components");
+                            return;
+                        }
+                        
+                        // GSAP Fade
+                        Alpine.data("gsapFade", (config = {}) => ({
+                            config: {
+                                duration: 1,
+                                delay: 0,
+                                direction: "in",
+                                trigger: "scroll",
+                                ease: "power2.out",
+                                ...config
+                            },
+                            componentId: null,
+                            animation: null,
+                            
+                            init() {
+                                this.componentId = ComponentSystem.generateId();
+                                ComponentSystem.registerComponent("gsapFade", this.componentId, this.$el);
+                                
+                                this.$nextTick(() => {
+                                    this.setupAnimation();
+                                });
+                            },
+                            
+                            setupAnimation() {
+                                if (this.config.direction === "in") {
+                                    gsap.set(this.$el, { opacity: 0 });
+                                }
+                                
+                                this.createAnimation();
+                                
+                                if (this.config.trigger === "scroll") {
+                                    this.setupScrollTrigger();
+                                } else if (this.config.trigger === "init") {
+                                    this.play();
+                                }
+                            },
+                            
+                            createAnimation() {
+                                if (this.config.direction === "in") {
+                                    this.animation = gsap.to(this.$el, {
+                                        opacity: 1,
+                                        duration: this.config.duration,
+                                        delay: this.config.delay,
+                                        ease: this.config.ease,
+                                        paused: true
+                                    });
+                                }
+                            },
+                            
+                            setupScrollTrigger() {
+                                const observer = new IntersectionObserver((entries) => {
+                                    entries.forEach(entry => {
+                                        if (entry.isIntersecting) {
+                                            this.play();
+                                            observer.unobserve(this.$el);
+                                        }
+                                    });
+                                }, { threshold: 0.1 });
+                                
+                                observer.observe(this.$el);
+                            },
+                            
+                            play() {
+                                if (this.animation) {
+                                    this.animation.play();
+                                }
+                            },
+                            
+                            destroy() {
+                                if (this.animation) {
+                                    this.animation.kill();
+                                }
+                                ComponentSystem.unregisterComponent(this.componentId);
+                            }
+                        }));
+                        
+                        ComponentSystem.loadedPlugins.add("gsap");
+                        console.log("✨ GSAP components registered");
+                    },
+                    
+                    registerComponent(type, id, element) {
+                        this.activeComponents.set(id, {
+                            type,
+                            element,
+                            createdAt: Date.now()
+                        });
+                        
+                        if (window.location.hostname.includes("local") || window.location.hostname === "localhost") {
+                            console.log(`📝 Component registered: ${type} (${id})`);
+                        }
+                    },
+                    
+                    unregisterComponent(id) {
+                        const component = this.activeComponents.get(id);
+                        if (component) {
+                            this.activeComponents.delete(id);
+                            
+                            if (window.location.hostname.includes("local") || window.location.hostname === "localhost") {
+                                console.log(`🗑️ Component unregistered: ${component.type} (${id})`);
+                            }
+                        }
+                    },
+                    
+                    generateId() {
+                        return "comp_" + Math.random().toString(36).substr(2, 9) + "_" + Date.now().toString(36);
+                    },
+                    
+                    getStats() {
+                        const stats = {
+                            totalComponents: this.activeComponents.size,
+                            loadedPlugins: Array.from(this.loadedPlugins),
+                            version: "2.0",
+                            componentsByType: {}
+                        };
+                        
+                        for (let [id, component] of this.activeComponents.entries()) {
+                            const type = component.type;
+                            stats.componentsByType[type] = (stats.componentsByType[type] || 0) + 1;
+                        }
+                        
+                        return stats;
+                    }
+                };
+                
+                // Auto-inicializar
+                if (document.readyState === "loading") {
+                    document.addEventListener("DOMContentLoaded", () => {
+                        ComponentSystem.init();
+                    });
+                } else {
+                    ComponentSystem.init();
+                }
+                
+                // Helper global para debug
+                window.debugComponents = () => {
+                    console.table(ComponentSystem.getStats());
+                };
+            ';
+        }
+
+
+        private function getCoreComponentSystemJS(): string
+        {
+            return '
+                // Core ComponentManager - Solo funciones esenciales
+                window.ComponentSystem = {
+                    activeComponents: new Map(),
+                    loadedPlugins: new Set(),
+                    
+                    init() {
+                        console.log("🚀 ComponentSystem v2.0 initialized");
+                        this.waitForAlpine();
+                    },
+                    
+                    waitForAlpine() {
+                        if (typeof window.Alpine !== "undefined") {
+                            this.setupAlpineIntegration();
+                        } else {
+                            setTimeout(() => this.waitForAlpine(), 50);
+                        }
+                    },
+                    
+                    setupAlpineIntegration() {
+                        document.addEventListener("alpine:init", () => {
+                            console.log("🎿 Alpine integration ready");
+                            this.initializePlugins();
+                        });
+                    },
+                    
+                    initializePlugins() {
+                        // Los plugins se auto-registrarán
+                        console.log("📦 Initializing available plugins...");
+                    },
+                    
+                    registerComponent(type, id, element) {
+                        this.activeComponents.set(id, {
+                            type,
+                            element,
+                            createdAt: Date.now()
+                        });
+                        console.log(`📝 Component registered: ${type} (${id})`);
+                    },
+                    
+                    unregisterComponent(id) {
+                        this.activeComponents.delete(id);
+                    },
+                    
+                    generateId() {
+                        return "comp_" + Math.random().toString(36).substr(2, 9);
+                    },
+                    
+                    getStats() {
+                        const stats = {
+                            total: this.activeComponents.size,
+                            loadedPlugins: Array.from(this.loadedPlugins),
+                            version: "2.0"
+                        };
+                        
+                        for (let [id, component] of this.activeComponents.entries()) {
+                            stats[component.type] = (stats[component.type] || 0) + 1;
+                        }
+                        
+                        return stats;
+                    }
+                };
+            ';
+        }
+
+
+        private function getRequiredPluginsJS(array $requiredLibraries): string
+        {
+            $js = '';
+            $assets = $this->getAvailableAssetsList();
+            
+            foreach ($requiredLibraries as $library) {
+                if (isset($assets[$library]['plugin'])) {
+                    $pluginName = $assets[$library]['plugin'];
+                    
+                    // Cargar el archivo del plugin desde public/js/component-system/plugins/
+                    $pluginFile = public_path("js/component-system/plugins/{$pluginName}.js");
+                    
+                    if (file_exists($pluginFile)) {
+                        // En desarrollo, incluir el archivo directamente
+                        if (config('app.env') === 'local') {
+                            $js .= "\n// {$pluginName}\n";
+                            $js .= file_get_contents($pluginFile);
+                        } else {
+                            // En producción, incluir referencia al archivo
+                            $js .= "\n// Plugin: {$pluginName} - Loaded from file\n";
+                        }
+                    } else {
+                        // Fallback: plugins inline básicos
+                        $js .= $this->getInlinePluginJS($library);
+                    }
+                }
+            }
+            
+            return $js;
+        }
+
+
+        private function getInlinePluginJS(string $library): string
+        {
+            $plugins = [
+                'swiper' => '
+                    // SwiperPlugin básico inline
+                    if (typeof window.Swiper !== "undefined") {
+                        Alpine.data("swiperBasic", (config = {}) => ({
+                            swiper: null,
+                            config: { navigation: true, pagination: true, ...config },
+                            
+                            init() {
+                                this.$nextTick(() => {
+                                    const swiperEl = this.$el.querySelector(".swiper");
+                                    if (swiperEl) {
+                                        this.swiper = new Swiper(swiperEl, this.config);
+                                        console.log("🎠 Basic Swiper initialized");
+                                    }
+                                });
+                            },
+                            
+                            destroy() {
+                                if (this.swiper) this.swiper.destroy(true, true);
+                            }
+                        }));
+                        
+                        ComponentSystem.loadedPlugins.add("swiper");
+                    }
+                ',
+                
+                'gsap' => '
+                    // GSAPPlugin básico inline
+                    if (typeof window.gsap !== "undefined") {
+                        Alpine.data("gsapFade", (config = {}) => ({
+                            config: { duration: 1, direction: "in", ...config },
+                            
+                            init() {
+                                this.$nextTick(() => {
+                                    if (this.config.direction === "in") {
+                                        gsap.set(this.$el, { opacity: 0 });
+                                        gsap.to(this.$el, { opacity: 1, duration: this.config.duration });
+                                    }
+                                    console.log("✨ Basic GSAP fade initialized");
+                                });
+                            }
+                        }));
+                        
+                        ComponentSystem.loadedPlugins.add("gsap");
+                    }
+                '
+            ];
+            
+            return $plugins[$library] ?? '';
+        }
+
+
+        private function getInitializationJS(array $requiredLibraries): string
+        {
+            $js = '';
+            
+            // Auto-inicializar ComponentSystem
+            $js .= '
+                // Auto-inicialización
+                if (document.readyState === "loading") {
+                    document.addEventListener("DOMContentLoaded", () => {
+                        ComponentSystem.init();
+                    });
+                } else {
+                    ComponentSystem.init();
+                }
+            ';
+            
+            // Inicialización específica por librería
+            if (in_array('aos', $requiredLibraries)) {
+                $js .= '
+                    // Inicializar AOS automáticamente
+                    document.addEventListener("DOMContentLoaded", () => {
+                        if (typeof AOS !== "undefined") {
+                            AOS.init({
+                                duration: 800,
+                                once: true,
+                                offset: 100
+                            });
+                            console.log("🎭 AOS initialized");
+                        }
+                    });
+                ';
+            }
+            
+            // Debug info para desarrollo
+            if (config('app.env') === 'local') {
+                $js .= '
+                    // Debug info para desarrollo
+                    console.log("📊 Libraries detected:", ' . json_encode($requiredLibraries) . ');
+                    console.log("🛠️ Environment: development");
+                    
+                    // Helper global para debug
+                    window.debugComponents = () => {
+                        console.table(ComponentSystem.getStats());
+                    };
+                ';
+            }
+            
+            return $js;
+        }
+
+
+        public function generateComponentPreviewOptimized(string $bladeCode, array $manualAssets = [], array $testData = []): string
+        {
+            try {
+                // 1. Detectar librerías automáticamente
+                $autoDetectedLibraries = $this->detectRequiredLibraries($bladeCode);
+                
+                // 2. Combinar con assets manuales
+                $allRequiredLibraries = array_unique(array_merge($autoDetectedLibraries, $manualAssets));
+                
+                // 3. Log para debug
+                if (config('app.env') === 'local') {
+                    Log::info('Component Preview Generation', [
+                        'auto_detected' => $autoDetectedLibraries,
+                        'manual_assets' => $manualAssets,
+                        'final_libraries' => $allRequiredLibraries
+                    ]);
+                }
+                
+                // 4. Generar preview con assets optimizados
+                return $this->generateOptimizedPreview($bladeCode, $allRequiredLibraries, $testData);
+                
+            } catch (\Exception $e) {
+                Log::error('Component Preview Error', [
+                    'error' => $e->getMessage(),
+                    'line' => $e->getLine(),
+                    'code_preview' => substr($bladeCode, 0, 200) . '...'
+                ]);
+                
+                return $this->generateErrorPreview($e->getMessage());
+            }
+        }
+
+
+        public function generateComponentPreview(string $bladeCode, array $assets = [], array $testData = []): string
+        {
+            // Usar el nuevo sistema si está habilitado en config
+            if (config('pagebuilder.use_optimized_assets', false)) {
+                return $this->generateComponentPreviewOptimized($bladeCode, $assets, $testData);
+            }
+            
+            // Fallback al método original por compatibilidad
+            try {
+                $renderedContent = $this->renderBladeComponent($bladeCode, $testData);
+                return $this->wrapComponentWithPreviewLayout($renderedContent, $assets);
+            } catch (\Exception $e) {
+                return $this->generateErrorPreview($e->getMessage());
+            }
+        }
+
+
+        private function generateOptimizedPreview(string $bladeCode, array $requiredLibraries, array $testData = []): string
+        {
+            // Renderizar el componente Blade
+            $renderedContent = $this->renderBladeComponent($bladeCode, $testData);
+            
+            // Crear layout optimizado
+            return $this->wrapWithOptimizedLayout($renderedContent, $requiredLibraries);
+        }
+
+
+        private function renderBladeComponent(string $bladeCode, array $testData = []): string
+        {
+            $tempFile = storage_path('app/temp_component_' . uniqid() . '.blade.php');
+            
+            try {
+                File::put($tempFile, $bladeCode);
+                return View::file($tempFile, $testData)->render();
+            } catch (\Exception $e) {
+                throw new \Exception('Error rendering Blade component: ' . $e->getMessage());
+            } finally {
+                if (File::exists($tempFile)) {
+                    File::delete($tempFile);
+                }
+            }
+        }
+
+
+        private function wrapWithOptimizedLayout(string $content, array $requiredLibraries): string
+        {
+            $nonce = base64_encode(random_bytes(16));
+            $isDev = config('app.env') === 'local';
+            
+            // CSP optimizado
+            $cspPolicy = $this->generateCSPPolicy($nonce, $isDev);
+            
+            // Assets optimizados
+            $assetTags = $this->generateOptimizedAssetTags($requiredLibraries);
+            
+            // ComponentSystem optimizado
+            $componentSystemJS = $this->getComponentSystemJS($requiredLibraries);
+            
+            return '<!DOCTYPE html>
+            <html lang="es">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Component Preview - Optimized</title>
+                
+                <!-- CSP Policy -->
+                <meta http-equiv="Content-Security-Policy" content="' . $cspPolicy . '">
+                
+                <!-- Core Libraries -->
+                <script src="https://cdn.tailwindcss.com" nonce="' . $nonce . '"></script>
+                <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" nonce="' . $nonce . '"></script>
+                
+                <!-- Optimized Assets (Only Required Libraries) -->
+                ' . $assetTags . '
+                
+                <!-- Component System (Modular) -->
+                <script nonce="' . $nonce . '">
+                    ' . $componentSystemJS . '
+                </script>
+                
+                <style>
+                    body { font-family: system-ui, -apple-system, sans-serif; }
+                    .preview-container { min-height: 50vh; }
+                    .error { 
+                        background: #fee; 
+                        color: #c00; 
+                        padding: 1rem; 
+                        border-radius: 0.5rem;
+                        border: 1px solid #fcc;
+                    }
+                    
+                    /* Optimizaciones de carga */
+                    .loading { opacity: 0.5; transition: opacity 0.3s; }
+                    .loaded { opacity: 1; }
+                </style>
+            </head>
+            <body class="bg-gray-50">
+                <div class="preview-container p-4 loading" id="preview-container">
+                    ' . $content . '
+                </div>
+                
+                <!-- Debug Info (Solo en desarrollo) -->
+                ' . ($isDev ? $this->generateDebugInfo($requiredLibraries, $nonce) : '') . '
+                
+                <!-- Finalización de carga -->
+                <script nonce="' . $nonce . '">
+                    // Marcar como cargado cuando todo esté listo
+                    document.addEventListener("DOMContentLoaded", () => {
+                        setTimeout(() => {
+                            document.getElementById("preview-container").classList.remove("loading");
+                            document.getElementById("preview-container").classList.add("loaded");
+                        }, 300);
+                    });
+                </script>
+            </body>
+            </html>';
+        }
+
+
+        private function generateCSPPolicy(string $nonce, bool $isDev): string
+        {
+            $basePolicy = [
+                "default-src 'self'",
+                "script-src 'self' 'nonce-{$nonce}' https://cdn.tailwindcss.com https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
+                "style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net",
+                "font-src 'self' data: https:",
+                "img-src 'self' data: https:",
+                "connect-src 'self'"
+            ];
+            
+            if ($isDev) {
+                $basePolicy[1] .= " 'unsafe-eval'"; // Solo en desarrollo para debugging
+            }
+            
+            return implode('; ', $basePolicy) . ';';
+        }
+
+
+        private function generateDebugInfo(array $requiredLibraries, string $nonce): string
+        {
+            return '<script nonce="' . $nonce . '">
+                console.log("🛡️ Optimized Component Preview Loaded");
+                console.log("📦 Required libraries:", ' . json_encode($requiredLibraries) . ');
+                console.log("🎯 Libraries status:", {
+                    Swiper: typeof window.Swiper !== "undefined" ? "✅ Loaded" : "❌ Not loaded",
+                    GSAP: typeof window.gsap !== "undefined" ? "✅ Loaded" : "❌ Not loaded", 
+                    FullCalendar: typeof window.FullCalendar !== "undefined" ? "✅ Loaded" : "❌ Not loaded",
+                    AOS: typeof window.AOS !== "undefined" ? "✅ Loaded" : "❌ Not loaded",
+                    Chart: typeof window.Chart !== "undefined" ? "✅ Loaded" : "❌ Not loaded",
+                    Alpine: typeof window.Alpine !== "undefined" ? "✅ Loaded" : "❌ Not loaded"
+                });
+                
+                // Mostrar estadísticas cuando ComponentSystem esté listo
+                setTimeout(() => {
+                    if (window.ComponentSystem) {
+                        console.log("📊 ComponentSystem Stats:", ComponentSystem.getStats());
+                    }
+                }, 1000);
+            </script>';
+        }
+
+
+        private function generateErrorPreview(string $errorMessage): string
+        {
+            return '<!DOCTYPE html>
+            <html lang="es">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Component Error</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+                <style>
+                    body { font-family: system-ui, -apple-system, sans-serif; }
+                </style>
+            </head>
+            <body class="bg-red-50">
+                <div class="min-h-screen flex items-center justify-center p-4">
+                    <div class="bg-white border border-red-200 rounded-lg p-6 max-w-md w-full">
+                        <div class="flex items-center mb-4">
+                            <div class="bg-red-100 rounded-full p-2 mr-3">
+                                <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-lg font-semibold text-red-800">Error en el Componente</h3>
+                        </div>
+                        <p class="text-red-700 mb-4">' . htmlspecialchars($errorMessage) . '</p>
+                        <div class="text-xs text-red-500">
+                            <p>• Revisa la sintaxis de tu componente Blade</p>
+                            <p>• Verifica que las librerías estén disponibles</p>
+                            <p>• Comprueba los datos de prueba</p>
+                        </div>
+                    </div>
+                </div>
+            </body>
+            </html>';
+        }
+
+
+        public function getAvailableAssets(Request $request)
+        {
+            $assets = $this->getAvailableAssetsList();
+            
+            // Filtrar información sensible en producción
+            if (config('app.env') !== 'local') {
+                foreach ($assets as &$asset) {
+                    unset($asset['plugin']); // No exponer nombres de plugins
+                }
+            }
+            
+            return response()->json([
+                'success' => true,
+                'assets' => $assets,
+                'auto_detection' => true,
+                'version' => '2.0'
+            ]);
+        }
+
+
+        private function validateAssetConfiguration(array $assets): bool
+        {
+            $availableAssets = array_keys($this->getAvailableAssetsList());
+            
+            foreach ($assets as $asset) {
+                if (!in_array($asset, $availableAssets)) {
+                    return false;
+                }
+            }
+            
+            return true;
+        }
+
+
+        public function getLibraryUsageStats()
+        {
+            // Esto podría implementarse para tracking de uso
+            $components = Component::where('is_advanced', true)
+                ->where('is_active', true)
+                ->get();
+            
+            $libraryUsage = [];
+            
+            foreach ($components as $component) {
+                $detectedLibraries = $this->detectRequiredLibraries($component->blade_template);
+                
+                foreach ($detectedLibraries as $library) {
+                    $libraryUsage[$library] = ($libraryUsage[$library] ?? 0) + 1;
+                }
+            }
+            
+            return response()->json([
+                'success' => true,
+                'usage_stats' => $libraryUsage,
+                'total_components' => $components->count()
+            ]);
+        }
+
+
+        
+
+        
 
 }

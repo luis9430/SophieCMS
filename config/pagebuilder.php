@@ -1,160 +1,197 @@
-
 <?php
+
 // config/pagebuilder.php
+
 return [
+
     /*
     |--------------------------------------------------------------------------
-    | Page Builder Configuration
+    | Page Builder Asset Management
     |--------------------------------------------------------------------------
     |
-    | Aquí puedes configurar todas las opciones del Page Builder
+    | Configuración para el manejo de assets del page builder
     |
     */
 
-    /*
-    |--------------------------------------------------------------------------
-    | Componentes Habilitados
-    |--------------------------------------------------------------------------
-    |
-    | Lista de componentes que estarán disponibles en el Page Builder
-    |
-    */
-    'enabled_components' => [
-        'hero',
-        'card', 
-        'button',
-        'testimonial',
-        'contact-form',
-        'grid',
-        'container',
-        'modal',
-        'text-block',
-        'image-text',
-        'section',
-    ],
+    // Habilitar sistema optimizado de assets
+    'use_optimized_assets' => env('PAGEBUILDER_OPTIMIZED_ASSETS', false),
 
-    /*
-    |--------------------------------------------------------------------------
-    | Configuración de Archivos Temporales
-    |--------------------------------------------------------------------------
-    */
-    'temp_files' => [
-        'path' => storage_path('app/temp'),
-        'cleanup_days' => 7, // Días después de los cuales se eliminan archivos temporales
-        'prefix' => 'pagebuilder_',
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Configuración de Backups
-    |--------------------------------------------------------------------------
-    */
-    'backups' => [
-        'enabled' => true,
-        'path' => storage_path('app/backups/pages'),
-        'auto_backup_on_save' => true, // Crear backup automático al guardar
-        'retention_days' => 30, // Días para conservar backups
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Configuración de Templates
-    |--------------------------------------------------------------------------
-    */
-    'templates' => [
-        'cache_enabled' => true,
-        'cache_duration' => 3600, // 1 hora en segundos
-        'default_category' => 'general',
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Configuración de Componentes
-    |--------------------------------------------------------------------------
-    */
-    'components' => [
-        'cache_enabled' => true,
-        'cache_duration' => 3600,
-        'preview_size' => '300x200', // Tamaño de imágenes preview
-        'allowed_categories' => [
-            'layout',
-            'content', 
-            'interactive',
-            'navigation',
-            'footer',
-        ],
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Configuración de Preview
-    |--------------------------------------------------------------------------
-    */
-    'preview' => [
-        'timeout' => 30, // Timeout en segundos para generar preview
-        'cache_enabled' => false, // No cachear previews por defecto
-        'responsive_breakpoints' => [
-            'mobile' => '375px',
-            'tablet' => '768px', 
-            'desktop' => '1024px',
-        ],
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Configuración de Seguridad
-    |--------------------------------------------------------------------------
-    */
-    'security' => [
-        'allowed_html_tags' => [
-            'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-            'a', 'img', 'button', 'form', 'input', 'textarea', 'select',
-            'ul', 'ol', 'li', 'table', 'tr', 'td', 'th', 'thead', 'tbody',
-            'section', 'article', 'header', 'footer', 'nav', 'aside',
-            'blockquote', 'strong', 'em', 'br', 'hr', 'iframe', 'video',
-        ],
-        'csrf_protection' => true,
-        'xss_protection' => true,
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Configuración de Assets
-    |--------------------------------------------------------------------------
-    */
+    // Configuración de assets
     'assets' => [
         'cdn' => [
             'tailwind' => 'https://cdn.tailwindcss.com',
             'alpine' => 'https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js',
         ],
-        'local_assets_enabled' => false, // Si usar assets locales en lugar de CDN
-        'minify_output' => env('APP_ENV') === 'production',
+        'local_assets_enabled' => env('PAGEBUILDER_LOCAL_ASSETS', false),
+        'minify_output' => env('PAGEBUILDER_MINIFY', false), // Cambio aquí
     ],
 
     /*
     |--------------------------------------------------------------------------
-    | Configuración de Exportación
+    | Component System Configuration
     |--------------------------------------------------------------------------
+    |
+    | Configuración del sistema de componentes modular
+    |
     */
-    'export' => [
-        'formats' => ['html', 'pdf'], // Formatos de exportación disponibles
-        'include_assets' => true, // Incluir CSS/JS inline en exports
-        'optimize_images' => true,
-        'minify_html' => env('APP_ENV') === 'production',
+
+    'component_system' => [
+        // Versión del sistema
+        'version' => '2.0.0',
+        
+        // Debug mode (valor fijo por ahora)
+        'debug' => env('PAGEBUILDER_DEBUG', true), // Cambio aquí
+        
+        // Auto-detección de librerías
+        'auto_detect_libraries' => true,
+        
+        // Directorio de plugins
+        'plugins_path' => 'js/component-system/plugins',
+        
+        // Plugins disponibles
+        'available_plugins' => [
+            'swiper' => [
+                'class' => 'SwiperPlugin',
+                'file' => 'SwiperPlugin.js',
+                'enabled' => true
+            ],
+            'gsap' => [
+                'class' => 'GSAPPlugin', 
+                'file' => 'GSAPPlugin.js',
+                'enabled' => true
+            ],
+            'fullcalendar' => [
+                'class' => 'FullCalendarPlugin',
+                'file' => 'FullCalendarPlugin.js',
+                'enabled' => false // Aún no implementado
+            ],
+            'aos' => [
+                'class' => 'AOSPlugin',
+                'file' => 'AOSPlugin.js', 
+                'enabled' => false // Aún no implementado
+            ],
+            'chart' => [
+                'class' => 'ChartPlugin',
+                'file' => 'ChartPlugin.js',
+                'enabled' => false // Aún no implementado
+            ]
+        ]
     ],
 
     /*
     |--------------------------------------------------------------------------
-    | Configuración de Roles y Permisos
+    | Library Detection Patterns
     |--------------------------------------------------------------------------
+    |
+    | Patrones para auto-detección de librerías en código Blade
+    |
     */
-    'permissions' => [
-        'create_pages' => ['admin', 'editor'],
-        'edit_pages' => ['admin', 'editor'],
-        'delete_pages' => ['admin'],
-        'publish_pages' => ['admin', 'editor'],
-        'manage_components' => ['admin'],
-        'manage_templates' => ['admin'],
-        'access_page_builder' => ['admin', 'editor'],
+
+    'detection_patterns' => [
+        'swiper' => [
+            '/x-data=["\'].*swiper/i',
+            '/Swiper/i',
+            '/swiper-/i',
+            '/\.swiper\b/i'
+        ],
+        'gsap' => [
+            '/x-data=["\'].*gsap/i',
+            '/gsap\./i',
+            '/GSAP/i',
+            '/\.to\(/i',
+            '/\.from\(/i',
+            '/\.timeline/i'
+        ],
+        'fullcalendar' => [
+            '/FullCalendar/i',
+            '/fullcalendar/i',
+            '/@fullcalendar/i'
+        ],
+        'aos' => [
+            '/AOS\./i',
+            '/aos-/i',
+            '/data-aos/i'
+        ],
+        'chart' => [
+            '/Chart\.js/i',
+            '/chart\.js/i',
+            '/new Chart/i',
+            '/chartjs/i'
+        ]
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Security Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configuración de seguridad para el page builder
+    |
+    */
+
+    'security' => [
+        // Usar Content Security Policy
+        'enable_csp' => true,
+        
+        // Usar Subresource Integrity en producción
+        'enable_sri' => env('PAGEBUILDER_SRI', false), // Cambio aquí
+        
+        // Dominios permitidos para CDN
+        'allowed_cdn_domains' => [
+            'cdn.tailwindcss.com',
+            'unpkg.com',
+            'cdn.jsdelivr.net',
+            'cdnjs.cloudflare.com'
+        ],
+        
+        // Siempre incluir DOMPurify
+        'force_dompurify' => true
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Performance Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configuración de rendimiento
+    |
+    */
+
+    'performance' => [
+        // Cache de detección de librerías (en segundos)
+        'detection_cache_ttl' => 3600,
+        
+        // Preload de librerías críticas
+        'preload_critical_assets' => true,
+        
+        // Lazy loading de plugins
+        'lazy_load_plugins' => true,
+        
+        // Minificar JS inline
+        'minify_inline_js' => false // Cambio aquí
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Development Configuration  
+    |--------------------------------------------------------------------------
+    |
+    | Configuración específica para desarrollo
+    |
+    */
+
+    'development' => [
+        // Mostrar información de debug
+        'show_debug_info' => env('PAGEBUILDER_DEBUG', false),
+        
+        // Log de detección de librerías
+        'log_library_detection' => env('PAGEBUILDER_LOG_DETECTION', false),
+        
+        // Cargar plugins desde archivos separados
+        'load_plugins_from_files' => env('PAGEBUILDER_DEV_PLUGINS', true),
+        
+        // Helpers de debug disponibles
+        'enable_debug_helpers' => env('PAGEBUILDER_DEBUG_HELPERS', true)
+    ]
+
 ];
