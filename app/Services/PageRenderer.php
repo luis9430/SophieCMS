@@ -254,16 +254,16 @@ class PageRenderer
     protected function wrapContentInBasicHTML(string $content, array $variables): string
     {
         return "<!DOCTYPE html>
-<html lang=\"{$variables['page']['language']}\">
+<html lang="{$variables['page']['language']}">
 <head>
     <meta charset=\"UTF-8\">
-    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{$variables['page']['title']}</title>
-    <script src=\"https://cdn.tailwindcss.com\"></script>
-    <script defer src=\"https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js\"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body class=\"bg-white\">
-    <main class=\"container mx-auto px-4 py-8\">
+    <main class="container mx-auto px-4 py-8">
         {$content}
     </main>
 </body>

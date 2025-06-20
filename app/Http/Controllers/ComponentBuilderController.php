@@ -157,30 +157,44 @@ class ComponentBuilderController extends Controller
     }
 
     private function getAvailableAssetsList(): array
-    {
-        return [
-            'gsap' => [
-                'name' => 'GSAP',
-                'description' => 'GreenSock Animation Platform',
-                'url' => 'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js',
-                'version' => '3.12.2'
-            ],
-            'aos' => [
-                'name' => 'AOS',
-                'description' => 'Animate On Scroll',
-                'url' => 'https://unpkg.com/aos@2.3.1/dist/aos.js',
-                'css' => 'https://unpkg.com/aos@2.3.1/dist/aos.css',
-                'version' => '2.3.1'
-            ],
-            'swiper' => [
-                'name' => 'Swiper',
-                'description' => 'Mobile touch slider',
-                'url' => 'https://cdn.jsdelivr.net/npm/swiper@10/swiper-bundle.min.js',
-                'css' => 'https://cdn.jsdelivr.net/npm/swiper@10/swiper-bundle.min.css',
-                'version' => '10.0.0'
-            ]
-        ];
-    }
+        {
+            return [
+                'swiper' => [
+                    'name' => 'Swiper (Seguro)',
+                    'description' => 'Mobile touch slider con sistema seguro',
+                    'url' => 'https://cdn.jsdelivr.net/npm/swiper@10/swiper-bundle.min.js',
+                    'css' => 'https://cdn.jsdelivr.net/npm/swiper@10/swiper-bundle.min.css',
+                    'version' => '10.0.0',
+                    'integrity' => 'sha384-...', // Agregar SRI
+                    'component_type' => 'safeSwiper'
+                ],
+                'aos' => [
+                    'name' => 'AOS (Seguro)',
+                    'description' => 'Animate On Scroll con sistema seguro',
+                    'url' => 'https://unpkg.com/aos@2.3.1/dist/aos.js',
+                    'css' => 'https://unpkg.com/aos@2.3.1/dist/aos.css',
+                    'version' => '2.3.1',
+                    'integrity' => 'sha384-...',
+                    'component_type' => 'safeAOS'
+                ],
+                'gsap' => [
+                    'name' => 'GSAP (Seguro)',
+                    'description' => 'GreenSock Animation Platform con sistema seguro',
+                    'url' => 'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js',
+                    'version' => '3.12.2',
+                    'integrity' => 'sha384-...',
+                    'component_type' => 'safeGSAP'
+                ],
+                'dompurify' => [
+                    'name' => 'DOMPurify',
+                    'description' => 'Sanitización XSS (Sistema de seguridad)',
+                    'url' => 'https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js',
+                    'version' => '3.0.5',
+                    'integrity' => 'sha384-...',
+                    'required' => true // Siempre incluido
+                ]
+            ];
+        }
 
     public function update(Request $request, $id)
     {
@@ -423,33 +437,66 @@ class ComponentBuilderController extends Controller
         }
     }
 
-    /**
-     * Métodos privados helper
-     */
     private function validateBladeCode(string $code): void
     {
-        // Validaciones básicas de seguridad
+        // Validaciones existentes...
         if (strpos($code, '<?php') !== false || strpos($code, '<?=') !== false) {
             throw new \Exception('No se permite código PHP directo en los componentes');
         }
-
-        // Crear archivo temporal para validar sintaxis
-        $tempFile = storage_path('app/temp_component_' . uniqid() . '.blade.php');
         
-        try {
-            File::put($tempFile, $code);
+        // NUEVAS validaciones de seguridad JavaScript
+        $dangerousPatterns = [
+            // XSS y manipulación DOM
+            '/on\w+\s*=/i' => 'No se permiten event handlers inline (onclick, onload, etc.)',
+            '/javascript\s*:/i' => 'No se permiten URLs javascript:',
+            '/eval\s*\(/i' => 'No se permite uso de eval()',
+            '/new\s+Function\s*\(/i' => 'No se permite new Function()',
             
-            // Intentar compilar la vista para validar sintaxis
-            View::file($tempFile, [])->render();
+            // Acceso a APIs sensibles
+            '/document\.cookie/i' => 'No se permite acceso a cookies',
+            '/localStorage\s*\./i' => 'No se permite acceso a localStorage',
+            '/sessionStorage\s*\./i' => 'No se permite acceso a sessionStorage',
+            '/fetch\s*\([\'"]\/admin/i' => 'No se permiten llamadas a rutas admin',
+            '/XMLHttpRequest/i' => 'No se permiten requests XMLHttpRequest directos',
             
-        } catch (\Exception $e) {
-            throw new \Exception('Error de sintaxis Blade: ' . $e->getMessage());
-        } finally {
-            if (File::exists($tempFile)) {
-                File::delete($tempFile);
+            // Manipulación de funciones Alpine
+            '/Alpine\s*\./i' => 'No se permite manipulación directa de Alpine',
+            '/window\s*\./i' => 'No se permite acceso directo al objeto window',
+            
+            // Scripts inline peligrosos
+            '/<script[^>]*>(?!.*x-data).*<\/script>/is' => 'Solo se permiten scripts con Alpine.js (x-data)',
+        ];
+        
+        foreach ($dangerousPatterns as $pattern => $message) {
+            if (preg_match($pattern, $code)) {
+                throw new \Exception('Código no permitido: ' . $message);
+            }
+        }
+        
+        // Validar que scripts usen sistema seguro
+        $this->validateSafeScriptUsage($code);
+    }
+
+
+    private function validateSafeScriptUsage(string $code): void
+    {
+        // Buscar todos los scripts
+        preg_match_all('/<script[^>]*>(.*?)<\/script>/is', $code, $scripts);
+        
+        foreach ($scripts[1] as $scriptContent) {
+            // Skip si está vacío
+            if (trim($scriptContent) === '') continue;
+            
+            // Debe usar componentes seguros
+            $hasSafeComponent = preg_match('/(safeSwiper|safeAOS|safeGSAP)/', $scriptContent);
+            $hasAlpineData = preg_match('/Alpine\.data\s*\(/', $scriptContent);
+            
+            if (!$hasSafeComponent && !$hasAlpineData) {
+                throw new \Exception('Los scripts deben usar componentes seguros (safeSwiper, safeAOS, safeGSAP) o Alpine.data()');
             }
         }
     }
+
 
             private function generateComponentPreviewSafe(string $code, array $assets = [], array $testData = []): string
             {
@@ -620,49 +667,332 @@ class ComponentBuilderController extends Controller
     }
 
 
-        private function wrapComponentWithPreviewLayout(string $content, array $assets = []): string
-        {
-            $assetTags = $this->generateAssetTags($assets);
-            
-            return '<!DOCTYPE html>
+    private function wrapComponentWithPreviewLayout(string $content, array $assets = []): string
+    {
+        $assetTags = $this->generateAssetTags($assets);
+        $nonce = base64_encode(random_bytes(16));
+        $isDev = config('app.env') === 'local';
+        
+        // CSP con soporte completo para desarrollo
+        $cspPolicy = $isDev 
+            ? "default-src 'self'; 
+            script-src 'self' 'unsafe-eval' 'nonce-{$nonce}' https://cdn.tailwindcss.com https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; 
+            style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; 
+            font-src 'self' data: https:;
+            img-src 'self' data: https:; 
+            connect-src 'self';"
+            : "default-src 'self'; 
+            script-src 'self' 'nonce-{$nonce}' https://cdn.tailwindcss.com https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; 
+            style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; 
+            font-src 'self' data: https:;
+            img-src 'self' data: https:; 
+            connect-src 'self';";
+        
+        return '<!DOCTYPE html>
         <html lang="es">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Component Preview</title>
-            <script src="https://cdn.tailwindcss.com"></script>
-            <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+            
+            <!-- CSP Header - Con soporte para fuentes -->
+            <meta http-equiv="Content-Security-Policy" content="' . $cspPolicy . '">
+            
+            <!-- Core Libraries -->
+            <script src="https://cdn.tailwindcss.com" nonce="' . $nonce . '"></script>
+            <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" nonce="' . $nonce . '"></script>
+            
+            <!-- Assets ANTES del Component System -->
             ' . $assetTags . '
+            
+            <!-- Component System DESPUÉS de las librerías -->
+            <script nonce="' . $nonce . '">
+                ' . $this->getComponentSystemJS() . '
+            </script>
+            
             <style>
                 body { font-family: system-ui, -apple-system, sans-serif; }
                 .preview-container { min-height: 50vh; }
+                .error { 
+                    background: #fee; 
+                    color: #c00; 
+                    padding: 1rem; 
+                    border-radius: 0.5rem;
+                    border: 1px solid #fcc;
+                }
             </style>
         </head>
         <body class="bg-gray-50">
             <div class="preview-container p-4">
                 ' . $content . '
             </div>
+            
+            <!-- Debug Info -->
+            <script nonce="' . $nonce . '">
+                console.log("🛡️ Secure Component Preview Loaded");
+                console.log("📦 Available libraries:", {
+                    Swiper: typeof window.Swiper,
+                    AOS: typeof window.AOS,
+                    gsap: typeof window.gsap,
+                    Alpine: typeof window.Alpine
+                });
+                
+                if (window.ComponentSystem) {
+                    console.log("📊 ComponentSystem Stats:", ComponentSystem.getStats());
+                }
+            </script>
         </body>
         </html>';
-        }
+    }
+
+      private function getComponentSystemJS(): string
+    {
+        return '
+        window.ComponentSystem = {
+            activeComponents: new Map(),
+            
+            init() {
+                console.log("🚀 ComponentSystem initialized (basic version)");
+                this.setupGlobalComponents();
+            },
+            
+            setupGlobalComponents() {
+                // Swiper Component Seguro - CORREGIDO
+                Alpine.data("safeSwiper", (config = {}) => ({
+                    swiper: null,
+                    config: config,
+                    
+                    init() {
+                        // Esperar a que Swiper esté disponible
+                        this.waitForSwiper();
+                    },
+                    
+                    waitForSwiper() {
+                        if (typeof window.Swiper !== "undefined") {
+                            this.$nextTick(() => {
+                                this.initSwiper();
+                            });
+                        } else {
+                            console.log("⏳ Waiting for Swiper...");
+                            setTimeout(() => this.waitForSwiper(), 100);
+                        }
+                    },
+                    
+                    initSwiper() {
+                        try {
+                            // Buscar el elemento .swiper dentro del contenedor
+                            const swiperElement = this.$el.querySelector(".swiper");
+                            
+                            if (!swiperElement) {
+                                throw new Error("No se encontró elemento .swiper");
+                            }
+                            
+                            console.log("🎯 Initializing Swiper on:", swiperElement);
+                            console.log("🔧 Config:", this.config);
+                            
+                            this.swiper = new Swiper(swiperElement, {
+                                // Configuración base
+                                navigation: {
+                                    nextEl: ".swiper-button-next",
+                                    prevEl: ".swiper-button-prev",
+                                },
+                                pagination: {
+                                    el: ".swiper-pagination",
+                                    clickable: true
+                                },
+                                // Configuración por defecto segura
+                                slidesPerView: 1,
+                                spaceBetween: 10,
+                                loop: false,
+                                // Merge configuración del usuario
+                                ...this.config
+                            });
+                            
+                            console.log("✅ Swiper initialized successfully:", this.swiper);
+                            
+                            // Registrar en el sistema
+                            ComponentSystem.register("swiper", this.swiper, this.$el);
+                            
+                        } catch (error) {
+                            console.error("❌ Swiper init error:", error);
+                            this.$el.innerHTML = "<div class=\"error\">Error initializing slider: " + error.message + "</div>";
+                        }
+                    },
+                    
+                    destroy() {
+                        if (this.swiper) {
+                            this.swiper.destroy(true, true);
+                            ComponentSystem.unregister("swiper", this.$el);
+                        }
+                    }
+                }));
+                
+                // AOS Component Seguro
+                Alpine.data("safeAOS", (config = {}) => ({
+                    config: config,
+                    
+                    init() {
+                        this.waitForAOS();
+                    },
+                    
+                    waitForAOS() {
+                        if (typeof window.AOS !== "undefined") {
+                            this.$nextTick(() => {
+                                this.initAOS();
+                            });
+                        } else {
+                            setTimeout(() => this.waitForAOS(), 100);
+                        }
+                    },
+                    
+                    initAOS() {
+                        try {
+                            Object.entries(this.config).forEach(([key, value]) => {
+                                this.$el.setAttribute(`data-aos-${key}`, value);
+                            });
+                            
+                            // Refresh AOS to pickup new elements
+                            AOS.refresh();
+                            console.log("✅ AOS initialized");
+                            
+                        } catch (error) {
+                            console.error("❌ AOS init error:", error);
+                        }
+                    }
+                }));
+                
+                // GSAP Component Seguro  
+                Alpine.data("safeGSAP", (config = {}) => ({
+                    config: config,
+                    animation: null,
+                    
+                    init() {
+                        this.waitForGSAP();
+                    },
+                    
+                    waitForGSAP() {
+                        if (typeof window.gsap !== "undefined") {
+                            this.$nextTick(() => {
+                                this.initGSAP();
+                            });
+                        } else {
+                            setTimeout(() => this.waitForGSAP(), 100);
+                        }
+                    },
+                    
+                    initGSAP() {
+                        try {
+                            this.animation = gsap.from(this.$el, {
+                                opacity: 0,
+                                y: 30,
+                                duration: 1,
+                                ...this.config
+                            });
+                            
+                            console.log("✅ GSAP initialized");
+                            
+                        } catch (error) {
+                            console.error("❌ GSAP init error:", error);
+                        }
+                    },
+                    
+                    destroy() {
+                        if (this.animation) {
+                            this.animation.kill();
+                        }
+                    }
+                }));
+            },
+            
+            register(type, instance, element) {
+                const id = this.generateId();
+                this.activeComponents.set(id, {
+                    type,
+                    instance,
+                    element,
+                    createdAt: Date.now()
+                });
+                console.log(`📝 Component registered: ${type} (${id})`);
+            },
+            
+            unregister(type, element) {
+                // Buscar y remover por elemento
+                for (let [id, component] of this.activeComponents.entries()) {
+                    if (component.element === element) {
+                        this.activeComponents.delete(id);
+                        console.log(`🗑️ Component unregistered: ${type} (${id})`);
+                        break;
+                    }
+                }
+            },
+            
+            generateId() {
+                return "comp_" + Math.random().toString(36).substr(2, 9);
+            },
+            
+            getStats() {
+                const stats = {
+                    total: this.activeComponents.size,
+                    version: "basic"
+                };
+                
+                for (let [id, component] of this.activeComponents.entries()) {
+                    stats[component.type] = (stats[component.type] || 0) + 1;
+                }
+                
+                return stats;
+            }
+        };
+        
+        // Inicializar cuando Alpine esté listo
+        document.addEventListener("alpine:init", () => {
+            ComponentSystem.init();
+        });
+        ';
+    }
 
         private function generateAssetTags(array $assets): string
         {
             $tags = '';
             $availableAssets = $this->getAvailableAssetsList();
+            $enableSRI = config('app.env') === 'production'; // Solo en producción
+            
+            // Siempre incluir DOMPurify primero
+            if (isset($availableAssets['dompurify'])) {
+                $dompurify = $availableAssets['dompurify'];
+                $tags .= '<script src="' . $dompurify['url'] . '"';
+                
+                if ($enableSRI && isset($dompurify['integrity'])) {
+                    $tags .= ' integrity="' . $dompurify['integrity'] . '" crossorigin="anonymous"';
+                }
+                
+                $tags .= '></script>' . "\n";
+            }
             
             foreach ($assets as $assetKey) {
                 if (isset($availableAssets[$assetKey])) {
                     $asset = $availableAssets[$assetKey];
                     
-                    // Agregar CSS si existe
+                    // CSS con SRI opcional
                     if (isset($asset['css'])) {
-                        $tags .= '<link rel="stylesheet" href="' . $asset['css'] . '">' . "\n";
+                        $tags .= '<link rel="stylesheet" href="' . $asset['css'] . '"';
+                        
+                        if ($enableSRI && isset($asset['css_integrity'])) {
+                            $tags .= ' integrity="' . $asset['css_integrity'] . '" crossorigin="anonymous"';
+                        }
+                        
+                        $tags .= '>' . "\n";
                     }
                     
-                    // Agregar JS
+                    // JS con SRI opcional
                     if (isset($asset['url'])) {
-                        $tags .= '<script src="' . $asset['url'] . '"></script>' . "\n";
+                        $tags .= '<script src="' . $asset['url'] . '"';
+                        
+                        if ($enableSRI && isset($asset['integrity'])) {
+                            $tags .= ' integrity="' . $asset['integrity'] . '" crossorigin="anonymous"';
+                        }
+                        
+                        $tags .= '></script>' . "\n";
                     }
                 }
             }
