@@ -281,6 +281,13 @@ class ComponentBuilderController extends Controller
                 $bladeTemplate = $request->input('blade_template', $component->blade_template);
                 $externalAssets = $request->input('external_assets', $component->external_assets ?? []);
                 $testData = $request->input('test_data', []);
+
+                   \Log::info('🔍 Preview Debug', [
+                        'component_id' => $id,
+                        'test_data_received' => $testData,
+                        'has_cadenas' => isset($testData['cadenas']),
+                        'cadenas_value' => $testData['cadenas'] ?? 'NOT_SET'
+                    ]);
                 
                 // Datos por defecto si no se proporcionan
                 $defaultTestData = [
@@ -301,6 +308,11 @@ class ComponentBuilderController extends Controller
                 ];
                 
                 $finalTestData = array_merge($defaultTestData, $testData);
+
+                  \Log::info('🔍 Final Test Data', [
+                    'final_data' => $finalTestData,
+                    'has_cadenas_final' => isset($finalTestData['cadenas'])
+                ]);
                 
                 $html = $this->generateComponentPreviewSafe(
                     $bladeTemplate,

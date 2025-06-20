@@ -585,13 +585,9 @@ function componentEditor() {
         },
 
         // Preview updates
-        updatePreview() {
-            if (this.isUpdatingPreview) return;
-            
-            clearTimeout(this.previewTimeout);
-            this.previewTimeout = setTimeout(() => {
-                this.generatePreview();
-            }, 500);
+            updatePreview() {
+            // Cambiar para que siempre use props
+            this.updatePreviewWithProps();
         },
 
         // Props Management
@@ -609,64 +605,24 @@ function componentEditor() {
         },
 
         // Update preview with current props
-        updatePreviewWithProps() {
+         updatePreviewWithProps() {
             clearTimeout(this.previewTimeout);
             this.previewTimeout = setTimeout(() => {
-                this.generatePreviewWithProps();
+                this.generateUnifiedPreview(); // ← Usar el método unificado
             }, 500);
         },
 
 
 
+
         // Generate preview with test props
-        async generatePreviewWithProps() {
-            if (this.isUpdatingPreview) return;
-            
-            this.isUpdatingPreview = true;
-            
-            try {
-                // Convert props to test data format
-                const testData = this.convertPropsToTestData();
-                
-                const response = await fetch(`/admin/page-builder/components/${this.component.id}/preview`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                    },
-                    body: JSON.stringify({
-                        blade_template: this.component.blade_template,
-                        external_assets: this.component.external_assets,
-                        test_data: testData
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Preview error: ${response.status}`);
-                }
-
-                const previewHtml = await response.text();
-                
-                // Update preview iframe
-                this.$nextTick(() => {
-                    const iframe = this.$refs.previewFrame;
-                    if (iframe) {
-                        iframe.srcdoc = previewHtml;
-                    }
-                });
-
-            } catch (error) {
-                console.error('Preview with props error:', error);
-                this.showNotification('error', 'Error al generar preview: ' + error.message);
-            } finally {
-                this.isUpdatingPreview = false;
-            }
+      generatePreviewWithProps() {
+            return this.generateUnifiedPreview(); // ← Usar el método unificado
         },
-
         // Convert props array to test data object
-         convertPropsToTestData() {
-                 const testData = {};
-    
+            convertPropsToTestData() {
+                const testData = {};
+                
                 this.testProps.forEach(prop => {
                     if (prop.key && prop.value !== '') {
                         let value = prop.value;
@@ -688,6 +644,10 @@ function componentEditor() {
                         testData[prop.key] = value;
                     }
                 });
+                
+                // DEBUG TEMPORAL - agrega estas líneas
+                console.log('🔍 Test Data enviado:', testData);
+                console.log('🔍 Props configurados:', this.testProps);
                 
                 return testData;
             },
@@ -831,55 +791,9 @@ function componentEditor() {
                 },
 
         // Generate preview
-        async generatePreview() {
-            if (this.isUpdatingPreview) return;
-            
-            this.isUpdatingPreview = true;
-            
-            try {
-                const response = await fetch(`/admin/page-builder/components/${this.component.id}/preview`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                    },
-                    body: JSON.stringify({
-                        blade_template: this.component.blade_template,
-                        external_assets: this.component.external_assets,
-                        test_data: {
-                            title: 'Título de Ejemplo',
-                            description: 'Descripción de ejemplo para el preview.',
-                            content: 'Contenido de prueba para verificar el componente.',
-                            image: 'https://via.placeholder.com/400x200/6366f1/ffffff?text=Preview',
-                            url: '#',
-                            button_text: 'Ver más',
-                            price: '$99.99',
-                            date: new Date().toLocaleDateString('es-ES'),
-                            author: 'Usuario de Prueba'
-                        }
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Preview error: ${response.status}`);
-                }
-
-                const previewHtml = await response.text();
-                
-                // Update preview iframe
-                this.$nextTick(() => {
-                    const iframe = this.$refs.previewFrame;
-                    if (iframe) {
-                        iframe.srcdoc = previewHtml;
-                    }
-                });
-
-            } catch (error) {
-                console.error('Preview error:', error);
-                this.showNotification('error', 'Error al generar preview: ' + error.message);
-            } finally {
-                this.isUpdatingPreview = false;
-            }
+         async generatePreview() {
+    // Redirigir al método que usa props
+            return this.generatePreviewWithProps();
         },
 
         // Save component
@@ -1013,14 +927,62 @@ function componentEditor() {
         debouncedUpdatePreview() {
             clearTimeout(this.previewTimeout);
             this.previewTimeout = setTimeout(() => {
-                this.updatePreview();
+                this.updatePreviewWithProps(); // ← Cambiar aquí
             }, 1000);
         },
-
         // Handle form submission
         async submitForm() {
             await this.saveComponent();
         },
+
+
+        async generateUnifiedPreview() {
+            if (this.isUpdatingPreview) return;
+            
+            this.isUpdatingPreview = true;
+            
+            try {
+                // SIEMPRE incluir props de test
+                const testData = this.convertPropsToTestData();
+                
+                // Debug
+                console.log('🔍 Unified Preview - Test Data:', testData);
+                
+                const response = await fetch(`/admin/page-builder/components/${this.component.id}/preview`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify({
+                        blade_template: this.component.blade_template,
+                        external_assets: this.component.external_assets,
+                        test_data: testData // ← SIEMPRE incluir props
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Preview error: ${response.status}`);
+                }
+
+                const previewHtml = await response.text();
+                
+                // Update preview iframe
+                this.$nextTick(() => {
+                    const iframe = this.$refs.previewFrame;
+                    if (iframe) {
+                        iframe.srcdoc = previewHtml;
+                    }
+                });
+
+            } catch (error) {
+                console.error('Unified preview error:', error);
+                this.showNotification('error', 'Error al generar preview: ' + error.message);
+            } finally {
+                this.isUpdatingPreview = false;
+            }
+},
+
 
         // Navigate back
         goBack() {
