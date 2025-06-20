@@ -652,4 +652,4 @@ class GSAPPlugin {
 }
 
 // Instanciar plugin globalmente
-window.GSAPPlugin = new GSAPPlugin();
+window.GSAPPlugin = GSAPPlugin;  

@@ -559,4 +559,5 @@ class SwiperPlugin {
 }
 
 // Instanciar plugin globalmente
-window.SwiperPlugin = new SwiperPlugin();
+window.SwiperPlugin = SwiperPlugin;  
+

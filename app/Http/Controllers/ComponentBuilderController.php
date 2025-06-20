@@ -1417,6 +1417,7 @@ class ComponentBuilderController extends Controller
         }
 
 
+
         private function wrapWithOptimizedLayout(string $content, array $requiredLibraries): string
         {
             $nonce = base64_encode(random_bytes(16));
@@ -1429,7 +1430,7 @@ class ComponentBuilderController extends Controller
             $assetTags = $this->generateOptimizedAssetTags($requiredLibraries);
             
             // ComponentSystem optimizado
-            $componentSystemJS = $this->getComponentSystemJS($requiredLibraries);
+            $componentSystemJS = $this->getComponentSystemJS();
             
             return '<!DOCTYPE html>
             <html lang="es">
@@ -1443,14 +1444,62 @@ class ComponentBuilderController extends Controller
                 
                 <!-- Core Libraries -->
                 <script src="https://cdn.tailwindcss.com" nonce="' . $nonce . '"></script>
-                <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" nonce="' . $nonce . '"></script>
                 
                 <!-- Optimized Assets (Only Required Libraries) -->
                 ' . $assetTags . '
                 
-                <!-- Component System (Modular) -->
+                <!-- CONTROL TOTAL DE ALPINE -->
+                <script nonce="' . $nonce . '">
+                    // PASO 1: Bloquear Alpine automático estableciendo bandera ANTES de cargar
+                    window.deferLoadingAlpine = function(callback) {
+                        console.log("🎿 Alpine deferred, waiting for components");
+                        window.Alpine = callback; // Guardar Alpine pero no iniciarlo
+                    };
+                    
+                    // PASO 2: Variable de control
+                    let componentsRegistered = false;
+                    
+                    // PASO 3: Función para iniciar Alpine cuando estemos listos
+                    window.startAlpineWhenReady = function() {
+                        console.log("🚀 Starting Alpine with components ready");
+                        if (window.Alpine && typeof window.Alpine.start === "function") {
+                            window.Alpine.start();
+                        } else if (window.Alpine && typeof window.Alpine === "function") {
+                            // Si Alpine es la función de callback
+                            const alpineInstance = window.Alpine();
+                            window.Alpine = alpineInstance;
+                            alpineInstance.start();
+                        }
+                    };
+                    
+                    // PASO 4: Función llamada cuando componentes estén listos
+                    window.markComponentsReady = function() {
+                        console.log("✅ Components are ready, starting Alpine");
+                        componentsRegistered = true;
+                        window.startAlpineWhenReady();
+                    };
+                </script>
+                
+                <!-- Component System ANTES de Alpine -->
                 <script nonce="' . $nonce . '">
                     ' . $componentSystemJS . '
+                </script>
+                
+                <!-- Alpine.js con defer automático -->
+                <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" nonce="' . $nonce . '"></script>
+                
+                <!-- Backup: Si Alpine no respeta defer, forzar inicio -->
+                <script nonce="' . $nonce . '">
+                    // Verificar después de 1 segundo si Alpine se inició automáticamente
+                    setTimeout(() => {
+                        if (!componentsRegistered) {
+                            console.log("⚠️ Alpine may have started automatically, forcing component registration");
+                            if (window.ComponentManager && window.ComponentManager.forceRegisterComponents) {
+                                window.ComponentManager.forceRegisterComponents();
+                            }
+                            window.markComponentsReady();
+                        }
+                    }, 1000);
                 </script>
                 
                 <style>
@@ -1477,20 +1526,42 @@ class ComponentBuilderController extends Controller
                 <!-- Debug Info (Solo en desarrollo) -->
                 ' . ($isDev ? $this->generateDebugInfo($requiredLibraries, $nonce) : '') . '
                 
+                <!-- Test después de un delay -->
+                <script nonce="' . $nonce . '">
+                    // Debug: Verificar estado después de 3 segundos
+                    setTimeout(() => {
+                        console.log("🔍 Final state check:");
+                        console.log("- Alpine available:", !!window.Alpine);
+                        console.log("- Components registered:", componentsRegistered);
+                        
+                        if (window.Alpine && window.Alpine.data && window.Alpine.data.store) {
+                            const components = Object.keys(window.Alpine.data.store);
+                            console.log("- Available components:", components);
+                            console.log("- Has swiperBasic:", components.includes("swiperBasic"));
+                        } else {
+                            console.log("- Alpine.data.store not available");
+                        }
+                    }, 3000);
+                </script>
+                
                 <!-- Finalización de carga -->
                 <script nonce="' . $nonce . '">
                     // Marcar como cargado cuando todo esté listo
                     document.addEventListener("DOMContentLoaded", () => {
                         setTimeout(() => {
-                            document.getElementById("preview-container").classList.remove("loading");
-                            document.getElementById("preview-container").classList.add("loaded");
-                        }, 300);
+                            const container = document.getElementById("preview-container");
+                            if (container) {
+                                container.classList.remove("loading");
+                                container.classList.add("loaded");
+                            }
+                        }, 1500);
                     });
                 </script>
+
+                
             </body>
             </html>';
         }
-
 
         private function generateCSPPolicy(string $nonce, bool $isDev): string
         {
