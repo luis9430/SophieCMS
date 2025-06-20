@@ -76,17 +76,22 @@
                 <nav class="flex">
                     <button @click="activeTab = 'basic'" 
                             :class="activeTab === 'basic' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'"
-                            class="w-1/3 py-2 px-1 text-center border-b-2 font-medium text-sm">
+                            class="w-1/4 py-2 px-1 text-center border-b-2 font-medium text-sm">
                         Básico
+                    </button>
+                    <button @click="activeTab = 'props'" 
+                            :class="activeTab === 'props' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'"
+                            class="w-1/4 py-2 px-1 text-center border-b-2 font-medium text-sm">
+                        Props
                     </button>
                     <button @click="activeTab = 'assets'" 
                             :class="activeTab === 'assets' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'"
-                            class="w-1/3 py-2 px-1 text-center border-b-2 font-medium text-sm">
+                            class="w-1/4 py-2 px-1 text-center border-b-2 font-medium text-sm">
                         Assets
                     </button>
                     <button @click="activeTab = 'communication'" 
                             :class="activeTab === 'communication' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'"
-                            class="w-1/3 py-2 px-1 text-center border-b-2 font-medium text-sm">
+                            class="w-1/4 py-2 px-1 text-center border-b-2 font-medium text-sm">
                         Comunicación
                     </button>
                 </nav>
@@ -103,6 +108,10 @@
                         <div class="text-blue-700">Creado {{ $component->created_at->diffForHumans() }}</div>
                         <div class="text-blue-700">ID: {{ $component->identifier }}</div>
                     </div>
+
+
+
+
 
                     <!-- Name -->
                     <div>
@@ -159,6 +168,146 @@
                         </label>
                         <div class="bg-gray-100 p-3 rounded-lg">
                             <code class="text-sm font-mono">&lt;x-page-builder.{{ $component->identifier }} /&gt;</code>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div x-show="activeTab === 'props'" class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h4 class="font-medium text-gray-900">Props Simulator</h4>
+                        <button @click="addProp()" 
+                                class="text-sm bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200">
+                            + Agregar Prop
+                        </button>
+                    </div>
+                    
+                    <div class="text-sm text-gray-600 mb-4">
+                        Define props para testing y preview. Estos valores son solo para desarrollo.
+                    </div>
+
+                    <!-- Props List -->
+                    <div class="space-y-3">
+                        <template x-for="(prop, index) in testProps" :key="index">
+                            <div class="border border-gray-200 rounded-lg p-3">
+                                <div class="flex gap-2 items-start">
+                                    <!-- Key Input -->
+                                    <div class="flex-1">
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Nombre</label>
+                                        <input type="text" 
+                                            x-model="prop.key"
+                                            @input="updatePreviewWithProps()"
+                                            placeholder="title, description..."
+                                            class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                    </div>
+                                    
+                                    <!-- Type Select -->
+                                    <div class="w-20">
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Tipo</label>
+                                        <select x-model="prop.type" 
+                                                @change="updatePreviewWithProps()"
+                                                class="w-full px-1 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                            <option value="string">String</option>
+                                            <option value="number">Number</option>
+                                            <option value="boolean">Boolean</option>
+                                            <option value="array">Array</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <!-- Value Input -->
+                                    <div class="flex-1">
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Valor</label>
+                                        <template x-if="prop.type === 'boolean'">
+                                            <select x-model="prop.value" 
+                                                    @change="updatePreviewWithProps()"
+                                                    class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                                <option value="true">true</option>
+                                                <option value="false">false</option>
+                                            </select>
+                                        </template>
+                                        <template x-if="prop.type !== 'boolean'">
+                                            <input type="text" 
+                                                x-model="prop.value"
+                                                @input="updatePreviewWithProps()"
+                                                :placeholder="getPlaceholderForType(prop.type)"
+                                                class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                        </template>
+                                    </div>
+
+
+                                    <template x-if="prop.type === 'array'">
+                                        <div class="w-full">
+                                            <textarea x-model="prop.value"
+                                                    @input="updatePreviewWithProps()"
+                                                    :placeholder="getPlaceholderForType(prop.type)"
+                                                    rows="3"
+                                                    class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"></textarea>
+                                            <div class="flex items-center justify-between mt-1">
+                                                <div class="text-xs text-gray-500">
+                                                    Formato: ["item1", "item2"] o item1, item2, item3
+                                                </div>
+                                                <button @click="validateArrayFormat(prop)" 
+                                                        type="button"
+                                                        class="text-xs text-blue-600 hover:text-blue-800">
+                                                    Validar
+                                                </button>
+                                            </div>
+                                            <!-- Validation feedback -->
+                                            <div x-show="prop.validationError" 
+                                                x-text="prop.validationError"
+                                                class="text-xs text-red-600 mt-1"></div>
+                                        </div>
+                                    </template>
+                                    
+                                    <!-- Remove Button -->
+                                    <div class="pt-5">
+                                        <button @click="removeProp(index)" 
+                                                class="text-red-500 hover:text-red-700 text-sm">
+                                            ×
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Empty State -->
+                    <div x-show="testProps.length === 0" class="text-center py-8 text-gray-500">
+                        <svg class="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                        <p class="text-sm">No hay props definidos</p>
+                        <p class="text-xs">Agrega props para testear tu componente</p>
+                    </div>
+
+                    <!-- Generated Code Preview -->
+                    <div x-show="testProps.length > 0" class="mt-6">
+                        <h5 class="text-sm font-medium text-gray-700 mb-2">Código generado para Page Builder:</h5>
+                        <div class="bg-gray-100 p-3 rounded-lg">
+                            <code class="text-sm font-mono text-gray-800" x-text="getGeneratedCode()"></code>
+                        </div>
+                        <button @click="copyGeneratedCode()" 
+                                class="mt-2 text-xs bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700">
+                            Copiar código
+                        </button>
+                    </div>
+
+                    <!-- Quick Presets -->
+                    <div class="mt-6 pt-4 border-t border-gray-200">
+                        <h5 class="text-sm font-medium text-gray-700 mb-2">Presets rápidos:</h5>
+                        <div class="flex flex-wrap gap-2">
+                            <button @click="loadPreset('card')" 
+                                    class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200">
+                                Card básica
+                            </button>
+                            <button @click="loadPreset('hero')" 
+                                    class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded hover:bg-purple-200">
+                                Hero section
+                            </button>
+                            <button @click="loadPreset('button')" 
+                                    class="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded hover:bg-orange-200">
+                                Botón
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -314,6 +463,7 @@ function componentEditor() {
         isUpdatingPreview: false,
         previewTimeout: null,
         hasChanges: false,
+        testProps: [],
         showPreviewModal: false,
         previewComponent: null,
         // Component data - cargado de forma ultra segura
@@ -443,6 +593,242 @@ function componentEditor() {
                 this.generatePreview();
             }, 500);
         },
+
+        // Props Management
+        addProp() {
+            this.testProps.push({
+                key: '',
+                value: '',
+                type: 'string'
+            });
+        },
+
+        removeProp(index) {
+            this.testProps.splice(index, 1);
+            this.updatePreviewWithProps();
+        },
+
+        // Update preview with current props
+        updatePreviewWithProps() {
+            clearTimeout(this.previewTimeout);
+            this.previewTimeout = setTimeout(() => {
+                this.generatePreviewWithProps();
+            }, 500);
+        },
+
+
+
+        // Generate preview with test props
+        async generatePreviewWithProps() {
+            if (this.isUpdatingPreview) return;
+            
+            this.isUpdatingPreview = true;
+            
+            try {
+                // Convert props to test data format
+                const testData = this.convertPropsToTestData();
+                
+                const response = await fetch(`/admin/page-builder/components/${this.component.id}/preview`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify({
+                        blade_template: this.component.blade_template,
+                        external_assets: this.component.external_assets,
+                        test_data: testData
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Preview error: ${response.status}`);
+                }
+
+                const previewHtml = await response.text();
+                
+                // Update preview iframe
+                this.$nextTick(() => {
+                    const iframe = this.$refs.previewFrame;
+                    if (iframe) {
+                        iframe.srcdoc = previewHtml;
+                    }
+                });
+
+            } catch (error) {
+                console.error('Preview with props error:', error);
+                this.showNotification('error', 'Error al generar preview: ' + error.message);
+            } finally {
+                this.isUpdatingPreview = false;
+            }
+        },
+
+        // Convert props array to test data object
+         convertPropsToTestData() {
+                 const testData = {};
+    
+                this.testProps.forEach(prop => {
+                    if (prop.key && prop.value !== '') {
+                        let value = prop.value;
+                        
+                        switch (prop.type) {
+                            case 'number':
+                                value = parseFloat(prop.value) || 0;
+                                break;
+                            case 'boolean':
+                                value = prop.value === 'true';
+                                break;
+                            case 'array':
+                                value = this.parseArrayValue(prop.value);
+                                break;
+                            default:
+                                value = prop.value;
+                        }
+                        
+                        testData[prop.key] = value;
+                    }
+                });
+                
+                return testData;
+            },
+
+
+            parseArrayValue(arrayString) {
+                try {
+                    // Intentar parsear como JSON primero
+                    const parsed = JSON.parse(arrayString);
+                    return Array.isArray(parsed) ? parsed : [parsed];
+                } catch (e) {
+                    // Si falla, split por comas
+                    return arrayString.split(',').map(item => item.trim()).filter(item => item !== '');
+                }
+            },
+
+
+            validateArrayFormat(prop) {
+                prop.validationError = '';
+                
+                try {
+                    const parsed = JSON.parse(prop.value);
+                    if (Array.isArray(parsed)) {
+                        prop.validationError = '';
+                        this.showNotification('success', 'Array válido');
+                    } else {
+                        prop.validationError = 'Debe ser un array';
+                    }
+                } catch (e) {
+                    // Verificar si es formato simple (comma-separated)
+                    const simpleArray = prop.value.split(',').map(item => item.trim());
+                    if (simpleArray.length > 0 && simpleArray.every(item => item !== '')) {
+                        prop.validationError = '';
+                        this.showNotification('success', 'Formato simple válido');
+                    } else {
+                        prop.validationError = 'Formato inválido. Use ["item1", "item2"] o item1, item2';
+                    }
+                }
+            },
+        // Generate code for Page Builder
+        getGeneratedCode() {
+            if (this.testProps.length === 0) return '';
+            
+            let code = `<x-page-builder.${this.component.identifier}`;
+            
+            this.testProps.forEach(prop => {
+                if (prop.key && prop.value !== '') {
+                    if (prop.type === 'string') {
+                        code += `\n    ${prop.key}="${prop.value}"`;
+                    } else {
+                        code += `\n    :${prop.key}="${this.formatPropValue(prop)}"`;
+                    }
+                }
+            });
+            
+            code += ' />';
+            return code;
+        },
+
+        // Format prop value for Blade
+         formatPropValue(prop) {
+            switch (prop.type) {
+                case 'number':
+                    return prop.value;
+                case 'boolean':
+                    return prop.value;
+                case 'array':
+                    try {
+                        // Si es JSON válido, usarlo directamente
+                        const parsed = JSON.parse(prop.value);
+                        return JSON.stringify(parsed);
+                    } catch (e) {
+                        // Si es formato simple, convertir a array de strings
+                        const items = prop.value.split(',').map(item => `'${item.trim()}'`);
+                        return `[${items.join(', ')}]`;
+                    }
+                default:
+                    return `"${prop.value}"`;
+            }
+        },
+
+        // Copy generated code to clipboard
+        async copyGeneratedCode() {
+            try {
+                await navigator.clipboard.writeText(this.getGeneratedCode());
+                this.showNotification('success', 'Código copiado al portapapeles');
+            } catch (err) {
+                console.error('Error copying to clipboard:', err);
+                this.showNotification('error', 'Error al copiar código');
+            }
+        },
+
+        // Get placeholder text for input types
+        getPlaceholderForType(type) {
+            switch (type) {
+                case 'string':
+                    return 'Texto aquí...';
+                case 'number':
+                    return '123';
+                case 'boolean':
+                    return 'true/false';
+                case 'array':
+                    return '["Item 1", "Item 2"] o item1, item2, item3';
+                default:
+                    return '';
+            }
+        },
+
+        // Load preset props
+                loadPreset(presetName) {
+                    switch (presetName) {
+                        case 'card':
+                            this.testProps = [
+                                { key: 'title', value: 'Título de Card', type: 'string' },
+                                { key: 'description', value: 'Descripción de la card', type: 'string' },
+                                { key: 'image', value: 'https://via.placeholder.com/300x200', type: 'string' },
+                                { key: 'tags', value: '["Nuevo", "Popular", "Oferta"]', type: 'array' },
+                                { key: 'url', value: '#', type: 'string' }
+                            ];
+                            break;
+                        case 'hero':
+                            this.testProps = [
+                                { key: 'title', value: 'Título Principal', type: 'string' },
+                                { key: 'subtitle', value: 'Subtítulo descriptivo', type: 'string' },
+                                { key: 'button_text', value: 'Llamada a acción', type: 'string' },
+                                { key: 'features', value: 'Rápido, Seguro, Confiable', type: 'array' },
+                                { key: 'background_image', value: 'https://via.placeholder.com/1200x600', type: 'string' }
+                            ];
+                            break;
+                        case 'button':
+                            this.testProps = [
+                                { key: 'text', value: 'Click aquí', type: 'string' },
+                                { key: 'url', value: '#', type: 'string' },
+                                { key: 'variant', value: 'primary', type: 'string' },
+                                { key: 'classes', value: '["hover:scale-105", "transition-transform"]', type: 'array' },
+                                { key: 'disabled', value: 'false', type: 'boolean' }
+                            ];
+                            break;
+                    }
+                    this.updatePreviewWithProps();
+                },
 
         // Generate preview
         async generatePreview() {

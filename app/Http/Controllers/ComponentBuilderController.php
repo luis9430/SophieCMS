@@ -439,8 +439,8 @@ class ComponentBuilderController extends Controller
         }
     }
 
-    private function generateComponentPreviewSafe(string $code, array $assets = [], array $testData = []): string
-    {
+            private function generateComponentPreviewSafe(string $code, array $assets = [], array $testData = []): string
+            {
                 // Asegurar que el directorio existe
                 $tempDir = storage_path('app');
                 if (!is_dir($tempDir)) {
@@ -455,13 +455,25 @@ class ComponentBuilderController extends Controller
                         throw new \Exception('No se puede escribir en el directorio de storage');
                     }
                     
+                    // Validar código antes de crear archivo
+                    if (empty(trim($code))) {
+                        throw new \Exception('El código del componente está vacío');
+                    }
+                    
                     file_put_contents($tempFile, $code);
                     
                     if (!file_exists($tempFile)) {
                         throw new \Exception('No se pudo crear el archivo temporal');
                     }
                     
-                    $renderedComponent = \View::file($tempFile, $testData)->render();
+                    // Renderizar con manejo de errores específicos
+                    try {
+                        $renderedComponent = \View::file($tempFile, $testData)->render();
+                    } catch (\Illuminate\View\ViewException $e) {
+                        throw new \Exception('Error de sintaxis Blade: ' . $e->getMessage());
+                    } catch (\ParseError $e) {
+                        throw new \Exception('Error de sintaxis PHP: ' . $e->getMessage());
+                    }
                     
                     return $this->wrapComponentWithPreviewLayout($renderedComponent, $assets);
                     
@@ -469,20 +481,92 @@ class ComponentBuilderController extends Controller
                     \Log::error('Error in generateComponentPreviewSafe', [
                         'error' => $e->getMessage(),
                         'temp_dir' => $tempDir,
-                        'temp_file' => $tempFile,
+                        'temp_file' => $tempFile ?? 'not_created',
                         'dir_exists' => is_dir($tempDir),
-                        'dir_writable' => is_writable($tempDir)
+                        'dir_writable' => is_writable($tempDir),
+                        'code_length' => strlen($code),
+                        'assets_count' => count($assets)
                     ]);
                     
-                    // Fallback: usar eval (menos seguro pero funciona)
-                    return $this->generatePreviewWithoutFile($code, $assets, $testData);
+                    // Intentar método alternativo
+                    try {
+                        return $this->generatePreviewWithoutFile($code, $assets, $testData);
+                    } catch (\Exception $fallbackError) {
+                        // Si todo falla, devolver error HTML
+                        return $this->generateErrorPreview($e->getMessage());
+                    }
                     
                 } finally {
                     if (isset($tempFile) && file_exists($tempFile)) {
                         unlink($tempFile);
                     }
                 }
-        }
+            }
+
+      
+      
+      
+        private function generatePreviewWithoutFile(string $code, array $assets = [], array $testData = []): string
+            {
+                try {
+                    // Método más directo pero menos seguro
+                    // Crear un view temporal en memoria
+                    $tempViewName = 'temp_' . uniqid();
+                    
+                    // Usar View::addNamespace para crear vista temporal
+                    $tempPath = storage_path('framework/views');
+                    if (!is_dir($tempPath)) {
+                        mkdir($tempPath, 0755, true);
+                    }
+                    
+                    $tempFile = $tempPath . '/' . $tempViewName . '.blade.php';
+                    file_put_contents($tempFile, $code);
+                    
+                    // Renderizar
+                    $renderedComponent = view()->file($tempFile, $testData)->render();
+                    
+                    // Limpiar archivo temporal
+                    if (file_exists($tempFile)) {
+                        unlink($tempFile);
+                    }
+                    
+                    return $this->wrapComponentWithPreviewLayout($renderedComponent, $assets);
+                    
+                } catch (\Exception $e) {
+                    // Si todo falla, devolver error HTML
+                    return $this->generateErrorPreview($e->getMessage());
+                }
+            }
+
+            /**
+             * Generar preview de error
+             */
+            private function generateErrorPreview(string $errorMessage): string
+            {
+                $errorHtml = '<!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Error en Preview</title>
+                    <script src="https://cdn.tailwindcss.com"></script>
+                </head>
+                <body class="bg-gray-50 p-8">
+                    <div class="max-w-md mx-auto bg-white rounded-lg shadow p-6">
+                        <div class="text-red-600 mb-4 text-center">
+                            <svg class="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-medium text-gray-900 text-center mb-2">Error en Preview</h3>
+                        <p class="text-sm text-gray-600 text-center mb-4">' . htmlspecialchars($errorMessage) . '</p>
+                        <div class="text-xs text-gray-400 text-center">
+                            <p>Revisa la sintaxis de tu componente Blade</p>
+                        </div>
+                    </div>
+                </body>
+                </html>';
+                
+                return $errorHtml;
+            }
 
     private function generateMultiComponentPreview(string $main, array $testComponents, array $config, array $assets): string
     {
