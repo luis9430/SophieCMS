@@ -74,6 +74,13 @@ Route::prefix('api/component-builder')->middleware(['auth'])->group(function () 
     // Obtener assets disponibles
     Route::get('/assets', [ComponentBuilderController::class, 'getAvailableAssets'])
         ->name('component-builder.assets');
+
+    Route::post('/detect-assets', [ComponentBuilderController::class, 'detectAssets'])
+    ->name('component-builder.detect-assets');
+
+    // 📋 Assets disponibles (para el Asset Manager)
+    Route::get('/available-assets', [ComponentBuilderController::class, 'getAvailableAssets'])
+    ->name('component-builder.available-assets');
     
     // Validar código Blade
     Route::post('/validate', [ComponentBuilderController::class, 'validateCode'])

@@ -3,5 +3,6 @@
 return [
     App\Providers\AppServiceProvider::class,
     App\Providers\MoonShineServiceProvider::class,
+    App\Providers\ComponentPreviewService::class,
 
 ];

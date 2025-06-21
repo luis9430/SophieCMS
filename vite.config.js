@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import laravel from 'laravel-vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import preact from '@preact/preset-vite';
-import path from 'path'; // ← ESTA LÍNEA FALTABA
+import path from 'path';
 
 export default defineConfig({
     plugins: [
@@ -10,7 +10,9 @@ export default defineConfig({
             input: [
                 'resources/css/app.css', 
                 'resources/js/app.js',
-                'resources/js/preact-app.jsx' // Nuevo entry point para Preact
+                'resources/js/preact-app.jsx',
+                'resources/js/component-preview.js',
+                'resources/js/asset-detection.js' 
             ],
             refresh: true,
         }),
@@ -21,13 +23,17 @@ export default defineConfig({
         alias: {
             'react': 'preact/compat',
             'react-dom': 'preact/compat',
-            '@mdx-system': path.resolve(process.cwd(), './resources/js/mdx-system'), // También mejoré esta línea
-            '@': path.resolve(process.cwd(), './resources/js') // Alias adicional útil
+            '@mdx-system': path.resolve(process.cwd(), './resources/js/mdx-system'),
+            '@': path.resolve(process.cwd(), './resources/js')
         }
     },
     esbuild: {
         jsxFactory: 'h',
         jsxFragment: 'Fragment',
         jsxInject: `import { h, Fragment } from 'preact'`
+    },
+    // ✅ Configuración adicional para evitar errores
+    optimizeDeps: {
+        include: ['alpinejs', 'gsap']
     }
 });

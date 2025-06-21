@@ -34,6 +34,7 @@
     "@tabler/icons-preact": "^3.34.0",
     "@uiw/react-codemirror": "^4.23.12",
     "alpinejs": "^3.14.9",
+    "gsap": "^3.13.0",
     "liquidjs": "^10.21.1",
     "preact": "^10.26.8",
     "sortablejs": "^1.15.6",

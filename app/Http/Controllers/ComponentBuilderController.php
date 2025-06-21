@@ -11,6 +11,10 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use App\Services\ComponentPreviewService;
+
+
+
 
 class ComponentBuilderController extends Controller
 {
@@ -245,124 +249,6 @@ class ComponentBuilderController extends Controller
         ]);
     }
 
-
-        public function preview(Request $request, $id)
-        {
-            try {
-                $component = Component::findOrFail($id);
-                
-                // Si se envía blade_template en el request, usar ese (para edit.blade.php)
-                // Si no, usar el del componente (para index.blade.php)
-                $bladeTemplate = $request->input('blade_template', $component->blade_template);
-                $externalAssets = $request->input('external_assets', $component->external_assets ?? []);
-                $testData = $request->input('test_data', []);
-
-                   \Log::info('🔍 Preview Debug', [
-                        'component_id' => $id,
-                        'test_data_received' => $testData,
-                        'has_cadenas' => isset($testData['cadenas']),
-                        'cadenas_value' => $testData['cadenas'] ?? 'NOT_SET'
-                    ]);
-                
-                // Datos por defecto si no se proporcionan
-                $defaultTestData = [
-                    'title' => 'Título de Ejemplo',
-                    'description' => 'Descripción de ejemplo para el componente.',
-                    'content' => 'Contenido de prueba para verificar el componente.',
-                    'image' => 'https://via.placeholder.com/400x200/6366f1/ffffff?text=Preview',
-                    'url' => '#',
-                    'button_text' => 'Ver más',
-                    'price' => '$99.99',
-                    'date' => now()->format('d/m/Y'),
-                    'author' => 'Usuario de Prueba',
-                    'items' => [
-                        ['name' => 'Item 1', 'value' => 'Valor 1'],
-                        ['name' => 'Item 2', 'value' => 'Valor 2'],
-                        ['name' => 'Item 3', 'value' => 'Valor 3']
-                    ]
-                ];
-                
-                $finalTestData = array_merge($defaultTestData, $testData);
-
-                  \Log::info('🔍 Final Test Data', [
-                    'final_data' => $finalTestData,
-                    'has_cadenas_final' => isset($finalTestData['cadenas'])
-                ]);
-                
-                $html = $this->generateComponentPreviewSafe(
-                    $bladeTemplate,
-                    $externalAssets,
-                    $finalTestData
-                );
-                
-                return response($html)->header('Content-Type', 'text/html');
-                
-            } catch (\Exception $e) {
-                \Log::error('Preview error: ' . $e->getMessage(), [
-                    'component_id' => $id,
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
-                    'request_data' => $request->all()
-                ]);
-                
-                $errorHtml = '<!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Error en Preview</title>
-                    <script src="https://cdn.tailwindcss.com"></script>
-                </head>
-                <body class="bg-gray-50 p-8">
-                    <div class="max-w-md mx-auto bg-white rounded-lg shadow p-6">
-                        <div class="text-red-600 mb-4 text-center">
-                            <svg class="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z"></path>
-                            </svg>
-                        </div>
-                        <h3 class="text-lg font-medium text-gray-900 text-center mb-2">Error en Preview</h3>
-                        <p class="text-sm text-gray-600 text-center mb-4">' . htmlspecialchars($e->getMessage()) . '</p>
-                        <div class="text-xs text-gray-400 text-center">
-                            <details>
-                                <summary class="cursor-pointer hover:text-gray-600">Ver detalles técnicos</summary>
-                                <pre class="mt-2 text-left whitespace-pre-wrap">' . htmlspecialchars($e->getTraceAsString()) . '</pre>
-                            </details>
-                        </div>
-                    </div>
-                </body>
-                </html>';
-                
-                return response($errorHtml)->header('Content-Type', 'text/html');
-            }
-        }
-    /**
-     * Preview multi-componente para testear comunicación
-     */
-    public function previewMulti(Request $request)
-    {
-        try {
-            $mainComponent = $request->input('main_component', '');
-            $testComponents = $request->input('test_components', []);
-            $communicationConfig = $request->input('communication_config', []);
-            $externalAssets = $request->input('external_assets', []);
-
-            $html = $this->generateMultiComponentPreview(
-                $mainComponent,
-                $testComponents,
-                $communicationConfig,
-                $externalAssets
-            );
-
-            return response()->json([
-                'success' => true,
-                'html' => $html
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Error en preview multi-componente: ' . $e->getMessage()
-            ]);
-        }
-    }
 
     /**
      * Validar código Blade
@@ -834,58 +720,7 @@ class ComponentBuilderController extends Controller
             /*** nuevo metodos  */
 
 
-        private function detectRequiredLibraries(string $bladeCode): array
-        {
-            $libraries = [];
-            
-            // Patrones de detección para cada librería
-            $patterns = [
-                'swiper' => [
-                    '/x-data=["\'].*swiper/i',
-                    '/Swiper/i',
-                    '/swiper-/i',
-                    '/\.swiper\b/i'
-                ],
-                'gsap' => [
-                    '/x-data=["\'].*gsap/i',
-                    '/gsap\./i',
-                    '/GSAP/i',
-                    '/\.to\(/i',
-                    '/\.from\(/i',
-                    '/\.timeline/i'
-                ],
-                'fullcalendar' => [
-                    '/FullCalendar/i',
-                    '/fullcalendar/i',
-                    '/@fullcalendar/i'
-                ],
-                'aos' => [
-                    '/AOS\./i',
-                    '/aos-/i',
-                    '/data-aos/i'
-                ],
-                'chart' => [
-                    '/Chart\.js/i',
-                    '/chart\.js/i',
-                    '/new Chart/i',
-                    '/chartjs/i'
-                ]
-            ];
-            
-            foreach ($patterns as $library => $libraryPatterns) {
-                foreach ($libraryPatterns as $pattern) {
-                    if (preg_match($pattern, $bladeCode)) {
-                        $libraries[] = $library;
-                        break; // Solo agregar una vez por librería
-                    }
-                }
-            }
-            
-            return array_unique($libraries);
-        }
-
-
-        private function getOptimizedAssets(array $requiredLibraries): array
+            private function getOptimizedAssets(array $requiredLibraries): array
         {
             $allAssets = $this->getAvailableAssetsList();
             $optimizedAssets = [];
@@ -1004,14 +839,6 @@ class ComponentBuilderController extends Controller
         }
 
 
-        private function generateAssetTags(array $assets): string
-        {
-            // Usar el nuevo método optimizado pero manteniendo la estructura del método original
-            return $this->generateOptimizedAssetTags($assets);
-        }
-
-
-
         private function getComponentSystemJS(): string
         {
             // Cargar solo el core + scripts de plugins necesarios
@@ -1023,17 +850,6 @@ class ComponentBuilderController extends Controller
         }
 
 
-        private function loadComponentManagerCore(): string
-        {
-            $coreFile = public_path('js/component-system/core/ComponentManager.js');
-            
-            if (file_exists($coreFile)) {
-                return "\n// ComponentManager Core\n" . file_get_contents($coreFile) . "\n";
-            }
-            
-            // Fallback básico si el archivo no existe
-            return $this->getCoreComponentSystemFallback();
-        }
 
         private function getCoreComponentSystemFallback(): string
         {
@@ -1643,25 +1459,6 @@ class ComponentBuilderController extends Controller
         }
 
 
-        public function getAvailableAssets(Request $request)
-        {
-            $assets = $this->getAvailableAssetsList();
-            
-            // Filtrar información sensible en producción
-            if (config('app.env') !== 'local') {
-                foreach ($assets as &$asset) {
-                    unset($asset['plugin']); // No exponer nombres de plugins
-                }
-            }
-            
-            return response()->json([
-                'success' => true,
-                'assets' => $assets,
-                'auto_detection' => true,
-                'version' => '2.0'
-            ]);
-        }
-
 
         private function validateAssetConfiguration(array $assets): bool
         {
@@ -1702,8 +1499,644 @@ class ComponentBuilderController extends Controller
         }
 
 
-        
+        /**
+         * Generar assets unificados sin conflictos
+         */
+        private function generateUnifiedAssets(array $requiredLibraries): string
+        {
+            $assets = [];
+            
+            // CDN Assets base (siempre incluir)
+            $assets[] = [
+                'css' => 'https://cdn.tailwindcss.com',
+                'type' => 'tailwind'
+            ];
+            
+            // Assets específicos según librerías detectadas
+            foreach ($requiredLibraries as $library) {
+                switch (strtolower($library)) {
+                    case 'swiper':
+                        $assets[] = [
+                            'css' => 'https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css',
+                            'js' => 'https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js',
+                            'type' => 'swiper'
+                        ];
+                        break;
+                        
+                    case 'gsap':
+                        $assets[] = [
+                            'js' => 'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js',
+                            'type' => 'gsap'
+                        ];
+                        break;
+                        
+                    case 'aos':
+                        $assets[] = [
+                            'css' => 'https://unpkg.com/aos@2.3.1/dist/aos.css',
+                            'js' => 'https://unpkg.com/aos@2.3.1/dist/aos.js',
+                            'type' => 'aos'
+                        ];
+                        break;
+                }
+            }
+            // Alpine.js - IMPORTANTE: Solo CDN, sin inicialización automática
+            $assets[] = [
+                'js' => 'https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js',
+                'type' => 'alpine',
+                'defer' => true // Importante para control manual
+            ];
+            
+            return $this->buildAssetTags($assets);
+        }
 
-        
+        /**
+         * Construir tags de assets HTML
+         */
+        private function buildAssetTags(array $assets): string
+        {
+            $tags = '';
+            
+            // Primero CSS
+            foreach ($assets as $asset) {
+                if (isset($asset['css'])) {
+                    $tags .= "<link rel=\"stylesheet\" href=\"{$asset['css']}\">\n";
+                }
+            }
+            
+            // Luego JavaScript
+            foreach ($assets as $asset) {
+                if (isset($asset['js'])) {
+                    $defer = isset($asset['defer']) && $asset['defer'] ? ' defer' : '';
+                    $tags .= "<script src=\"{$asset['js']}\"{$defer}></script>\n";
+                }
+            }
+            
+            return $tags;
+        }
+
+        /**
+         * Generar JavaScript del sistema de componentes
+         */
+        private function generateComponentSystemJS(array $requiredLibraries, string $nonce): string
+        {
+            // 1. ComponentManager Core
+            $coreJS = $this->loadComponentManagerCore();
+            
+            // 2. Plugins requeridos
+            $pluginsJS = $this->loadRequiredPluginsJS($requiredLibraries);
+            
+            // 3. Script de inicialización controlada
+            $initJS = $this->generateControlledInitJS($requiredLibraries);
+            
+            return "<script nonce=\"{$nonce}\">\n{$coreJS}\n{$pluginsJS}\n{$initJS}\n</script>";
+        }
+
+
+
+        /**
+         * Cargar plugins JavaScript requeridos
+         */
+        private function loadRequiredPluginsJS(array $requiredLibraries): string
+        {
+            $js = '';
+            
+            foreach ($requiredLibraries as $library) {
+                $pluginFile = public_path("js/component-system/plugins/" . ucfirst($library) . "Plugin.js");
+                
+                if (file_exists($pluginFile)) {
+                    $js .= "\n// {$library} Plugin\n" . file_get_contents($pluginFile);
+                } else {
+                    // Plugin inline básico
+                    $js .= $this->getInlinePlugin($library);
+                }
+            }
+            
+            return $js;
+        }
+
+        /**
+         * Generar condiciones específicas para librerías
+         */
+        private function generateLibraryConditions(array $requiredLibraries): string
+        {
+            $conditions = [];
+            
+            foreach ($requiredLibraries as $library) {
+                switch (strtolower($library)) {
+                    case 'swiper':
+                        $conditions[] = "() => typeof window.Swiper !== 'undefined'";
+                        break;
+                    case 'gsap':
+                        $conditions[] = "() => typeof window.gsap !== 'undefined'";
+                        break;
+                    case 'aos':
+                        $conditions[] = "() => typeof window.AOS !== 'undefined'";
+                        break;
+                }
+            }
+            
+            if (!empty($conditions)) {
+                return "// Condiciones para librerías específicas\n" . 
+                    "conditions.push(" . implode(', ', $conditions) . ");\n";
+            }
+            
+            return "// No additional library conditions needed\n";
+        }
+
+        /**
+         * Plugin inline básico para librerías
+         */
+        private function getInlinePlugin(string $library): string
+        {
+            switch (strtolower($library)) {
+                case 'swiper':
+                    return "
+                // Swiper Plugin Inline
+                if (typeof window.SwiperPlugin === 'undefined') {
+                    window.SwiperPlugin = class {
+                        init() { return Promise.resolve(); }
+                        registerAlpineComponents() {
+                            if (typeof window.Alpine !== 'undefined') {
+                                window.Alpine.data('swiperBasic', (config = {}) => ({
+                                    swiper: null,
+                                    config: { navigation: true, pagination: true, slidesPerView: 1, spaceBetween: 30, ...config },
+                                    init() {
+                                        this.\$nextTick(() => {
+                                            if (typeof window.Swiper !== 'undefined') {
+                                                try {
+                                                    const container = this.\$el.querySelector('.swiper') || this.\$el;
+                                                    this.swiper = new window.Swiper(container, this.config);
+                                                    console.log('🎠 Swiper (inline) initialized');
+                                                } catch (e) {
+                                                    console.error('Swiper error:', e);
+                                                }
+                                            } else {
+                                                this.\$el.innerHTML = '<div class=\"p-4 bg-gray-100 text-center rounded\">Swiper Preview</div>';
+                                            }
+                                        });
+                                    },
+                                    destroy() {
+                                        if (this.swiper) this.swiper.destroy(true, true);
+                                    }
+                                }));
+                            }
+                        }
+                    };
+                }
+                ";
+                            
+                        case 'gsap':
+                            return "
+                // GSAP Plugin Inline
+                if (typeof window.GSAPPlugin === 'undefined') {
+                    window.GSAPPlugin = class {
+                        init() { return Promise.resolve(); }
+                        registerAlpineComponents() {
+                            if (typeof window.Alpine !== 'undefined') {
+                                window.Alpine.data('gsapFade', (config = {}) => ({
+                                    config: { duration: 1, direction: 'in', ...config },
+                                    init() {
+                                        this.\$nextTick(() => {
+                                            if (typeof window.gsap !== 'undefined') {
+                                                if (this.config.direction === 'in') {
+                                                    window.gsap.set(this.\$el, { opacity: 0 });
+                                                    window.gsap.to(this.\$el, { opacity: 1, duration: this.config.duration });
+                                                }
+                                                console.log('✨ GSAP (inline) initialized');
+                                            }
+                                        });
+                                    }
+                                }));
+                            }
+                        }
+                    };
+                }
+                ";
+                            
+                        default:
+                            return "// No inline plugin available for {$library}\n";
+                    }
+        }
+
+        /**
+         * ComponentManager fallback inline
+         */
+        private function getComponentManagerFallback(): string
+        {
+            return "
+            // ComponentManager Fallback Inline
+            if (typeof window.ComponentManager === 'undefined') {
+                window.ComponentManager = {
+                    activeComponents: new Map(),
+                    loadedPlugins: new Set(),
+                    isInitialized: false,
+                    
+                    init() {
+                        return new Promise((resolve) => {
+                            console.log('🚀 ComponentManager (fallback) initializing...');
+                            this.isInitialized = true;
+                            resolve();
+                        });
+                    },
+                    
+                    register(type, instance, element) {
+                        const id = 'comp_' + Math.random().toString(36).substr(2, 9);
+                        this.activeComponents.set(id, { type, instance, element });
+                        return id;
+                    },
+                    
+                    unregister(type, element) {
+                        for (const [id, comp] of this.activeComponents.entries()) {
+                            if (comp.element === element) {
+                                this.activeComponents.delete(id);
+                                break;
+                            }
+                        }
+                    },
+                    
+                    getStats() {
+                        return {
+                            version: '2.1.0-fallback',
+                            totalComponents: this.activeComponents.size,
+                            loadedPlugins: Array.from(this.loadedPlugins),
+                            isInitialized: this.isInitialized
+                        };
+                    }
+                };
+            }
+            ";
+        }
+
+
+        public function preview(Request $request, Component $component)
+        {
+            try {
+                $testData = $request->input('test_data', []);
+                
+                Log::info('🔍 Test Data enviado: ' . json_encode($testData));
+                Log::info('🔍 Props configurados: ' . json_encode($component->props_schema ?? []));
+                
+                // ✅ TODO el procesamiento delegado al Service
+                $html = app(ComponentPreviewService::class)->generatePreview(
+                    $component->blade_template, 
+                    $testData
+                );
+                
+                Log::info('🔍 Preview generado exitosamente');
+                
+                // ✅ CSP dinámico según entorno
+                $csp = app()->environment('local') 
+                    ? "default-src *; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline'; connect-src *;"
+                    : "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:;";
+                
+                return response($html)
+                    ->header('Content-Type', 'text/html; charset=utf-8')
+                    ->header('X-Frame-Options', 'SAMEORIGIN')
+                    ->header('Content-Security-Policy', $csp);
+                    
+            } catch (\Exception $e) {
+                Log::error('Error generating preview: ' . $e->getMessage());
+                
+                return response(view('component-preview.error', [
+                    'errorMessage' => 'Error al generar preview: ' . $e->getMessage()
+                ])->render())
+                    ->header('Content-Type', 'text/html; charset=utf-8')
+                    ->header('Content-Security-Policy', 
+                        "default-src 'self'; script-src 'self' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline' https:;"
+                    );
+            }
+        }
+        /**
+         * Construir HTML final unificado con CSP compatible con Alpine.js
+         */
+    
+
+        /**
+         * Generar inicialización controlada con mejor manejo de Alpine múltiple
+         */
+        private function generateControlledInitJS(array $requiredLibraries): string
+        {
+            return "
+        // Inicialización compatible con CSP estricto - Versión mejorada
+        (function() {
+            'use strict';
+            
+            console.log('🚀 Starting CSP-compatible initialization...');
+            
+            // Verificar si Alpine ya está inicializado
+            let alpineAlreadyStarted = false;
+            if (typeof window.Alpine !== 'undefined' && window.Alpine.version) {
+                alpineAlreadyStarted = true;
+                console.log('ℹ️ Alpine.js already running, version:', window.Alpine.version);
+            }
+            
+            // Función para esperar condiciones sin eval()
+            function waitForLibraries(callback, maxAttempts = 50) {
+                let attempts = 0;
+                
+                function check() {
+                    attempts++;
+                    
+                    const conditions = [
+                        typeof window.Alpine !== 'undefined',
+                        typeof window.ComponentManager !== 'undefined'
+                    ];
+                    
+                    " . $this->generateLibraryChecks($requiredLibraries) . "
+                    
+                    const allReady = conditions.every(condition => condition === true);
+                    
+                    if (allReady) {
+                        console.log('✅ All libraries ready');
+                        callback();
+                    } else if (attempts < maxAttempts) {
+                        setTimeout(check, 100);
+                    } else {
+                        console.warn('⚠️ Timeout waiting for libraries, proceeding anyway');
+                        callback();
+                    }
+                }
+                
+                check();
+            }
+            
+            // Inicialización principal
+            waitForLibraries(function() {
+                console.log('🎯 Initializing component system...');
+                
+                // Inicializar ComponentManager
+                if (window.ComponentManager && typeof window.ComponentManager.init === 'function') {
+                    window.ComponentManager.init().then(() => {
+                        console.log('📦 ComponentManager initialized successfully');
+                        if (!alpineAlreadyStarted) {
+                            startAlpine();
+                        } else {
+                            console.log('ℹ️ Skipping Alpine start - already running');
+                        }
+                    }).catch(error => {
+                        console.error('❌ ComponentManager initialization failed:', error);
+                        if (!alpineAlreadyStarted) {
+                            startAlpine(); // Intentar Alpine de todos modos
+                        }
+                    });
+                } else {
+                    console.warn('⚠️ ComponentManager not available, managing Alpine directly');
+                    if (!alpineAlreadyStarted) {
+                        startAlpine();
+                    }
+                }
+            });
+            
+            function startAlpine() {
+                try {
+                    if (window.Alpine && typeof window.Alpine.start === 'function') {
+                        console.log('🎿 Starting Alpine.js...');
+                        window.Alpine.start();
+                        console.log('✅ Alpine.js started successfully');
+                        alpineAlreadyStarted = true;
+                    } else {
+                        console.error('❌ Alpine.js start method not available');
+                        showAlpineError();
+                    }
+                } catch (error) {
+                    console.error('❌ Error starting Alpine:', error);
+                    if (error.message.includes('already been initialized')) {
+                        console.log('ℹ️ Alpine already initialized - this is normal');
+                        alpineAlreadyStarted = true;
+                    } else {
+                        showAlpineError();
+                    }
+                }
+            }
+            
+            function showAlpineError() {
+                // Crear mensaje de error visible solo si no hay Alpine funcionando
+                if (typeof window.Alpine === 'undefined') {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'error-container';
+                    errorDiv.innerHTML = `
+                        <h3>⚠️ Alpine.js Error</h3>
+                        <p>Alpine.js no pudo iniciarse debido a restricciones de Content Security Policy.</p>
+                        <p>Usa componentes CSP-safe con data attributes en su lugar.</p>
+                        <details>
+                            <summary>Ejemplo de conversión:</summary>
+                            <code>x-data=\"swiperBasic({...})\" → x-data=\"swiperCSP\" data-navigation=\"true\"</code>
+                        </details>
+                    `;
+                    
+                    const container = document.querySelector('.preview-container') || document.body;
+                    container.insertBefore(errorDiv, container.firstChild);
+                }
+            }
+            
+        })();
+        ";
+        }
+
+        private function generateLibraryChecks(array $requiredLibraries): string
+        {
+            $checks = [];
+            
+            foreach ($requiredLibraries as $library) {
+                switch (strtolower($library)) {
+                    case 'swiper':
+                        $checks[] = "typeof window.Swiper !== 'undefined'";
+                        break;
+                    case 'gsap':
+                        $checks[] = "typeof window.gsap !== 'undefined'";
+                        break;
+                    case 'aos':
+                        $checks[] = "typeof window.AOS !== 'undefined'";
+                        break;
+                }
+            }
+            
+            if (!empty($checks)) {
+                return "// Library-specific checks\n" . 
+                    "conditions.push(" . implode(', ', $checks) . ");\n";
+            }
+            
+            return "// No additional library checks needed\n";
+        }
+
+
+
+
+        public function detectAssets(Request $request)
+        {
+            try {
+                $bladeCode = $request->input('blade_code', '');
+                
+                if (empty($bladeCode)) {
+                    return response()->json([
+                        'success' => true,
+                        'detected' => [],
+                        'suggestions' => []
+                    ]);
+                }
+                
+                $service = app(ComponentPreviewService::class);
+                
+                // Detección simple (para compatibilidad)
+                $simpleDetected = $service->detectRequiredLibraries($bladeCode);
+                
+                // Detección detallada (para UI avanzada)
+                $detailedDetected = $service->detectAssetsWithDetails($bladeCode);
+                
+                // Generar sugerencias
+                $suggestions = $this->generateAssetSuggestions($detailedDetected);
+                
+                return response()->json([
+                    'success' => true,
+                    'detected' => $simpleDetected,
+                    'detailed' => $detailedDetected,
+                    'suggestions' => $suggestions,
+                    'stats' => [
+                        'total_detected' => count($simpleDetected),
+                        'high_confidence' => count(array_filter($detailedDetected, fn($item) => $item['confidence'] > 70)),
+                        'categories' => $this->groupByCategories($detailedDetected)
+                    ]
+                ]);
+                
+            } catch (\Exception $e) {
+                Log::error('Error in asset detection: ' . $e->getMessage());
+                
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Error detectando assets: ' . $e->getMessage(),
+                    'detected' => [],
+                    'suggestions' => []
+                ], 500);
+            }
+        }
+
+        /**
+         * Generar sugerencias legibles para el usuario
+         */
+        protected function generateAssetSuggestions(array $detailedDetected): array
+        {
+            $suggestions = [];
+            
+            foreach ($detailedDetected as $library => $data) {
+                $confidence = $data['confidence'];
+                $category = $data['category'];
+                
+                if ($confidence >= 70) {
+                    $suggestions[] = [
+                        'type' => 'strong',
+                        'library' => $library,
+                        'message' => "Se recomienda agregar {$library} ({$confidence}% de confianza)",
+                        'reason' => $data['reason'],
+                        'category' => $category,
+                        'action' => 'add'
+                    ];
+                } elseif ($confidence >= 40) {
+                    $suggestions[] = [
+                        'type' => 'moderate',
+                        'library' => $library,
+                        'message' => "Podrías necesitar {$library} ({$confidence}% de confianza)",
+                        'reason' => $data['reason'],
+                        'category' => $category,
+                        'action' => 'consider'
+                    ];
+                }
+            }
+            
+            return $suggestions;
+        }
+
+        /**
+         * Agrupar detecciones por categoría
+         */
+        protected function groupByCategories(array $detailedDetected): array
+        {
+            $categories = [];
+            
+            foreach ($detailedDetected as $library => $data) {
+                $category = $data['category'];
+                if (!isset($categories[$category])) {
+                    $categories[$category] = [];
+                }
+                $categories[$category][] = $library;
+            }
+            
+            return $categories;
+        }
+
+        /**
+         * Obtener información completa de assets disponibles (para el Asset Manager)
+         */
+        public function getAvailableAssets()
+        {
+            $assets = [
+                'gsap' => [
+                    'name' => 'GSAP',
+                    'description' => 'Librería de animaciones profesional',
+                    'category' => 'animations',
+                    'size' => '128KB',
+                    'version' => '3.12.x',
+                    'components' => ['Fade', 'Slide', 'Scale', 'Timeline', 'ScrollTrigger'],
+                    'patterns' => ['x-data="gsapFade"', 'x-data="gsapSlider"', 'gsap.to()']
+                ],
+                'swiper' => [
+                    'name' => 'Swiper',
+                    'description' => 'Carrusel/Slider moderno y táctil',
+                    'category' => 'sliders',
+                    'size' => '156KB',
+                    'version' => '11.x',
+                    'components' => ['Basic Slider', 'Navigation', 'Pagination', 'Autoplay'],
+                    'patterns' => ['x-data="swiperBasic"', 'new Swiper()', 'swiper-slide']
+                ],
+                'fullcalendar' => [
+                    'name' => 'FullCalendar',
+                    'description' => 'Calendario completo y personalizable',
+                    'category' => 'widgets',
+                    'size' => '280KB',
+                    'version' => '6.x',
+                    'components' => ['Month View', 'Week View', 'Day View', 'Event Management'],
+                    'patterns' => ['x-data="calendar"', 'new FullCalendar()']
+                ],
+                'aos' => [
+                    'name' => 'AOS',
+                    'description' => 'Animate On Scroll library',
+                    'category' => 'animations',
+                    'size' => '45KB',
+                    'version' => '2.3.x',
+                    'components' => ['Fade', 'Slide', 'Zoom', 'Flip'],
+                    'patterns' => ['data-aos="fade-up"', 'AOS.init()']
+                ],
+                'chartjs' => [
+                    'name' => 'Chart.js',
+                    'description' => 'Gráficos responsivos y animados',
+                    'category' => 'data-visualization',
+                    'size' => '200KB',
+                    'version' => '4.x',
+                    'components' => ['Line Chart', 'Bar Chart', 'Pie Chart', 'Doughnut'],
+                    'patterns' => ['new Chart()', '<canvas class="chart">']
+                ],
+                'dompurify' => [
+                    'name' => 'DOMPurify',
+                    'description' => 'Sanitización XSS (Sistema de seguridad)',
+                    'category' => 'security',
+                    'size' => '55KB',
+                    'version' => '3.x',
+                    'components' => ['HTML Sanitizer', 'XSS Protection'],
+                    'patterns' => ['DOMPurify.sanitize()', '{!! $content !!}']
+                ]
+            ];
+            
+            return response()->json([
+                'success' => true,
+                'assets' => $assets,
+                'categories' => [
+                    'animations' => ['gsap', 'aos'],
+                    'sliders' => ['swiper'],
+                    'widgets' => ['fullcalendar'],
+                    'data-visualization' => ['chartjs'],
+                    'security' => ['dompurify']
+                ]
+            ]);
+        }
+                        
 
 }
