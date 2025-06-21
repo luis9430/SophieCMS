@@ -238,8 +238,7 @@ class ComponentPreviewService
         return '
         <script type="module" src="http://localhost:5173/@vite/client"></script>
         <link rel="stylesheet" href="http://localhost:5173/resources/css/app.css">
-        <script type="module" src="http://localhost:5173/resources/js/app.js"></script>
-        <script type="module" src="http://localhost:5173/resources/js/component-preview.js"></script>';
+        <script type="module" src="http://localhost:5173/resources/js/app.js"></script>';
     }
 
     /**
@@ -267,71 +266,44 @@ class ComponentPreviewService
      * Script de inicialización del preview - VUELTO AL SISTEMA ORIGINAL
      */
     protected function generatePreviewInitScript(array $config): string
-    {
-        $libraries = json_encode($config['libraries']);
-        $isDev = $config['isDev'] ? 'true' : 'false';
-        
-        return "
-        // Configuración del preview
-        window.PREVIEW_CONFIG = {
-            libraries: {$libraries},
-            isDev: {$isDev},
-            timestamp: '" . now()->toISOString() . "'
-        };
-        
-        console.log('🖼️ Preview initializing...', window.PREVIEW_CONFIG);
-        
-        // Esperar a que el sistema centralizado esté listo
-        document.addEventListener('app:ready', function(event) {
-            console.log('✅ Preview initialized with centralized system');
-            console.log('📚 Required libraries:', window.PREVIEW_CONFIG.libraries);
+        {
+            $libraries = json_encode($config['libraries']);
+            $isDev = $config['isDev'] ? 'true' : 'false';
             
-            // Auto-cargar librerías detectadas
-            const requiredLibs = window.PREVIEW_CONFIG.libraries;
-            if (requiredLibs.length > 0 && window.App) {
-                Promise.all(
-                    requiredLibs.map(async (lib) => {
-                        try {
-                            await window.App.loadLibrary(lib);
-                            console.log('✅ ' + lib + ' loaded successfully');
-                        } catch (error) {
-                            console.warn('⚠️ Failed to load ' + lib + ':', error);
-                        }
-                    })
-                ).then(() => {
-                    console.log('🎯 All required libraries processed');
+            return "
+            // Configuración del preview
+            window.PREVIEW_CONFIG = {
+                libraries: {$libraries},
+                isDev: {$isDev},
+                timestamp: '" . now()->toISOString() . "'
+            };
+            
+            console.log('🖼️ Preview window loaded successfully');
+            console.log('📚 Required libraries:', window.PREVIEW_CONFIG.libraries);
+            console.log('🔧 Alpine version:', window.Alpine?.version);
+            console.log('✨ GSAP available:', typeof window.gsap !== 'undefined');
+            
+            // Esperar a que app.js esté listo
+            document.addEventListener('app:ready', function(event) {
+                console.log('✅ Preview initialized with app.js');
+                console.log('📦 Available components:', event.detail.components);
+                
+                // Verificar elementos Alpine
+                setTimeout(() => {
+                    const alpineElements = document.querySelectorAll('[x-data]');
+                    console.log('🎿 Found', alpineElements.length, 'Alpine elements');
                     
-                    // Verificar después de cargar librerías
-                    setTimeout(() => {
-                        const gsapElements = document.querySelectorAll('[x-data*=\"gsap\"]');
-                        console.log('🔍 Found ' + gsapElements.length + ' GSAP elements');
-                        
-                        if (gsapElements.length > 0) {
-                            const element = gsapElements[0];
-                            const styles = window.getComputedStyle(element);
-                            console.log('🎨 Element styles with Vite CSS:', {
-                                hasAlpineData: !!element._x_dataStack,
-                                backgroundColor: styles.backgroundColor,
-                                backgroundImage: styles.backgroundImage,
-                                padding: styles.padding,
-                                borderRadius: styles.borderRadius,
-                                color: styles.color,
-                                opacity: styles.opacity
-                            });
-                        }
-                    }, 1000);
-                });
-            }
-        });
-        
-        // Fallback si el sistema centralizado no responde
-        setTimeout(() => {
-            if (!window.App || !window.App.isInitialized) {
-                console.warn('⚠️ Centralized system not available - basic mode');
-            }
-        }, 3000);
-        ";
-    }
+                    alpineElements.forEach((el, index) => {
+                        console.log('Element', index + ':', {
+                            xData: el.getAttribute('x-data'),
+                            hasAlpineData: !!el._x_dataStack,
+                            element: el
+                        });
+                    });
+                }, 100);
+            });
+            ";
+        }
 
     /**
      * Datos de prueba por defecto
