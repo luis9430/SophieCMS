@@ -11,7 +11,6 @@ export default defineConfig({
                 'resources/css/app.css', 
                 'resources/js/app.js',                    
                 'resources/js/preact-app.jsx',
-                // component-preview.js removido - ya no es necesario
             ],
             refresh: true,
         }),
