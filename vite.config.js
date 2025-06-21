@@ -12,7 +12,6 @@ export default defineConfig({
                 'resources/js/app.js',
                 'resources/js/preact-app.jsx',
                 'resources/js/component-preview.js',
-                'resources/js/asset-detection.js' 
             ],
             refresh: true,
         }),

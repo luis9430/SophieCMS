@@ -448,12 +448,13 @@
 
     <!-- Solo incluir el notification toast -->
     @include('component-builder.partials.notification-toast')
+
 </div>
 @endsection
 
 @section('custom-scripts')
 <script>
-function componentEditor() {
+function componentEditor() {    
     return {
         // State básico
         activeTab: 'basic',
