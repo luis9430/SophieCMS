@@ -84,11 +84,6 @@
                             class="w-1/4 py-2 px-1 text-center border-b-2 font-medium text-sm">
                         Props
                     </button>
-                    <button @click="activeTab = 'assets'" 
-                            :class="activeTab === 'assets' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'"
-                            class="w-1/4 py-2 px-1 text-center border-b-2 font-medium text-sm">
-                        Assets
-                    </button>
                     <button @click="activeTab = 'communication'" 
                             :class="activeTab === 'communication' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'"
                             class="w-1/4 py-2 px-1 text-center border-b-2 font-medium text-sm">
@@ -312,43 +307,6 @@
                     </div>
                 </div>
 
-                <!-- Assets Tab -->
-                <div x-show="activeTab === 'assets'" class="space-y-4">
-                    <h4 class="font-medium text-gray-900">Librerías Externas</h4>
-                    
-                    <div class="space-y-3">
-                        @foreach($availableAssets as $key => $asset)
-                            <div class="border border-gray-200 rounded-lg p-3">
-                                <label class="flex items-start gap-3">
-                                    <input type="checkbox" 
-                                           :value="'{{ $key }}'"
-                                           x-model="component.external_assets"
-                                           @change="markAsChanged(); updatePreview()"
-                                           class="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <div class="flex-1">
-                                        <div class="font-medium text-gray-900">{{ $asset['name'] }}</div>
-                                        <div class="text-sm text-gray-600">{{ $asset['description'] }}</div>
-                                        <div class="text-xs text-gray-500 mt-1">v{{ $asset['version'] }}</div>
-                                    </div>
-                                </label>
-                            </div>
-                        @endforeach
-                    </div>
-
-                    <!-- Selected Assets Preview -->
-                    <div x-show="component.external_assets.length > 0" class="mt-4">
-                        <h5 class="text-sm font-medium text-gray-700 mb-2">Assets Seleccionados:</h5>
-                        <div class="space-y-1">
-                            <template x-for="asset in component.external_assets" :key="asset">
-                                <div class="flex items-center justify-between text-xs bg-purple-50 px-2 py-1 rounded">
-                                    <span x-text="asset"></span>
-                                    <button @click="removeAsset(asset)" class="text-red-500 hover:text-red-700">×</button>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Communication Tab -->
                 <div x-show="activeTab === 'communication'" class="space-y-4">
                     <div class="text-sm text-gray-600 mb-4">
@@ -475,7 +433,6 @@ function componentEditor() {
             category: "{{ addslashes($component->category ?? 'content') }}",
             description: "{{ addslashes($component->description ?? '') }}",
             blade_template: `{!! addslashes($component->blade_template ?? '') !!}`,
-            external_assets: @json($component->external_assets ?? []),
             communication_config: @json($component->communication_config ?? ['emits' => [], 'listens' => [], 'state' => []]),
             props_schema: @json($component->props_schema ?? (object)[]),
             preview_config: @json($component->preview_config ?? (object)[])
@@ -487,9 +444,6 @@ function componentEditor() {
             type: 'info',
             message: ''
         },
-
-        // Available assets
-        availableAssets: @json($availableAssets ?? []),
 
         // Init
         init() {
@@ -541,14 +495,7 @@ function componentEditor() {
             }
         },
 
-        // Asset management
-        removeAsset(asset) {
-            const index = this.component.external_assets.indexOf(asset);
-            if (index > -1) {
-                this.component.external_assets.splice(index, 1);
-                this.updatePreview();
-            }
-        },
+    
 
         // Communication events
         addEmittedEvent() {
@@ -872,7 +819,6 @@ function componentEditor() {
                     id: this.component.id,
                     name: this.component.name,
                     description: this.component.description,
-                    external_assets: this.component.external_assets
                 };
 
                 // Generar preview con el código actual
@@ -884,7 +830,6 @@ function componentEditor() {
                     },
                     body: JSON.stringify({
                         blade_template: this.component.blade_template,
-                        external_assets: this.component.external_assets,
                         test_data: {
                             title: 'Título de Ejemplo',
                             description: 'Descripción de ejemplo para el preview.',
@@ -957,7 +902,6 @@ function componentEditor() {
                     },
                     body: JSON.stringify({
                         blade_template: this.component.blade_template,
-                        external_assets: this.component.external_assets,
                         test_data: testData // ← SIEMPRE incluir props
                     })
                 });
