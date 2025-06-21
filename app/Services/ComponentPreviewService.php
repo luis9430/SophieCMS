@@ -2,558 +2,471 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Log;
 
+/**
+ * Servicio optimizado para generar previews de componentes
+ * Usa el sistema centralizado de librerías (LibraryManager + App.js)
+ */
 class ComponentPreviewService
 {
-    protected array $assetLibraries;
-    protected array $detectionPatterns;
-
-    public function __construct()
-    {
-        $this->assetLibraries = config('pagebuilder.asset_libraries', $this->getDefaultAssetLibraries());
-        $this->detectionPatterns = config('pagebuilder.detection_patterns', $this->getDefaultDetectionPatterns());
-    }
-
     /**
-     * Método principal: generar preview completo
+     * Generar preview optimizado del componente
      */
-    public function generatePreview(string $bladeCode, array $testData = []): string
+    public function generatePreview(string $bladeCode, array $config = []): string
     {
         try {
             // 1. Detectar librerías automáticamente
             $requiredLibraries = $this->detectRequiredLibraries($bladeCode);
             
-            // 2. Procesar código Blade
-            $processedContent = $this->processBlade($bladeCode, $testData);
+            // 2. Renderizar el componente
+            $componentContent = $this->renderComponent($bladeCode, $config['testData'] ?? []);
             
-            // 3. Generar HTML completo
-            return $this->buildPreviewHTML($processedContent, $requiredLibraries);
+            // 3. Construir HTML final usando sistema centralizado
+            return $this->buildPreviewHTML($componentContent, $requiredLibraries, $config);
             
         } catch (\Exception $e) {
-            Log::error('ComponentPreviewService Error: ' . $e->getMessage());
+            Log::error('ComponentPreviewService Error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return $this->generateErrorPreview($e->getMessage());
         }
     }
 
     /**
-     * Detectar librerías requeridas (mejorado para Asset Manager)
+     * Auto-detectar librerías necesarias del código Blade
      */
     protected function detectRequiredLibraries(string $bladeCode): array
     {
         $libraries = [];
         
-        // Patrones más específicos y precisos
-        $detectionRules = [
+        $detectionPatterns = [
             'gsap' => [
-                '/x-data=["\']gsap/i',                    // x-data="gsapSlider", "gsapFade", etc.
-                '/gsap\./i',                              // window.gsap.to()
-                '/x-data=["\'].*fade["\'].*\(/i',         // x-data="gsapFade()"
-                '/x-data=["\'].*slide["\'].*\(/i',        // x-data="gsapSlider()"
-                '/x-data=["\'].*reveal["\'].*\(/i',       // x-data="gsapReveal()"
-                '/x-data=["\'].*timeline["\'].*\(/i',     // x-data="gsapTimeline()"
-            ],
-            'swiper' => [
-                '/x-data=["\']swiper/i',                  // x-data="swiperBasic"
-                '/Swiper/i',                              // new Swiper()
-                '/swiper-/i',                             // CSS classes swiper-*
-                '/<div[^>]*swiper[^>]*>/i',               // <div class="swiper">
+                '/x-data=["\']gsapFade/',
+                '/x-data=["\']gsapReveal/',
+                '/x-data=["\']gsapSlider/',
+                '/x-data=["\']gsapTimeline/',
+                '/@gsap/',
+                '/data-gsap/',
+                '/gsap\./i'
             ],
             'fullcalendar' => [
-                '/x-data=["\'].*calendar/i',              // x-data="fullCalendar"
-                '/FullCalendar/i',                        // new FullCalendar()
-                '/calendar-/i',                           // CSS classes calendar-*
-                '/@click=["\'].*calendar/i',              // @click="toggleCalendar"
+                '/x-data=["\']fullCalendar/',
+                '/x-data=["\']calendar/',
+                '/class=["\'][^"\']*calendar/',
+                '/FullCalendar/i'
+            ],
+            'swiper' => [
+                '/x-data=["\']swiper/',
+                '/class=["\'][^"\']*swiper/',
+                '/new Swiper/i',
+                '/swiper-slide|swiper-wrapper/i'
             ],
             'aos' => [
-                '/data-aos/i',                            // data-aos="fade-up"
-                '/AOS\./i',                               // AOS.init()
-                '/x-data=["\'].*aos/i',                   // x-data="aosAnimation"
-                '/aos-/i',                                // CSS classes aos-*
-            ],
-            'chartjs' => [
-                '/x-data=["\'].*chart/i',                 // x-data="chartComponent"
-                '/Chart\./i',                             // new Chart()
-                '/chart-/i',                              // CSS classes chart-*
-                '/<canvas[^>]*chart/i',                   // <canvas class="chart">
-            ],
-            'dompurify' => [
-                '/DOMPurify/i',                           // DOMPurify.sanitize()
-                '/x-data=["\'].*sanitize/i',              // x-data="sanitizeComponent"
-                '/v-html/i',                              // Si hay contenido dinámico
-                '/{!![^}]*!!}/i',                         // {!! $content !!}
+                '/data-aos/',
+                '/AOS\./i'
             ]
         ];
-        
-        foreach ($detectionRules as $library => $patterns) {
+
+        foreach ($detectionPatterns as $library => $patterns) {
             foreach ($patterns as $pattern) {
                 if (preg_match($pattern, $bladeCode)) {
                     $libraries[] = $library;
-                    break; // Una vez detectado, no seguir buscando patrones para esta librería
+                    break; // Solo necesitamos detectar una vez por librería
                 }
             }
         }
-        
+
         return array_unique($libraries);
     }
 
     /**
-     * Detectar con detalles adicionales (para UI de sugerencias)
+     * Renderizar el componente Blade con datos de prueba
      */
-    public function detectAssetsWithDetails(string $bladeCode): array
+    protected function renderComponent(string $bladeCode, array $testData = []): string
     {
-        $detected = [];
-        $detectionRules = $this->getDetailedDetectionRules();
+        $tempFile = storage_path('app/temp_component_' . uniqid() . '.blade.php');
         
-        foreach ($detectionRules as $library => $config) {
-            $matches = [];
-            $confidence = 0;
+        try {
+            // Datos por defecto para pruebas
+            $defaultData = $this->getDefaultTestData();
+            $allData = array_merge($defaultData, $testData);
             
-            foreach ($config['patterns'] as $pattern => $weight) {
-                if (preg_match($pattern, $bladeCode, $patternMatches)) {
-                    $matches[] = [
-                        'pattern' => $pattern,
-                        'match' => $patternMatches[0] ?? '',
-                        'weight' => $weight
-                    ];
-                    $confidence += $weight;
-                }
-            }
+            File::put($tempFile, $bladeCode);
+            return View::file($tempFile, $allData)->render();
             
-            if ($confidence > 0) {
-                $detected[$library] = [
-                    'confidence' => min($confidence, 100), // Max 100%
-                    'matches' => $matches,
-                    'reason' => $this->getDetectionReason($library, $matches),
-                    'category' => $config['category']
-                ];
+        } catch (\Exception $e) {
+            return $this->generateComponentError($e->getMessage());
+        } finally {
+            if (File::exists($tempFile)) {
+                File::delete($tempFile);
             }
         }
+    }
+
+    /**
+     * Construir HTML final del preview usando sistema centralizado
+     */
+    protected function buildPreviewHTML(string $content, array $requiredLibraries, array $config): string
+    {
+        $nonce = base64_encode(random_bytes(16));
+        $isDev = config('app.env') === 'local';
         
-        // Ordenar por confianza (mayor primero)
-        uasort($detected, function($a, $b) {
-            return $b['confidence'] <=> $a['confidence'];
+        // Configuración del preview (solo para información, no para cargar assets)
+        $previewConfig = [
+            'libraries' => $requiredLibraries, // Solo info para el LibraryManager
+            'isDev' => $isDev,
+            'config' => $config
+        ];
+
+        return $this->wrapWithPreviewLayout($content, $previewConfig, $nonce);
+    }
+
+    /**
+     * Wrapper HTML optimizado - LIMPIO SIN HARDCODING
+     */
+    protected function wrapWithPreviewLayout(string $content, array $config, string $nonce): string
+    {
+        $isDev = $config['isDev'];
+        $libraries = $config['libraries'];
+        
+        // CSP corregido - incluir localhost para Vite dev server
+        $cspPolicy = $isDev 
+            ? "default-src 'self'; script-src 'self' 'unsafe-eval' 'nonce-{$nonce}' https: http://localhost:5173; style-src 'self' 'unsafe-inline' https: http://localhost:5173; font-src 'self' data: https:; img-src 'self' data: https:; connect-src 'self' ws://localhost:5173 http://localhost:5173;"
+            : "default-src 'self'; script-src 'self' 'nonce-{$nonce}' https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; img-src 'self' data: https:; connect-src 'self';";
+
+        // CSS core (ya no incluye Tailwind CDN)
+        $coreCSS = $this->generateAssetTags($this->getCoreCSS(), 'css');
+
+        return "<!DOCTYPE html>
+<html lang=\"es\">
+<head>
+    <meta charset=\"UTF-8\">
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+    <title>Component Preview</title>
+    <meta http-equiv=\"Content-Security-Policy\" content=\"{$cspPolicy}\">
+    
+    <!-- CSS core (si hay alguno) -->
+    {$coreCSS}
+    
+    <style>
+        body { 
+            margin: 0; 
+            padding: 1rem; 
+            font-family: system-ui, -apple-system, sans-serif; 
+            background: #f8fafc;
+        }
+        .component-preview { 
+            min-height: 100vh; 
+        }
+        .error-preview { 
+            background: #fee2e2; 
+            border: 1px solid #fca5a5; 
+            padding: 1rem; 
+            border-radius: 0.5rem; 
+            color: #dc2626; 
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body class=\"component-preview\">
+    <div class=\"component-preview-container\">
+        {$content}
+    </div>
+
+    <!-- Sistema Centralizado (App.js + CSS via Vite) -->
+    " . $this->getAppAssets() . "
+    
+    <!-- Inicialización del Preview -->
+    <script nonce=\"{$nonce}\">
+        " . $this->generatePreviewInitScript($config) . "
+    </script>
+</body>
+</html>";
+    }
+
+    /**
+     * Assets core necesarios - SIN TAILWIND CDN
+     */
+    protected function getCoreCSS(): array
+    {
+        return []; // Ya no necesitamos CDN, viene via Vite
+    }
+
+    /**
+     * Generar tags HTML para CSS con configuración de Tailwind
+     */
+    protected function generateAssetTags(array $urls, string $type): string
+    {
+        if ($type !== 'css') return '';
+        
+        $tags = [];
+        foreach ($urls as $url) {
+            $tags[] = "<link rel=\"stylesheet\" href=\"{$url}\">";
+        }
+        
+        return implode("\n    ", $tags);
+    }
+
+    /**
+     * Cargar assets del sistema centralizado (Vite)
+     */
+    protected function getAppAssets(): string
+    {
+        try {
+            if (app()->environment('production')) {
+                // En producción usar assets compilados de Vite
+                return app(\Illuminate\Foundation\Vite::class)(['resources/js/app.js']);
+            } else {
+                // En desarrollo usar Vite dev server con component-preview.js TAMBIÉN
+                return $this->getViteDevAssets();
+            }
+        } catch (\Exception $e) {
+            Log::warning('Vite assets not available, using fallback', ['error' => $e->getMessage()]);
+            return $this->getAlpineFallback();
+        }
+    }
+
+    /**
+     * Assets para desarrollo con Vite - CON CSS COMPILADO
+     */
+    protected function getViteDevAssets(): string
+    {
+        return '
+        <script type="module" src="http://localhost:5173/@vite/client"></script>
+        <link rel="stylesheet" href="http://localhost:5173/resources/css/app.css">
+        <script type="module" src="http://localhost:5173/resources/js/app.js"></script>
+        <script type="module" src="http://localhost:5173/resources/js/component-preview.js"></script>';
+    }
+
+    /**
+     * Fallback SIN Alpine CDN (solo mensaje de error)
+     */
+    protected function getAlpineFallback(): string
+    {
+        return '
+        <script>
+            console.error("❌ Vite no está disponible - Preview no funcionará correctamente");
+            console.error("❌ Alpine y GSAP no están disponibles sin el sistema centralizado");
+            
+            // Mostrar error visual
+            document.addEventListener("DOMContentLoaded", function() {
+                const body = document.body;
+                const errorDiv = document.createElement("div");
+                errorDiv.style.cssText = "background: #fee2e2; border: 2px solid #dc2626; padding: 1rem; margin: 1rem; border-radius: 0.5rem; color: #dc2626; font-family: monospace;";
+                errorDiv.innerHTML = "⚠️ <strong>Error:</strong> Sistema centralizado no disponible. Vite dev server no está corriendo.";
+                body.insertBefore(errorDiv, body.firstChild);
+            });
+        </script>';
+    }
+
+    /**
+     * Script de inicialización del preview - VUELTO AL SISTEMA ORIGINAL
+     */
+    protected function generatePreviewInitScript(array $config): string
+    {
+        $libraries = json_encode($config['libraries']);
+        $isDev = $config['isDev'] ? 'true' : 'false';
+        
+        return "
+        // Configuración del preview
+        window.PREVIEW_CONFIG = {
+            libraries: {$libraries},
+            isDev: {$isDev},
+            timestamp: '" . now()->toISOString() . "'
+        };
+        
+        console.log('🖼️ Preview initializing...', window.PREVIEW_CONFIG);
+        
+        // Esperar a que el sistema centralizado esté listo
+        document.addEventListener('app:ready', function(event) {
+            console.log('✅ Preview initialized with centralized system');
+            console.log('📚 Required libraries:', window.PREVIEW_CONFIG.libraries);
+            
+            // Auto-cargar librerías detectadas
+            const requiredLibs = window.PREVIEW_CONFIG.libraries;
+            if (requiredLibs.length > 0 && window.App) {
+                Promise.all(
+                    requiredLibs.map(async (lib) => {
+                        try {
+                            await window.App.loadLibrary(lib);
+                            console.log('✅ ' + lib + ' loaded successfully');
+                        } catch (error) {
+                            console.warn('⚠️ Failed to load ' + lib + ':', error);
+                        }
+                    })
+                ).then(() => {
+                    console.log('🎯 All required libraries processed');
+                    
+                    // Verificar después de cargar librerías
+                    setTimeout(() => {
+                        const gsapElements = document.querySelectorAll('[x-data*=\"gsap\"]');
+                        console.log('🔍 Found ' + gsapElements.length + ' GSAP elements');
+                        
+                        if (gsapElements.length > 0) {
+                            const element = gsapElements[0];
+                            const styles = window.getComputedStyle(element);
+                            console.log('🎨 Element styles with Vite CSS:', {
+                                hasAlpineData: !!element._x_dataStack,
+                                backgroundColor: styles.backgroundColor,
+                                backgroundImage: styles.backgroundImage,
+                                padding: styles.padding,
+                                borderRadius: styles.borderRadius,
+                                color: styles.color,
+                                opacity: styles.opacity
+                            });
+                        }
+                    }, 1000);
+                });
+            }
         });
+        
+        // Fallback si el sistema centralizado no responde
+        setTimeout(() => {
+            if (!window.App || !window.App.isInitialized) {
+                console.warn('⚠️ Centralized system not available - basic mode');
+            }
+        }, 3000);
+        ";
+    }
+
+    /**
+     * Datos de prueba por defecto
+     */
+    protected function getDefaultTestData(): array
+    {
+        return [
+            'title' => 'Título de Ejemplo',
+            'description' => 'Descripción de ejemplo para el componente.',
+            'content' => 'Contenido de prueba para verificar el funcionamiento del componente.',
+            'image' => 'https://picsum.photos/400/200?random=1',
+            'button_text' => 'Botón de Ejemplo',
+            'link' => '#ejemplo',
+            'author' => 'Autor de Ejemplo',
+            'date' => now()->format('d/m/Y'),
+            'price' => '$99.99',
+            'category' => 'Categoría Ejemplo',
+            'slides' => [
+                ['title' => 'Slide 1', 'content' => 'Contenido del primer slide', 'image' => 'https://picsum.photos/400/200?random=2'],
+                ['title' => 'Slide 2', 'content' => 'Contenido del segundo slide', 'image' => 'https://picsum.photos/400/200?random=3'],
+                ['title' => 'Slide 3', 'content' => 'Contenido del tercer slide', 'image' => 'https://picsum.photos/400/200?random=4']
+            ],
+            'items' => [
+                ['name' => 'Item 1', 'value' => 'Valor 1'],
+                ['name' => 'Item 2', 'value' => 'Valor 2'],
+                ['name' => 'Item 3', 'value' => 'Valor 3']
+            ]
+        ];
+    }
+
+    /**
+     * Generar preview de error
+     */
+    protected function generateErrorPreview(string $error): string
+    {
+        return "
+        <div class=\"error-preview\">
+            <h3>❌ Error en el Preview</h3>
+            <p><strong>Error:</strong> {$error}</p>
+            <small>Revisa la consola del navegador para más detalles.</small>
+        </div>";
+    }
+
+    /**
+     * Generar error de componente específico
+     */
+    protected function generateComponentError(string $error): string
+    {
+        return "
+        <div class=\"error-preview\">
+            <h4>❌ Error al renderizar componente</h4>
+            <code>{$error}</code>
+            <p><small>Verifica la sintaxis Blade del componente.</small></p>
+        </div>";
+    }
+
+    /**
+     * Detectar librerías con información detallada (para UI)
+     */
+    public function detectLibrariesWithDetails(string $bladeCode): array
+    {
+        $detected = [];
+        $libraries = $this->detectRequiredLibraries($bladeCode);
+        
+        foreach ($libraries as $library) {
+            $detected[$library] = [
+                'name' => $library,
+                'category' => $this->getLibraryCategory($library),
+                'description' => $this->getLibraryDescription($library),
+                'detected' => true
+            ];
+        }
         
         return $detected;
     }
 
     /**
-     * Reglas de detección con pesos y categorías
+     * Obtener categoría de la librería
      */
-    protected function getDetailedDetectionRules(): array
+    protected function getLibraryCategory(string $library): string
+    {
+        $categories = [
+            'gsap' => 'Animaciones',
+            'swiper' => 'Sliders',
+            'fullcalendar' => 'Widgets',
+            'aos' => 'Animaciones'
+        ];
+        
+        return $categories[$library] ?? 'General';
+    }
+
+    /**
+     * Obtener descripción de la librería
+     */
+    protected function getLibraryDescription(string $library): string
+    {
+        $descriptions = [
+            'gsap' => 'Animaciones avanzadas con GSAP',
+            'swiper' => 'Sliders y carruseles responsivos',
+            'fullcalendar' => 'Calendarios interactivos',
+            'aos' => 'Animaciones al hacer scroll'
+        ];
+        
+        return $descriptions[$library] ?? 'Librería externa';
+    }
+
+    /**
+     * Validar código Blade
+     */
+    public function validateBladeCode(string $bladeCode): array
+    {
+        $errors = [];
+        
+        if (empty(trim($bladeCode))) {
+            $errors[] = 'El código Blade no puede estar vacío';
+        }
+        
+        // Verificar sintaxis básica
+        if (preg_match('/\{\{[^}]*\{\{|\}\}[^{]*\}\}/', $bladeCode)) {
+            $errors[] = 'Sintaxis de Blade incorrecta: llaves mal balanceadas';
+        }
+        
+        return $errors;
+    }
+
+    /**
+     * Configuración por defecto
+     */
+    public function getDefaultConfig(): array
     {
         return [
-            'gsap' => [
-                'category' => 'animations',
-                'patterns' => [
-                    '/x-data=["\']gsapSlider/i' => 80,        // Muy específico
-                    '/x-data=["\']gsapFade/i' => 80,          // Muy específico  
-                    '/x-data=["\']gsapReveal/i' => 80,        // Muy específico
-                    '/gsap\./i' => 60,                        // window.gsap usage
-                    '/x-data=["\'].*fade["\'].*\(/i' => 40,   // Posible uso de fade
-                    '/timeline|stagger|tween/i' => 30,        // Términos relacionados
-                ]
-            ],
-            'swiper' => [
-                'category' => 'sliders', 
-                'patterns' => [
-                    '/x-data=["\']swiperBasic/i' => 90,       // Muy específico
-                    '/x-data=["\']swiper/i' => 70,            // Específico
-                    '/new Swiper/i' => 80,                    // Constructor directo
-                    '/swiper-slide|swiper-wrapper/i' => 60,   // Estructura HTML
-                    '/class=["\'][^"\']*swiper/i' => 50,      // CSS classes
-                ]
-            ],
-            'fullcalendar' => [
-                'category' => 'widgets',
-                'patterns' => [
-                    '/x-data=["\'].*calendar/i' => 70,
-                    '/FullCalendar/i' => 80,
-                    '/calendar-/i' => 40,
-                    '/event.*calendar|calendar.*event/i' => 50,
-                ]
-            ],
-            'aos' => [
-                'category' => 'animations',
-                'patterns' => [
-                    '/data-aos=["\'][^"\']+/i' => 90,         // data-aos="fade-up"
-                    '/AOS\.init|AOS\.refresh/i' => 80,        // AOS methods
-                    '/aos-/i' => 40,                          // CSS classes
-                ]
-            ],
-            'chartjs' => [
-                'category' => 'data-visualization',
-                'patterns' => [
-                    '/new Chart/i' => 80,
-                    '/x-data=["\'].*chart/i' => 60,
-                    '/<canvas[^>]*chart/i' => 70,
-                    '/chart.*data|data.*chart/i' => 40,
-                ]
-            ]
+            'testData' => [],
+            'wrapInContainer' => true,
+            'showErrors' => config('app.debug'),
+            'libraries' => []
         ];
     }
-
-    /**
-     * Generar razón legible de por qué se detectó
-     */
-    protected function getDetectionReason(string $library, array $matches): string
-    {
-        if (empty($matches)) return "Detectado automáticamente";
-        
-        $topMatch = $matches[0];
-        $reasons = [
-            'gsap' => [
-                '/x-data=["\']gsap/' => "Se encontró componente Alpine con GSAP: {match}",
-                '/gsap\./' => "Se encontró uso directo de GSAP: {match}",
-                '/fade|slide|reveal/' => "Se detectaron animaciones compatibles con GSAP"
-            ],
-            'swiper' => [
-                '/x-data=["\']swiper/' => "Se encontró componente Swiper: {match}",
-                '/new Swiper/' => "Se encontró constructor de Swiper: {match}",
-                '/swiper-/' => "Se encontraron clases CSS de Swiper"
-            ],
-            'fullcalendar' => [
-                '/calendar/' => "Se detectó funcionalidad de calendario: {match}"
-            ],
-            'aos' => [
-                '/data-aos/' => "Se encontraron atributos AOS: {match}",
-                '/AOS\./' => "Se encontró uso directo de AOS: {match}"
-            ],
-            'chartjs' => [
-                '/Chart/' => "Se detectó uso de Chart.js: {match}",
-                '/canvas.*chart/' => "Se encontró canvas para gráficos"
-            ]
-        ];
-        
-        foreach ($reasons[$library] ?? [] as $pattern => $template) {
-            if (preg_match($pattern, $topMatch['pattern'])) {
-                return str_replace('{match}', $topMatch['match'], $template);
-            }
-        }
-        
-        return "Detectado por patrón: " . $topMatch['match'];
-    }
-
-    /**
-     * Procesar código Blade (copiado de tu controlador)
-     */
-    protected function processBlade(string $bladeCode, array $testData = []): string
-    {
-        $tempFile = storage_path('app/temp_component_' . uniqid() . '.blade.php');
-        
-        try {
-            // Datos por defecto
-            $defaultData = [
-                'title' => 'Título de Ejemplo',
-                'description' => 'Descripción de ejemplo para el componente.',
-                'content' => 'Contenido de prueba para verificar el componente.',
-                'image' => 'https://via.placeholder.com/400x200/4F46E5/FFFFFF?text=Imagen+de+Prueba',
-                'button_text' => 'Botón de Ejemplo',
-                'link' => '#ejemplo',
-                'author' => 'Autor de Ejemplo',
-                'date' => now()->format('d/m/Y'),
-                'price' => '$99.99',
-                'category' => 'Categoría Ejemplo',
-                'slides' => [
-                    ['title' => 'Slide 1', 'content' => 'Contenido del primer slide'],
-                    ['title' => 'Slide 2', 'content' => 'Contenido del segundo slide'],
-                    ['title' => 'Slide 3', 'content' => 'Contenido del tercer slide']
-                ]
-            ];
-            
-            $allData = array_merge($defaultData, $testData);
-            
-            File::put($tempFile, $bladeCode);
-            $rendered = View::file($tempFile, $allData)->render();
-            
-            return $rendered;
-            
-        } finally {
-            if (file_exists($tempFile)) {
-                unlink($tempFile);
-            }
-        }
-    }
-
-    /**
-     * Construir HTML final del preview
-     */
-    protected function buildPreviewHTML(string $content, array $requiredLibraries): string
-    {
-        $nonce = base64_encode(random_bytes(16));
-        
-        // Generar tags de assets
-        $assetTags = $this->generateAssetTags($requiredLibraries);
-        
-        // Cargar ComponentManager + plugins
-        $componentSystemJS = $this->loadComponentSystem($requiredLibraries, $nonce);
-        
-        // ✅ CSP basado en entorno
-        $csp = $this->getCSPForEnvironment();
-        
-        return view('component-preview.wrapper', [
-            'content' => $content,
-            'assetTags' => $assetTags,
-            'componentSystemJS' => $componentSystemJS,
-            'nonce' => $nonce,
-            'csp' => $csp
-        ])->render();
-    }
-
-    /**
-     * CSP basado en entorno
-     */
-    protected function getCSPForEnvironment(): string
-    {
-        if (app()->environment('local')) {
-            // ✅ Ultra-permisivo para desarrollo
-            return "default-src *; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline'; img-src * data: blob:; connect-src *;";
-        }
-        
-        // Restrictivo para producción
-        return "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' https: data: blob:;";
-    }
-
-    /**
-     * Generar tags de assets para librerías requeridas
-     */
-    protected function generateAssetTags(array $requiredLibraries): string
-    {
-        // ✅ Solo Tailwind via CDN + Vite para el resto
-        return '
-        <script src="https://cdn.tailwindcss.com"></script>
-        ' . $this->getViteAssets() . '
-        ';
-    }
-
-    /**
-     * Cargar assets via Vite
-     */
-    protected function getViteAssets(): string
-    {
-        try {
-            // Generar tags de Vite
-            return app(\Illuminate\Foundation\Vite::class)(['resources/js/component-preview.js']);
-        } catch (\Exception $e) {
-            Log::warning('Vite assets not available, falling back to CDN');
-            return $this->getCDNFallback();
-        }
-    }
-
-    /**
-     * Fallback a CDN si Vite no está disponible
-     */
-    protected function getCDNFallback(): string
-    {
-        return '
-        <script src="https://unpkg.com/swiper@11/swiper-bundle.min.js"></script>
-        <link rel="stylesheet" href="https://unpkg.com/swiper@11/swiper-bundle.min.css">
-        <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-        <script>
-        document.addEventListener("alpine:init", () => {
-            Alpine.data("swiperBasic", (config = {}) => ({
-                init() {
-                    this.$nextTick(() => {
-                        if (window.Swiper) {
-                            new Swiper(this.$el.querySelector(".swiper") || this.$el, {
-                                navigation: { nextEl: ".swiper-button-next", prevEl: ".swiper-button-prev" },
-                                pagination: { el: ".swiper-pagination", clickable: true },
-                                ...config
-                            });
-                        }
-                    });
-                }
-            }));
-        });
-        </script>
-        ';
-    }
-
-    /**
-     * Cargar ComponentManager + plugins desde archivos existentes
-     */
-    protected function loadComponentSystem(array $requiredLibraries, string $nonce): string
-    {
-        // ✅ Con Vite ya no necesitamos ComponentManager complejo
-        // Alpine + Swiper se cargan via Vite bundle
-        return "<script nonce=\"{$nonce}\">
-            console.log('📦 Component system loaded via Vite');
-            
-            // Debug info adicional
-            setTimeout(() => {
-                console.log('🔍 System status:', {
-                    Alpine: typeof window.Alpine !== 'undefined' ? '✅ Loaded' : '❌ Missing',
-                    Swiper: typeof window.Swiper !== 'undefined' ? '✅ Loaded' : '❌ Missing',
-                    AlpineVersion: window.Alpine?.version || 'N/A'
-                });
-            }, 500);
-        </script>";
-    }
-
-    /**
-     * ComponentManager fallback (simplificado)
-     */
-    protected function getFallbackComponentManager(): string
-    {
-        return "
-        window.ComponentManager = {
-            init() { 
-                console.log('🚀 ComponentManager (fallback) ready');
-                return Promise.resolve(); 
-            },
-            register() {},
-            unregister() {},
-            getStats() { return { version: 'fallback' }; }
-        };
-        ";
-    }
-
-    /**
-     * Script de inicialización
-     */
-    protected function getInitializationScript(): string
-    {
-        return "
-        // ✅ Inicialización controlada y sincronizada
-        (function() {
-            'use strict';
-            
-            console.log('🚀 Starting controlled component initialization...');
-            
-            // Prevenir auto-start de Alpine hasta que todo esté listo
-            if (typeof window.Alpine !== 'undefined') {
-                window.Alpine.data('__prevent_autostart', () => ({}));
-            }
-            
-            function waitForEverything() {
-                const maxAttempts = 100;
-                let attempts = 0;
-                
-                function check() {
-                    attempts++;
-                    
-                    const conditions = [
-                        typeof window.Alpine !== 'undefined',
-                        typeof window.ComponentManager !== 'undefined',
-                        typeof window.Swiper !== 'undefined' || true // Swiper es opcional
-                    ];
-                    
-                    const allReady = conditions.every(condition => condition === true);
-                    
-                    if (allReady) {
-                        console.log('✅ All systems ready, initializing...');
-                        initializeEverything();
-                    } else if (attempts < maxAttempts) {
-                        setTimeout(check, 50);
-                    } else {
-                        console.warn('⚠️ Timeout, proceeding anyway...');
-                        initializeEverything();
-                    }
-                }
-                
-                check();
-            }
-            
-            function initializeEverything() {
-                // 1. Inicializar ComponentManager primero
-                if (window.ComponentManager && typeof window.ComponentManager.init === 'function') {
-                    window.ComponentManager.init().then(() => {
-                        console.log('📦 ComponentManager initialized, starting Alpine...');
-                        startAlpine();
-                    }).catch(error => {
-                        console.error('❌ ComponentManager error:', error);
-                        startAlpine(); // Intentar Alpine de todos modos
-                    });
-                } else {
-                    console.warn('⚠️ ComponentManager not available, starting Alpine directly');
-                    startAlpine();
-                }
-            }
-            
-            function startAlpine() {
-                try {
-                    if (window.Alpine && typeof window.Alpine.start === 'function') {
-                        console.log('🎿 Starting Alpine.js...');
-                        window.Alpine.start();
-                        console.log('✅ Alpine.js started successfully');
-                    } else {
-                        console.error('❌ Alpine.js not available');
-                    }
-                } catch (error) {
-                    if (error.message.includes('already been initialized')) {
-                        console.log('ℹ️ Alpine already running - this is normal');
-                    } else {
-                        console.error('❌ Error starting Alpine:', error);
-                    }
-                }
-            }
-            
-            // Iniciar el proceso
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', waitForEverything);
-            } else {
-                waitForEverything();
-            }
-            
-        })();
-        ";
-    }
-
-    /**
-     * Preview de error
-     */
-    protected function generateErrorPreview(string $errorMessage): string
-    {
-        return view('component-preview.error', [
-            'errorMessage' => $errorMessage
-        ])->render();
-    }
-
-    /**
-     * Configuración por defecto de assets
-     */
-    protected function getDefaultAssetLibraries(): array
-    {
-        return [
-            'gsap' => [
-                'js' => 'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js'
-            ],
-            'swiper' => [
-                'css' => 'https://unpkg.com/swiper@11/swiper-bundle.min.css',
-                'js' => 'https://unpkg.com/swiper@11/swiper-bundle.min.js'
-            ],
-            'aos' => [
-                'css' => 'https://unpkg.com/aos@2.3.1/dist/aos.css',
-                'js' => 'https://unpkg.com/aos@2.3.1/dist/aos.js'
-            ]
-        ];
-    }
-
-    /**
-     * Patrones de detección por defecto
-     */
-    protected function getDefaultDetectionPatterns(): array
-    {
-        return [
-            'gsap' => [
-                '/x-data=["\'].*gsap/i',
-                '/gsap\./i',
-                '/x-data=["\'].*fade/i',
-                '/x-data=["\'].*reveal/i',
-                '/x-data=["\'].*slider/i'
-            ],
-            'swiper' => [
-                '/x-data=["\'].*swiper/i',
-                '/Swiper/i',
-                '/swiper-/i'
-            ],
-            'aos' => [
-                '/data-aos/i',
-                '/AOS\./i'
-            ]
-        ];
-    }
-}
+}w

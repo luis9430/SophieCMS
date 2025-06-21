@@ -362,45 +362,64 @@
                 <div class="bg-gray-100 px-4 py-2 text-sm flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <span>Preview</span>
-                        <div x-show="isUpdatingPreview" class="flex items-center gap-1 text-blue-500">
-                            <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
-                                <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" class="opacity-75"></path>
-                            </svg>
-                            <span class="text-xs">Actualizando...</span>
-                        </div>
+                        <span class="text-xs text-gray-500">(Click en "Nueva Ventana" para ver el preview)</span>
                     </div>
                     
                     <div class="flex items-center gap-2">
-                        <select x-model="previewMode" @change="updatePreview()" class="px-2 py-1 text-xs border border-gray-300 rounded">
-                            <option value="desktop">Desktop</option>
-                            <option value="tablet">Tablet</option>
-                            <option value="mobile">Mobile</option>
-                        </select>
-                        <button @click="updatePreview()" 
-                                :disabled="isUpdatingPreview"
-                                class="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50">
-                            Refresh
+                        <button @click="openPreviewWindow()" 
+                                class="px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition-colors">
+                            🪟 Abrir Preview
                         </button>
                     </div>
                 </div>
                 
-                <div class="flex-1 p-4 bg-gray-50 overflow-auto">
-                    <div :class="{
-                        'max-w-full': previewMode === 'desktop',
-                        'max-w-2xl mx-auto': previewMode === 'tablet',
-                        'max-w-sm mx-auto': previewMode === 'mobile'
-                    }" class="transition-all duration-300">
-                        <div class="bg-white shadow-lg rounded-lg overflow-hidden" 
-                             :class="previewMode !== 'desktop' ? 'border' : ''">
-                            <iframe x-ref="previewFrame"
-                                    class="w-full border-0"
-                                    :style="'height: ' + (previewMode === 'mobile' ? '500px' : '600px')"
-                                    sandbox="allow-scripts allow-same-origin"></iframe>
+                <!-- Área de preview placeholder -->
+                <div class="flex-1 p-8 bg-gray-50 flex items-center justify-center">
+                    <div class="text-center">
+                        <svg class="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                        </svg>
+                        
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">Preview en Ventana Nueva</h3>
+                        <p class="text-gray-600 mb-4">
+                            Para una mejor experiencia de preview, abre el componente en una ventana separada.
+                        </p>
+                        
+                        <button @click="openPreviewWindow()" 
+                                class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
+                            🪟 Abrir Preview
+                        </button>
+                        
+                        <div class="mt-6 text-sm text-gray-500">
+                            <h4 class="font-medium mb-2">Ventajas del preview en ventana nueva:</h4>
+                            <ul class="text-left space-y-1">
+                                <li>• ✅ Tailwind funciona perfectamente</li>
+                                <li>• ✅ Alpine + GSAP sin problemas</li>
+                                <li>• ✅ Sin restricciones de iframe</li>
+                                <li>• ✅ Debugging completo en consola</li>
+                                <li>• ✅ Más espacio para visualizar</li>
+                            </ul>
+                        </div>
+                        
+                        <!-- Info de props actual -->
+                        <div x-show="testProps.length > 0" class="mt-6 p-4 bg-blue-50 rounded-lg">
+                            <h4 class="font-medium text-blue-900 mb-2">Props configurados:</h4>
+                            <div class="text-sm text-blue-800">
+                                <template x-for="prop in testProps" :key="prop.key">
+                                    <div x-show="prop.key && prop.value" class="flex justify-between">
+                                        <span x-text="prop.key"></span>
+                                        <span x-text="prop.type === 'string' ? `'${prop.value}'` : prop.value" class="font-mono"></span>
+                                    </div>
+                                </template>
+                            </div>
+                            <p class="text-xs text-blue-600 mt-2">
+                                Estos props se incluirán automáticamente en el preview
+                            </p>
                         </div>
                     </div>
                 </div>
             </div>
+          
         </div>
     </div>
 
@@ -448,7 +467,6 @@ function componentEditor() {
         // Init
         init() {
             console.log('Component Editor initialized');
-            this.updatePreview();
             this.setupAutoSave();
         },
 
@@ -532,12 +550,7 @@ function componentEditor() {
             this.component.communication_config.state.splice(index, 1);
         },
 
-        // Preview updates
-            updatePreview() {
-            // Cambiar para que siempre use props
-            this.updatePreviewWithProps();
-        },
-
+     
         // Props Management
         addProp() {
             this.testProps.push({
@@ -549,24 +562,9 @@ function componentEditor() {
 
         removeProp(index) {
             this.testProps.splice(index, 1);
-            this.updatePreviewWithProps();
-        },
-
-        // Update preview with current props
-         updatePreviewWithProps() {
-            clearTimeout(this.previewTimeout);
-            this.previewTimeout = setTimeout(() => {
-                this.generateUnifiedPreview(); // ← Usar el método unificado
-            }, 500);
         },
 
 
-
-
-        // Generate preview with test props
-      generatePreviewWithProps() {
-            return this.generateUnifiedPreview(); // ← Usar el método unificado
-        },
         // Convert props array to test data object
             convertPropsToTestData() {
                 const testData = {};
@@ -735,7 +733,6 @@ function componentEditor() {
                             ];
                             break;
                     }
-                    this.updatePreviewWithProps();
                 },
 
         // Generate preview
@@ -869,70 +866,94 @@ function componentEditor() {
             this.hasChanges = true;
         },
 
-        // Debounced update preview (faltaba)
-        debouncedUpdatePreview() {
-            clearTimeout(this.previewTimeout);
-            this.previewTimeout = setTimeout(() => {
-                this.updatePreviewWithProps(); // ← Cambiar aquí
-            }, 1000);
-        },
         // Handle form submission
         async submitForm() {
             await this.saveComponent();
         },
+        
 
 
-        async generateUnifiedPreview() {
-            if (this.isUpdatingPreview) return;
+        openPreviewWindow() {
+            const componentId = this.component.id;
             
-            this.isUpdatingPreview = true;
+            // Obtener datos actuales de los props
+            const testData = this.convertPropsToTestData();
             
-            try {
-                // SIEMPRE incluir props de test
-                const testData = this.convertPropsToTestData();
+            // URL base para el preview
+            let previewUrl = `/preview/component/${componentId}`;
+            
+            // Si hay datos de test, agregarlos como query params
+            if (Object.keys(testData).length > 0) {
+                const params = new URLSearchParams();
                 
-                // Debug
-                console.log('🔍 Unified Preview - Test Data:', testData);
-                
-                const response = await fetch(`/admin/page-builder/components/${this.component.id}/preview`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                    },
-                    body: JSON.stringify({
-                        blade_template: this.component.blade_template,
-                        test_data: testData // ← SIEMPRE incluir props
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Preview error: ${response.status}`);
-                }
-
-                const previewHtml = await response.text();
-                
-                // Update preview iframe
-                this.$nextTick(() => {
-                    const iframe = this.$refs.previewFrame;
-                    if (iframe) {
-                        iframe.srcdoc = previewHtml;
+                // Convertir los datos a query string
+                Object.entries(testData).forEach(([key, value]) => {
+                    if (typeof value === 'object') {
+                        params.append(key, JSON.stringify(value));
+                    } else {
+                        params.append(key, value);
                     }
                 });
-
-            } catch (error) {
-                console.error('Unified preview error:', error);
-                this.showNotification('error', 'Error al generar preview: ' + error.message);
-            } finally {
-                this.isUpdatingPreview = false;
+                
+                previewUrl = `/preview/component/${componentId}/custom?${params.toString()}`;
             }
-},
+            
+            // Configuración de la ventana
+            const windowFeatures = [
+                'width=1200',
+                'height=800',
+                'scrollbars=yes',
+                'resizable=yes',
+                'menubar=no',
+                'toolbar=no',
+                'location=no',
+                'status=no'
+            ].join(',');
+            
+            // Abrir ventana
+            const previewWindow = window.open(
+                previewUrl, 
+                `component-preview-${componentId}`, 
+                windowFeatures
+            );
+            
+            if (previewWindow) {
+                previewWindow.focus();
+                console.log('🚀 Preview window opened for component:', componentId);
+                this.showNotification('success', 'Preview abierto en nueva ventana');
+            } else {
+                this.showNotification('error', 'No se pudo abrir la ventana. Verifica que no estén bloqueadas las ventanas emergentes.');
+            }
+            
+            return previewWindow;
+        },
+
+        /**
+         * Abrir preview con datos específicos (método adicional por si lo necesitas)
+         */
+        openPreviewWithCustomData(customData = {}) {
+            const componentId = this.component.id;
+            const mergedData = { ...this.convertPropsToTestData(), ...customData };
+            
+            let previewUrl = `/preview/component/${componentId}`;
+            
+            if (Object.keys(mergedData).length > 0) {
+                const params = new URLSearchParams();
+                Object.entries(mergedData).forEach(([key, value]) => {
+                    params.append(key, typeof value === 'object' ? JSON.stringify(value) : value);
+                });
+                previewUrl = `/preview/component/${componentId}/custom?${params.toString()}`;
+            }
+            
+            window.open(previewUrl, `component-preview-${componentId}`, 'width=1200,height=800,scrollbars=yes,resizable=yes');
+        },
+
 
 
         // Navigate back
-        goBack() {
-            window.location.href = '{{ route("component-builder.index") }}';
-        }
+goBack() {
+    window.location.href = '{{ route("component-builder.index") }}';
+}
     };
 }
 </script>

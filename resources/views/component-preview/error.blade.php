@@ -3,27 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Component Error</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Error en Preview</title>
+    @vite(['resources/css/app.css'])
 </head>
-<body class="bg-red-50 min-h-screen">
-    <div class="min-h-screen flex items-center justify-center p-4">
-        <div class="bg-white border border-red-200 rounded-lg shadow-lg p-6 max-w-md w-full">
+<body class="bg-gray-100 p-8">
+    <div class="max-w-2xl mx-auto">
+        <div class="bg-red-50 border border-red-200 rounded-lg p-6">
             <div class="flex items-center mb-4">
-                <div class="bg-red-100 rounded-full p-2 mr-3">
-                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
+                <div class="text-red-500 text-2xl mr-3">❌</div>
+                <h1 class="text-xl font-bold text-red-800">Error en la Vista Previa</h1>
+            </div>
+            
+            <div class="mb-4">
+                <h2 class="font-semibold text-red-700 mb-2">Componente:</h2>
+                <p class="text-gray-700">{{ $component->name ?? 'Componente desconocido' }}</p>
+                @if(isset($component->id))
+                    <p class="text-sm text-gray-500">ID: {{ $component->id }}</p>
+                @endif
+            </div>
+            
+            <div class="mb-6">
+                <h2 class="font-semibold text-red-700 mb-2">Error:</h2>
+                <div class="bg-white border border-red-200 rounded p-3">
+                    <code class="text-sm text-red-600">{{ $error }}</code>
                 </div>
-                <h3 class="text-lg font-semibold text-red-800">Error en el Componente</h3>
             </div>
-            <div class="bg-red-50 border border-red-200 rounded p-3 mb-4">
-                <p class="text-red-700 text-sm font-mono">{{ $errorMessage }}</p>
+            
+            <div class="text-center">
+                <button onclick="window.location.reload()" 
+                        class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors mr-2">
+                    🔄 Intentar de Nuevo
+                </button>
+                
+                <button onclick="window.close()" 
+                        class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors">
+                    ✕ Cerrar Ventana
+                </button>
             </div>
-            <p class="text-red-600 text-sm">
-                Revisa la sintaxis del código Blade y verifica que todas las variables estén definidas.
-            </p>
         </div>
     </div>
 </body>

@@ -125,10 +125,19 @@ Route::prefix('api')->group(function () {
         ->name('pagebuilder.preview');
 });
 
+   
+Route::get('/preview/component/{component}', [ComponentBuilderController::class, 'previewWindow'])
+    ->name('component.preview.window');
+
+Route::get('/preview/component/{component}/custom', [ComponentBuilderController::class, 'previewWindowWithData'])
+    ->name('component.preview.window.custom');
+
 Route::get('/debug-component-files', [ComponentBuilderController::class, 'debugFiles']);
 
 
-// Rutas públicas para mostrar las páginas
+
+
+    // Rutas públicas para mostrar las páginas
 Route::get('/{page:slug}', [PageController::class, 'show'])
     ->where('page', '^(?!admin|api).*$')
     ->name('page.show');

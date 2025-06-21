@@ -2137,6 +2137,152 @@ class ComponentBuilderController extends Controller
                 ]
             ]);
         }
+
+
+
+public function previewWindow(Component $component)
+{
+    try {
+        // Datos de prueba por defecto
+        $testData = [
+            'title' => 'Vista Previa del Componente',
+            'description' => 'Esta es la vista previa del componente en ventana nueva.',
+            'content' => 'Contenido de ejemplo para verificar el componente.',
+            'image' => 'https://picsum.photos/400/200?random=1',
+            'button_text' => 'Botón de Ejemplo',
+            'link' => '#ejemplo',
+            'author' => 'Autor de Ejemplo',
+            'date' => now()->format('d/m/Y'),
+            'price' => '$99.99',
+            'category' => 'Categoría Ejemplo',
+            'slides' => [
+                ['title' => 'Slide 1', 'content' => 'Contenido del primer slide', 'image' => 'https://picsum.photos/400/200?random=2'],
+                ['title' => 'Slide 2', 'content' => 'Contenido del segundo slide', 'image' => 'https://picsum.photos/400/200?random=3'],
+                ['title' => 'Slide 3', 'content' => 'Contenido del tercer slide', 'image' => 'https://picsum.photos/400/200?random=4']
+            ],
+            'items' => [
+                ['name' => 'Item 1', 'value' => 'Valor 1'],
+                ['name' => 'Item 2', 'value' => 'Valor 2'],
+                ['name' => 'Item 3', 'value' => 'Valor 3']
+            ]
+        ];
+
+        // Renderizar el componente con datos de prueba
+        $renderedComponent = $this->renderComponentSafely($component->blade_template, $testData);
+
+        // Detectar librerías requeridas automáticamente
+        $requiredLibraries = $this->detectRequiredLibrariesFromCode($component->blade_template);
+
+        return view('component-preview.window', [
+            'component' => $component,
+            'renderedComponent' => $renderedComponent,
+            'requiredLibraries' => $requiredLibraries,
+            'testData' => $testData
+        ]);
+
+    } catch (\Exception $e) {
+        \Log::error('Preview window error', [
+            'component_id' => $component->id,
+            'error' => $e->getMessage()
+        ]);
+
+        return view('component-preview.error', [
+            'error' => $e->getMessage(),
+            'component' => $component
+        ]);
+    }
+}
+
+/**
+ * Preview con datos personalizados via query string
+ */
+public function previewWindowWithData(Component $component, Request $request)
+{
+    try {
+        // Obtener datos personalizados del query string
+        $customData = $request->only([
+            'title', 'description', 'content', 'image', 'button_text', 
+            'link', 'author', 'date', 'price', 'category'
+        ]);
+
+        // Datos base + datos personalizados
+        $testData = array_merge([
+            'title' => 'Vista Previa Personalizada',
+            'description' => 'Vista previa con datos personalizados.',
+            'content' => 'Contenido personalizado del componente.',
+            'image' => 'https://picsum.photos/400/200?random=' . rand(1, 100),
+            'button_text' => 'Acción Personalizada',
+            'link' => '#personalizado',
+            'author' => 'Autor Personalizado',
+            'date' => now()->format('d/m/Y'),
+            'price' => '$' . rand(10, 999) . '.99',
+            'category' => 'Categoría Personalizada'
+        ], $customData);
+
+        $renderedComponent = $this->renderComponentSafely($component->blade_template, $testData);
+        $requiredLibraries = $this->detectRequiredLibrariesFromCode($component->blade_template);
+
+        return view('component-preview.window', [
+            'component' => $component,
+            'renderedComponent' => $renderedComponent,
+            'requiredLibraries' => $requiredLibraries,
+            'testData' => $testData
+        ]);
+
+    } catch (\Exception $e) {
+        return view('component-preview.error', [
+            'error' => $e->getMessage(),
+            'component' => $component
+        ]);
+    }
+}
+
+/**
+ * Renderizar componente de manera segura
+ */
+private function renderComponentSafely(string $bladeCode, array $data = [])
+{
+    $tempFile = storage_path('app/temp_preview_' . uniqid() . '.blade.php');
+    
+    try {
+        File::put($tempFile, $bladeCode);
+        return View::file($tempFile, $data)->render();
+    } catch (\Exception $e) {
+        throw new \Exception('Error al renderizar componente: ' . $e->getMessage());
+    } finally {
+        if (File::exists($tempFile)) {
+            File::delete($tempFile);
+        }
+    }
+}
+
+/**
+ * Detectar librerías del código Blade
+ */
+private function detectRequiredLibrariesFromCode(string $bladeCode): array
+{
+    $libraries = [];
+    
+    $patterns = [
+        'gsap' => ['/x-data=["\']gsap/', '/gsap\./i', '/@gsap/'],
+        'swiper' => ['/x-data=["\']swiper/', '/swiper-/', '/new Swiper/i'],
+        'aos' => ['/data-aos/', '/AOS\./i'],
+        'fullcalendar' => ['/x-data=["\'].*calendar/', '/FullCalendar/i']
+    ];
+
+    foreach ($patterns as $library => $libraryPatterns) {
+        foreach ($libraryPatterns as $pattern) {
+            if (preg_match($pattern, $bladeCode)) {
+                $libraries[] = $library;
+                break;
+            }
+        }
+    }
+
+    return array_unique($libraries);
+}
+
+
                         
 
 }
