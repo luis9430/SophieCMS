@@ -352,8 +352,7 @@
                     </div>
                 </div>
                 
-                <textarea x-model="component.blade_template"
-                          @input="markAsChanged(); debouncedUpdatePreview()"
+                <textarea x-model="component.blade_template"              
                           class="flex-1 bg-gray-900 text-green-400 font-mono text-sm p-4 resize-none border-0 outline-none"></textarea>
             </div>
 
