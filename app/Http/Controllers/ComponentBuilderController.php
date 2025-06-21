@@ -731,7 +731,6 @@ class ComponentBuilderController extends Controller
         }
 
 
-
         private function generateCSPPolicy(string $nonce, bool $isDev): string
         {
             $basePolicy = [
