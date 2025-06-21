@@ -27,7 +27,11 @@ class Component extends Model
         'created_by_user_id',
         'preview_image',
         'last_edited_at',
-        'version'
+        'version',
+        'blade_template',
+        'page_builder_template',        
+        'auto_generate_short',        
+        'template_config',  
     ];
 
     protected $casts = [
@@ -38,7 +42,10 @@ class Component extends Model
         'preview_config' => 'array',
         'is_advanced' => 'boolean',
         'is_active' => 'boolean',
-        'last_edited_at' => 'datetime'
+        'last_edited_at' => 'datetime',
+        'template_config' => 'array',       
+
+        'auto_generate_short' => 'boolean', 
     ];
 
     protected $dates = [
@@ -183,4 +190,28 @@ class Component extends Model
     {
         return $query->where('is_active', true);
     }
+
+
+        public function getTemplateForContext(string $context = 'page-builder'): string
+    {
+        switch ($context) {
+            case 'page-builder':
+                return $this->page_builder_template ?? $this->blade_template;
+            case 'component-builder':
+            case 'preview':
+            default:
+                return $this->blade_template;
+        }
+    }
+
+        public function hasShortTemplate(): bool
+        {
+            return !empty($this->page_builder_template);
+        }
+
+        public function shouldAutoGenerate(): bool
+        {
+            return $this->auto_generate_short ?? true;
+        }
+
 }

@@ -441,4 +441,4 @@ class ComponentPreviewService
             'libraries' => []
         ];
     }
-}w
+}

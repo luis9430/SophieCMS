@@ -71,7 +71,7 @@
         <!-- Sidebar con configuración -->
         <div class="w-80 bg-white border-r border-gray-200 flex flex-col">
             
-            <!-- Tabs -->
+            <!-- Tabs - ACTUALIZADO CON 4 TABS -->
             <div class="border-b border-gray-200">
                 <nav class="flex">
                     <button @click="activeTab = 'basic'" 
@@ -84,10 +84,15 @@
                             class="w-1/4 py-2 px-1 text-center border-b-2 font-medium text-sm">
                         Props
                     </button>
+                    <button @click="activeTab = 'templates'" 
+                            :class="activeTab === 'templates' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'"
+                            class="w-1/4 py-2 px-1 text-center border-b-2 font-medium text-sm">
+                        Templates
+                    </button>
                     <button @click="activeTab = 'communication'" 
                             :class="activeTab === 'communication' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'"
                             class="w-1/4 py-2 px-1 text-center border-b-2 font-medium text-sm">
-                        Comunicación
+                        Com.
                     </button>
                 </nav>
             </div>
@@ -103,10 +108,6 @@
                         <div class="text-blue-700">Creado {{ $component->created_at->diffForHumans() }}</div>
                         <div class="text-blue-700">ID: {{ $component->identifier }}</div>
                     </div>
-
-
-
-
 
                     <!-- Name -->
                     <div>
@@ -167,7 +168,7 @@
                     </div>
                 </div>
 
-
+                <!-- Props Tab -->
                 <div x-show="activeTab === 'props'" class="space-y-4">
                     <div class="flex items-center justify-between">
                         <h4 class="font-medium text-gray-900">Props Simulator</h4>
@@ -228,31 +229,6 @@
                                                 class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
                                         </template>
                                     </div>
-
-
-                                    <template x-if="prop.type === 'array'">
-                                        <div class="w-full">
-                                            <textarea x-model="prop.value"
-                                                    @input="updatePreviewWithProps()"
-                                                    :placeholder="getPlaceholderForType(prop.type)"
-                                                    rows="3"
-                                                    class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"></textarea>
-                                            <div class="flex items-center justify-between mt-1">
-                                                <div class="text-xs text-gray-500">
-                                                    Formato: ["item1", "item2"] o item1, item2, item3
-                                                </div>
-                                                <button @click="validateArrayFormat(prop)" 
-                                                        type="button"
-                                                        class="text-xs text-blue-600 hover:text-blue-800">
-                                                    Validar
-                                                </button>
-                                            </div>
-                                            <!-- Validation feedback -->
-                                            <div x-show="prop.validationError" 
-                                                x-text="prop.validationError"
-                                                class="text-xs text-red-600 mt-1"></div>
-                                        </div>
-                                    </template>
                                     
                                     <!-- Remove Button -->
                                     <div class="pt-5">
@@ -307,6 +283,116 @@
                     </div>
                 </div>
 
+                <!-- NUEVA PESTAÑA TEMPLATES -->
+                <div x-show="activeTab === 'templates'" class="space-y-6">
+                    <!-- Header explicativo -->
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h4 class="font-medium text-blue-900 mb-2">🔄 Sistema Dual de Templates</h4>
+                        <p class="text-sm text-blue-800 mb-3">
+                            Tu componente puede tener dos versiones: una completa (Component Builder) y una optimizada (Page Builder).
+                        </p>
+                        <div class="flex items-center space-x-4">
+                            <label class="flex items-center">
+                                <input type="checkbox" 
+                                       x-model="component.auto_generate_short"
+                                       @change="markAsChanged()"
+                                       class="rounded border-gray-300 text-blue-600">
+                                <span class="ml-2 text-sm text-blue-800">Auto-generar template corto</span>
+                            </label>
+                            
+                            <button @click="regenerateShortTemplate()" 
+                                    class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
+                                🔄 Regenerar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Template Completo (Solo lectura) -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            📝 Template Completo (Component Builder)
+                            <span class="text-gray-500">- Solo lectura</span>
+                        </label>
+                        <div class="bg-gray-50 border rounded-lg p-4 max-h-60 overflow-y-auto">
+                            <pre class="text-sm text-gray-800 whitespace-pre-wrap font-mono" x-text="component.blade_template"></pre>
+                        </div>
+                        <div class="mt-2 text-xs text-gray-600">
+                            ✏️ Editar este template en el editor principal a la derecha.
+                        </div>
+                    </div>
+
+                    <!-- Template Corto (Editable) -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            ⚡ Template para Page Builder
+                            <span class="text-green-600">- Optimizado y editable</span>
+                        </label>
+                        <textarea x-model="component.page_builder_template" 
+                                  @input="markAsChanged()"
+                                  rows="4"
+                                    placeholder="<x-page-builder.{{ $component->identifier }} title=&quot;Hello World&quot; />"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                        
+                        <!-- Vista previa del uso -->
+                        <div class="mt-2 p-3 bg-gray-100 rounded">
+                            <p class="text-xs text-gray-600 mb-1">Uso en Page Builder:</p>
+                            <code class="text-sm text-gray-800" x-text="component.page_builder_template || 'Template automático se generará...'"></code>
+                        </div>
+                    </div>
+
+                    <!-- Configuración de Props para Template Corto -->
+                    <div x-show="component.page_builder_template">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            🎛️ Props Disponibles para Template Corto
+                        </label>
+                        <div class="bg-white border rounded-lg p-4">
+                            <div x-show="testProps.length > 0">
+                                <template x-for="(prop, index) in testProps" :key="index">
+                                    <div x-show="prop.key" class="flex items-center justify-between py-2 border-b last:border-b-0">
+                                        <div>
+                                            <span class="font-medium text-sm" x-text="prop.key"></span>
+                                            <span class="text-xs text-gray-500 ml-2" x-text="prop.type || 'string'"></span>
+                                        </div>
+                                        <div class="text-sm text-gray-600" x-text="prop.value || 'Sin valor por defecto'"></div>
+                                    </div>
+                                </template>
+                            </div>
+                            <div x-show="testProps.length === 0" class="text-gray-500 text-sm">
+                                No hay props configurados. Ve a la pestaña "Props" para agregar.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Acciones rápidas -->
+                    <div class="flex gap-3">
+                        <button @click="copyPageBuilderTemplate()" 
+                                class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+                            📋 Copiar Template Corto
+                        </button>
+                        
+                        <button @click="testPageBuilderTemplate()" 
+                                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                            🧪 Probar en Page Builder
+                        </button>
+                    </div>
+
+                    <!-- Ejemplos de uso -->
+                    <div class="bg-gray-50 border rounded-lg p-4">
+                        <h5 class="text-sm font-medium text-gray-700 mb-2">📖 Ejemplos de Templates Cortos</h5>
+                        <div class="space-y-2 text-sm font-mono text-gray-700">
+                            <div class="bg-white p-2 rounded border">
+                                &lt;x-page-builder.hero title="Mi título" subtitle="Mi subtítulo" /&gt;
+                            </div>
+                            <div class="bg-white p-2 rounded border">
+                                &lt;x-page-builder.card title="Card" :tags="['web', 'design']" /&gt;
+                            </div>
+                            <div class="bg-white p-2 rounded border">
+                                &lt;x-page-builder.button text="Click me" variant="primary" :disabled="false" /&gt;
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Communication Tab -->
                 <div x-show="activeTab === 'communication'" class="space-y-4">
                     <div class="text-sm text-gray-600 mb-4">
@@ -352,7 +438,8 @@
                     </div>
                 </div>
                 
-                <textarea x-model="component.blade_template"              
+                <textarea x-model="component.blade_template"
+                          @input="markAsChanged()"              
                           class="flex-1 bg-gray-900 text-green-400 font-mono text-sm p-4 resize-none border-0 outline-none"></textarea>
             </div>
 
@@ -443,17 +530,21 @@ function componentEditor() {
         testProps: [],
         showPreviewModal: false,
         previewComponent: null,
-        // Component data - cargado de forma ultra segura
+        
+        // Component data - LIMPIO Y SEGURO
         component: {
             id: {{ $component->id }},
-            name: "{{ addslashes($component->name ?? '') }}",
-            identifier: "{{ addslashes($component->identifier ?? '') }}",
-            category: "{{ addslashes($component->category ?? 'content') }}",
-            description: "{{ addslashes($component->description ?? '') }}",
-            blade_template: `{!! addslashes($component->blade_template ?? '') !!}`,
+            name: @json($component->name ?? ''),
+            identifier: @json($component->identifier ?? ''),
+            category: @json($component->category ?? 'content'),
+            description: @json($component->description ?? ''),
+            blade_template: @json($component->blade_template ?? ''),
+            page_builder_template: @json($component->page_builder_template ?? ''),
+            auto_generate_short: {{ ($component->auto_generate_short ?? true) ? 'true' : 'false' }},
+            template_config: @json($component->template_config ?? []),
             communication_config: @json($component->communication_config ?? ['emits' => [], 'listens' => [], 'state' => []]),
-            props_schema: @json($component->props_schema ?? (object)[]),
-            preview_config: @json($component->preview_config ?? (object)[])
+            props_schema: @json($component->props_schema ?? []),
+            preview_config: @json($component->preview_config ?? [])
         },
 
         // Notification
@@ -491,7 +582,7 @@ function componentEditor() {
 
             this.autoSaving = true;
             try {
-                await this.saveComponent(false); // false = no mostrar notificación
+                await this.saveComponent(false);
                 this.hasChanges = false;
             } catch (error) {
                 console.error('Auto-save failed:', error);
@@ -500,56 +591,6 @@ function componentEditor() {
             }
         },
 
-        // Update identifier based on name
-        updateIdentifier() {
-            if (!this.component.identifier) {
-                this.component.identifier = this.component.name
-                    .toLowerCase()
-                    .replace(/[^a-z0-9\s-]/g, '')
-                    .replace(/\s+/g, '-')
-                    .replace(/-+/g, '-')
-                    .trim('-');
-            }
-        },
-
-    
-
-        // Communication events
-        addEmittedEvent() {
-            this.component.communication_config.emits.push({
-                name: '',
-                type: 'normal'
-            });
-        },
-
-        removeEmittedEvent(index) {
-            this.component.communication_config.emits.splice(index, 1);
-        },
-
-        addListenedEvent() {
-            this.component.communication_config.listens.push({
-                name: '',
-                callback: ''
-            });
-        },
-
-        removeListenedEvent(index) {
-            this.component.communication_config.listens.splice(index, 1);
-        },
-
-        addStateKey() {
-            this.component.communication_config.state.push({
-                key: '',
-                defaultValue: '',
-                type: 'string'
-            });
-        },
-
-        removeStateKey(index) {
-            this.component.communication_config.state.splice(index, 1);
-        },
-
-     
         // Props Management
         addProp() {
             this.testProps.push({
@@ -563,75 +604,45 @@ function componentEditor() {
             this.testProps.splice(index, 1);
         },
 
-
         // Convert props array to test data object
-            convertPropsToTestData() {
-                const testData = {};
-                
-                this.testProps.forEach(prop => {
-                    if (prop.key && prop.value !== '') {
-                        let value = prop.value;
-                        
-                        switch (prop.type) {
-                            case 'number':
-                                value = parseFloat(prop.value) || 0;
-                                break;
-                            case 'boolean':
-                                value = prop.value === 'true';
-                                break;
-                            case 'array':
-                                value = this.parseArrayValue(prop.value);
-                                break;
-                            default:
-                                value = prop.value;
-                        }
-                        
-                        testData[prop.key] = value;
+        convertPropsToTestData() {
+            const testData = {};
+            
+            this.testProps.forEach(prop => {
+                if (prop.key && prop.value !== '') {
+                    let value = prop.value;
+                    
+                    switch (prop.type) {
+                        case 'number':
+                            value = parseFloat(prop.value) || 0;
+                            break;
+                        case 'boolean':
+                            value = prop.value === 'true';
+                            break;
+                        case 'array':
+                            value = this.parseArrayValue(prop.value);
+                            break;
+                        default:
+                            value = prop.value;
                     }
-                });
-                
-                // DEBUG TEMPORAL - agrega estas líneas
-                console.log('🔍 Test Data enviado:', testData);
-                console.log('🔍 Props configurados:', this.testProps);
-                
-                return testData;
-            },
-
-
-            parseArrayValue(arrayString) {
-                try {
-                    // Intentar parsear como JSON primero
-                    const parsed = JSON.parse(arrayString);
-                    return Array.isArray(parsed) ? parsed : [parsed];
-                } catch (e) {
-                    // Si falla, split por comas
-                    return arrayString.split(',').map(item => item.trim()).filter(item => item !== '');
+                    
+                    testData[prop.key] = value;
                 }
-            },
+            });
+            
+            console.log('🔍 Test Data enviado:', testData);
+            return testData;
+        },
 
+        parseArrayValue(arrayString) {
+            try {
+                const parsed = JSON.parse(arrayString);
+                return Array.isArray(parsed) ? parsed : [parsed];
+            } catch (e) {
+                return arrayString.split(',').map(item => item.trim()).filter(item => item !== '');
+            }
+        },
 
-            validateArrayFormat(prop) {
-                prop.validationError = '';
-                
-                try {
-                    const parsed = JSON.parse(prop.value);
-                    if (Array.isArray(parsed)) {
-                        prop.validationError = '';
-                        this.showNotification('success', 'Array válido');
-                    } else {
-                        prop.validationError = 'Debe ser un array';
-                    }
-                } catch (e) {
-                    // Verificar si es formato simple (comma-separated)
-                    const simpleArray = prop.value.split(',').map(item => item.trim());
-                    if (simpleArray.length > 0 && simpleArray.every(item => item !== '')) {
-                        prop.validationError = '';
-                        this.showNotification('success', 'Formato simple válido');
-                    } else {
-                        prop.validationError = 'Formato inválido. Use ["item1", "item2"] o item1, item2';
-                    }
-                }
-            },
         // Generate code for Page Builder
         getGeneratedCode() {
             if (this.testProps.length === 0) return '';
@@ -653,7 +664,7 @@ function componentEditor() {
         },
 
         // Format prop value for Blade
-         formatPropValue(prop) {
+        formatPropValue(prop) {
             switch (prop.type) {
                 case 'number':
                     return prop.value;
@@ -661,11 +672,9 @@ function componentEditor() {
                     return prop.value;
                 case 'array':
                     try {
-                        // Si es JSON válido, usarlo directamente
                         const parsed = JSON.parse(prop.value);
                         return JSON.stringify(parsed);
                     } catch (e) {
-                        // Si es formato simple, convertir a array de strings
                         const items = prop.value.split(',').map(item => `'${item.trim()}'`);
                         return `[${items.join(', ')}]`;
                     }
@@ -680,7 +689,6 @@ function componentEditor() {
                 await navigator.clipboard.writeText(this.getGeneratedCode());
                 this.showNotification('success', 'Código copiado al portapapeles');
             } catch (err) {
-                console.error('Error copying to clipboard:', err);
                 this.showNotification('error', 'Error al copiar código');
             }
         },
@@ -688,56 +696,189 @@ function componentEditor() {
         // Get placeholder text for input types
         getPlaceholderForType(type) {
             switch (type) {
-                case 'string':
-                    return 'Texto aquí...';
-                case 'number':
-                    return '123';
-                case 'boolean':
-                    return 'true/false';
-                case 'array':
-                    return '["Item 1", "Item 2"] o item1, item2, item3';
-                default:
-                    return '';
+                case 'string': return 'Texto aquí...';
+                case 'number': return '123';
+                case 'boolean': return 'true/false';
+                case 'array': return '["Item 1", "Item 2"] o item1, item2, item3';
+                default: return '';
             }
         },
 
         // Load preset props
-                loadPreset(presetName) {
-                    switch (presetName) {
-                        case 'card':
-                            this.testProps = [
-                                { key: 'title', value: 'Título de Card', type: 'string' },
-                                { key: 'description', value: 'Descripción de la card', type: 'string' },
-                                { key: 'image', value: 'https://via.placeholder.com/300x200', type: 'string' },
-                                { key: 'tags', value: '["Nuevo", "Popular", "Oferta"]', type: 'array' },
-                                { key: 'url', value: '#', type: 'string' }
-                            ];
-                            break;
-                        case 'hero':
-                            this.testProps = [
-                                { key: 'title', value: 'Título Principal', type: 'string' },
-                                { key: 'subtitle', value: 'Subtítulo descriptivo', type: 'string' },
-                                { key: 'button_text', value: 'Llamada a acción', type: 'string' },
-                                { key: 'features', value: 'Rápido, Seguro, Confiable', type: 'array' },
-                                { key: 'background_image', value: 'https://via.placeholder.com/1200x600', type: 'string' }
-                            ];
-                            break;
-                        case 'button':
-                            this.testProps = [
-                                { key: 'text', value: 'Click aquí', type: 'string' },
-                                { key: 'url', value: '#', type: 'string' },
-                                { key: 'variant', value: 'primary', type: 'string' },
-                                { key: 'classes', value: '["hover:scale-105", "transition-transform"]', type: 'array' },
-                                { key: 'disabled', value: 'false', type: 'boolean' }
-                            ];
-                            break;
-                    }
-                },
+        loadPreset(presetName) {
+            switch (presetName) {
+                case 'card':
+                    this.testProps = [
+                        { key: 'title', value: 'Título de Card', type: 'string' },
+                        { key: 'description', value: 'Descripción de la card', type: 'string' },
+                        { key: 'image', value: 'https://via.placeholder.com/300x200', type: 'string' },
+                        { key: 'tags', value: '["Nuevo", "Popular", "Oferta"]', type: 'array' },
+                        { key: 'url', value: '#', type: 'string' }
+                    ];
+                    break;
+                case 'hero':
+                    this.testProps = [
+                        { key: 'title', value: 'Título Principal', type: 'string' },
+                        { key: 'subtitle', value: 'Subtítulo descriptivo', type: 'string' },
+                        { key: 'button_text', value: 'Llamada a acción', type: 'string' },
+                        { key: 'features', value: 'Rápido, Seguro, Confiable', type: 'array' },
+                        { key: 'background_image', value: 'https://via.placeholder.com/1200x600', type: 'string' }
+                    ];
+                    break;
+                case 'button':
+                    this.testProps = [
+                        { key: 'text', value: 'Click aquí', type: 'string' },
+                        { key: 'url', value: '#', type: 'string' },
+                        { key: 'variant', value: 'primary', type: 'string' },
+                        { key: 'classes', value: '["hover:scale-105", "transition-transform"]', type: 'array' },
+                        { key: 'disabled', value: 'false', type: 'boolean' }
+                    ];
+                    break;
+            }
+        },
 
-        // Generate preview
-         async generatePreview() {
-    // Redirigir al método que usa props
-            return this.generatePreviewWithProps();
+        // NUEVOS MÉTODOS PARA PROPS - VERSIÓN SIMPLE Y SEGURA
+
+        // Preview con props actuales - MÉTODO SIMPLE
+        async previewWithCurrentProps() {
+            if (this.testProps.length === 0) {
+                this.showNotification('warning', 'Agrega algunos props para ver el preview');
+                return;
+            }
+
+            try {
+                // Usar la ruta de preview existente pero con datos de props
+                const testData = this.convertPropsToTestData();
+                const componentId = this.component.id;
+                
+                // Crear URL con los props como parámetros
+                let previewUrl = `/preview/component/${componentId}`;
+                
+                if (Object.keys(testData).length > 0) {
+                    const params = new URLSearchParams();
+                    Object.entries(testData).forEach(([key, value]) => {
+                        if (typeof value === 'object') {
+                            params.append(key, JSON.stringify(value));
+                        } else {
+                            params.append(key, value);
+                        }
+                    });
+                    previewUrl = `/preview/component/${componentId}/custom?${params.toString()}`;
+                }
+                
+                // Abrir preview con props
+                const windowFeatures = 'width=1200,height=800,scrollbars=yes,resizable=yes';
+                
+                const previewWindow = window.open(previewUrl, `preview-props-${componentId}`, windowFeatures);
+                
+                if (previewWindow) {
+                    previewWindow.focus();
+                    this.showNotification('success', `Preview abierto con ${Object.keys(testData).length} props`);
+                } else {
+                    this.showNotification('error', 'No se pudo abrir ventana de preview');
+                }
+                
+            } catch (error) {
+                console.error('Error in preview with props:', error);
+                this.showNotification('error', 'Error al generar preview con props');
+            }
+        },
+
+        // NUEVOS MÉTODOS PARA SISTEMA DUAL DE TEMPLATES
+
+        // Regenerar template corto
+        async regenerateShortTemplate() {
+            try {
+                const response = await fetch(`/admin/page-builder/components/${this.component.id}/regenerate-template`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    this.component.page_builder_template = result.short_template;
+                    this.showNotification('success', 'Template regenerado exitosamente');
+                } else {
+                    this.showNotification('error', result.message);
+                }
+            } catch (error) {
+                this.showNotification('error', 'Error al regenerar template');
+            }
+        },
+
+        // Copiar template corto al portapapeles
+        async copyPageBuilderTemplate() {
+            const template = this.component.page_builder_template;
+            if (template) {
+                try {
+                    await navigator.clipboard.writeText(template);
+                    this.showNotification('success', 'Template copiado al portapapeles');
+                } catch (err) {
+                    this.showNotification('error', 'Error al copiar template');
+                }
+            } else {
+                this.showNotification('warning', 'No hay template corto para copiar');
+            }
+        },
+
+        // Probar template en page builder
+        testPageBuilderTemplate() {
+            const template = this.component.page_builder_template;
+            if (template) {
+                const testData = this.convertPropsToTestData();
+                const params = new URLSearchParams();
+                params.append('template', template);
+                params.append('test_data', JSON.stringify(testData));
+                
+                const testUrl = `/admin/page-builder/test-component?${params.toString()}`;
+                window.open(testUrl, '_blank');
+            } else {
+                this.showNotification('warning', 'No hay template corto para probar');
+            }
+        },
+
+        // Validar código - ARREGLADO
+        validateCode() {
+            const template = this.component.blade_template;
+            const errors = [];
+            
+            const openBraces = (template.match(/\{/g) || []).length;
+            const closeBraces = (template.match(/\}/g) || []).length;
+            if (openBraces !== closeBraces) {
+                errors.push('Llaves desequilibradas');
+            }
+            
+            // Verificar directivas básicas - ESCAPADO PARA BLADE
+            const at = '@';
+            const endifStr = at + 'endif';
+            const ifStr = at + 'if';
+            
+            if (template.includes(endifStr) && !template.includes(ifStr)) {
+                errors.push('Directiva ' + endifStr + ' sin ' + ifStr + ' correspondiente');
+            }
+            
+            if (errors.length > 0) {
+                this.showNotification('error', 'Errores encontrados: ' + errors.join(', '));
+            } else {
+                this.showNotification('success', 'Código válido');
+            }
+        },
+
+        // Formatear código
+        formatCode() {
+            let formatted = this.component.blade_template;
+            
+            formatted = formatted.replace(/(@\w+.*?)(<)/g, '$1\n$2');
+            formatted = formatted.replace(/(>)(@\w+)/g, '$1\n$2');
+            formatted = formatted.replace(/\s+/g, ' ');
+            formatted = formatted.replace(/\n\s*\n/g, '\n');
+            
+            this.component.blade_template = formatted;
+            this.showNotification('success', 'Código formateado');
         },
 
         // Save component
@@ -775,21 +916,6 @@ function componentEditor() {
             }
         },
 
-        // Publish component
-        async publishComponent() {
-            if (!confirm('¿Estás seguro de que quieres publicar este componente?')) {
-                return;
-            }
-
-            try {
-                this.component.is_active = true;
-                await this.saveComponent();
-                this.showNotification('success', 'Componente publicado exitosamente');
-            } catch (error) {
-                this.showNotification('error', 'Error al publicar componente');
-            }
-        },
-
         // Show notification
         showNotification(type, message) {
             this.notification = {
@@ -803,89 +929,15 @@ function componentEditor() {
             }, 5000);
         },
 
-        // Close notification
-        closeNotification() {
-            this.notification.show = false;
-        },
-
-        async showComponentPreview() {
-            try {
-                // Usar los datos del componente actual
-                this.previewComponent = {
-                    id: this.component.id,
-                    name: this.component.name,
-                    description: this.component.description,
-                };
-
-                // Generar preview con el código actual
-                const previewResponse = await fetch(`/admin/page-builder/components/${this.component.id}/preview`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                    },
-                    body: JSON.stringify({
-                        blade_template: this.component.blade_template,
-                        test_data: {
-                            title: 'Título de Ejemplo',
-                            description: 'Descripción de ejemplo para el preview.',
-                            content: 'Contenido de prueba para verificar el componente.',
-                            image: 'https://via.placeholder.com/400x200/6366f1/ffffff?text=Preview',
-                            url: '#',
-                            button_text: 'Ver más'
-                        }
-                    })
-                });
-
-                if (!previewResponse.ok) {
-                    throw new Error(`Preview error: ${previewResponse.status}`);
-                }
-
-                const previewHtml = await previewResponse.text();
-                
-                // Mostrar el modal
-                this.showPreviewModal = true;
-                
-                // Cargar el HTML en el iframe después de que el modal se muestre
-                this.$nextTick(() => {
-                    const iframe = this.$refs.modalPreviewFrame;
-                    if (iframe) {
-                        iframe.srcdoc = previewHtml;
-                    }
-                });
-
-            } catch (error) {
-                console.error('Error in showComponentPreview:', error);
-                this.showNotification('error', 'Error al cargar preview: ' + error.message);
-            }
-        },
-
-        // Agregar método faltante
-        markAsChanged() {
-            this.hasChanges = true;
-        },
-
-        // Handle form submission
-        async submitForm() {
-            await this.saveComponent();
-        },
-        
-
-
+        // Open preview window
         openPreviewWindow() {
             const componentId = this.component.id;
-            
-            // Obtener datos actuales de los props
             const testData = this.convertPropsToTestData();
             
-            // URL base para el preview
             let previewUrl = `/preview/component/${componentId}`;
             
-            // Si hay datos de test, agregarlos como query params
             if (Object.keys(testData).length > 0) {
                 const params = new URLSearchParams();
-                
-                // Convertir los datos a query string
                 Object.entries(testData).forEach(([key, value]) => {
                     if (typeof value === 'object') {
                         params.append(key, JSON.stringify(value));
@@ -893,11 +945,9 @@ function componentEditor() {
                         params.append(key, value);
                     }
                 });
-                
                 previewUrl = `/preview/component/${componentId}/custom?${params.toString()}`;
             }
             
-            // Configuración de la ventana
             const windowFeatures = [
                 'width=1200',
                 'height=800',
@@ -909,7 +959,6 @@ function componentEditor() {
                 'status=no'
             ].join(',');
             
-            // Abrir ventana
             const previewWindow = window.open(
                 previewUrl, 
                 `component-preview-${componentId}`, 
@@ -918,41 +967,24 @@ function componentEditor() {
             
             if (previewWindow) {
                 previewWindow.focus();
-                console.log('🚀 Preview window opened for component:', componentId);
                 this.showNotification('success', 'Preview abierto en nueva ventana');
             } else {
                 this.showNotification('error', 'No se pudo abrir la ventana. Verifica que no estén bloqueadas las ventanas emergentes.');
             }
-            
-            return previewWindow;
         },
 
-        /**
-         * Abrir preview con datos específicos (método adicional por si lo necesitas)
-         */
-        openPreviewWithCustomData(customData = {}) {
-            const componentId = this.component.id;
-            const mergedData = { ...this.convertPropsToTestData(), ...customData };
-            
-            let previewUrl = `/preview/component/${componentId}`;
-            
-            if (Object.keys(mergedData).length > 0) {
-                const params = new URLSearchParams();
-                Object.entries(mergedData).forEach(([key, value]) => {
-                    params.append(key, typeof value === 'object' ? JSON.stringify(value) : value);
-                });
-                previewUrl = `/preview/component/${componentId}/custom?${params.toString()}`;
-            }
-            
-            window.open(previewUrl, `component-preview-${componentId}`, 'width=1200,height=800,scrollbars=yes,resizable=yes');
+        // Helper methods
+        markAsChanged() {
+            this.hasChanges = true;
         },
 
+        updatePreviewWithProps() {
+            console.log('🔄 Preview updated with props:', this.testProps);
+        },
 
-
-        // Navigate back
-goBack() {
-    window.location.href = '{{ route("component-builder.index") }}';
-}
+        goBack() {
+            window.location.href = "{{ route('component-builder.index') }}";
+        }
     };
 }
 </script>

@@ -12,15 +12,445 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Services\ComponentPreviewService;
+use App\Services\ComponentTemplateService;
 
 
 
 
 class ComponentBuilderController extends Controller
 {
+
+
+    public function __construct(ComponentTemplateService $templateService)
+    {
+        $this->templateService = $templateService;
+    }
+
+
+    public function previewWindowWithData(Request $request, Component $component)
+    {
+        try {
+            // Extraer todos los query parameters como datos de test
+            $testData = $request->query();
+            
+            // Limpiar parámetros que no son datos
+            unset($testData['_token']);
+            
+            // Procesar los datos según tipo
+            $processedData = [];
+            foreach ($testData as $key => $value) {
+                $processedData[$key] = $this->processQueryParameter($value);
+            }
+            
+            \Log::info('Preview window with custom data:', [
+                'component_id' => $component->id,
+                'raw_data' => $testData,
+                'processed_data' => $processedData
+            ]);
+
+            // Renderizar el componente con los datos
+            $renderedComponent = $this->templateService->renderComponentVirtually($component, $processedData);
+            
+            // Detectar librerías requeridas
+            $requiredLibraries = $this->detectRequiredLibrariesFromCode($component->blade_template);
+            
+            // Generar nonce para CSP
+            $nonce = base64_encode(random_bytes(16));
+            
+            return view('component-preview.window-with-data', [
+                'component' => $component,
+                'renderedComponent' => $renderedComponent,
+                'requiredLibraries' => $requiredLibraries,
+                'testData' => $processedData,
+                'nonce' => $nonce
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Preview window error', [
+                'component_id' => $component->id,
+                'error' => $e->getMessage(),
+                'query_data' => $request->query()
+            ]);
+
+            return view('component-preview.error', [
+                'error' => $e->getMessage(),
+                'component' => $component
+            ]);
+        }
+    }
+
     /**
-     * Lista de componentes del usuario
+     * Procesar parámetro de query según su formato
      */
+    private function processQueryParameter($value)
+    {
+        // Si es un string que parece JSON, intentar decodificar
+        if (is_string($value) && (str_starts_with($value, '[') || str_starts_with($value, '{'))) {
+            try {
+                $decoded = json_decode($value, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    return $decoded;
+                }
+            } catch (\Exception $e) {
+                // Si falla el JSON, usar como string
+            }
+        }
+        
+        // Detectar booleanos
+        if (is_string($value)) {
+            if ($value === 'true') return true;
+            if ($value === 'false') return false;
+            if ($value === 'null') return null;
+        }
+        
+        // Detectar números
+        if (is_string($value) && is_numeric($value)) {
+            return str_contains($value, '.') ? (float)$value : (int)$value;
+        }
+        
+        // Devolver como string por defecto
+        return $value;
+    }
+
+    /**
+     * Detectar librerías requeridas desde el código del componente
+     */
+    private function detectRequiredLibrariesFromCode(string $code): array
+    {
+        $libraries = [];
+        
+        // Patrones de detección
+        $patterns = [
+            'gsap' => [
+                '/gsap\./i',
+                '/\.to\(/i',
+                '/\.from\(/i',
+                '/TimelineMax/i',
+                '/TweenMax/i',
+                '/animation\.play/i'
+            ],
+            'swiper' => [
+                '/swiper/i',
+                '/\.swiper-/i'
+            ],
+            'alpine' => [
+                '/x-data/i',
+                '/x-show/i',
+                '/x-if/i',
+                '/@click/i'
+            ]
+        ];
+        
+        foreach ($patterns as $library => $libraryPatterns) {
+            foreach ($libraryPatterns as $pattern) {
+                if (preg_match($pattern, $code)) {
+                    $libraries[] = $library;
+                    break; // Solo agregar una vez por librería
+                }
+            }
+        }
+        
+        return array_unique($libraries);
+    }
+
+
+    public function previewWithProps(Request $request, Component $component)
+    {
+        try {
+            $testProps = $request->get('test_props', []);
+            $testData = $this->convertTestPropsToData($testProps);
+            
+            \Log::info('Preview with props:', [
+                'component_id' => $component->id,
+                'test_props' => $testProps,
+                'test_data' => $testData
+            ]);
+
+            // Usar el template completo para preview (Component Builder context)
+            $template = $component->blade_template;
+            
+            // Renderizar con datos de testing
+            $html = $this->templateService->renderComponentVirtually($component, $testData);
+            
+            return response()->json([
+                'success' => true,
+                'html' => $html,
+                'test_data' => $testData,
+                'props_used' => array_keys($testData)
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error in preview with props:', [
+                'component_id' => $component->id,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error en preview: ' . $e->getMessage(),
+                'html' => '<div class="text-red-500 p-4">Error: ' . $e->getMessage() . '</div>'
+            ], 500);
+        }
+    }
+
+    /**
+     * Convertir props de testing a data utilizable
+     */
+    private function convertTestPropsToData(array $testProps): array
+    {
+        $testData = [];
+        
+        foreach ($testProps as $prop) {
+            if (empty($prop['key']) || !isset($prop['value'])) continue;
+            
+            $key = $prop['key'];
+            $value = $prop['value'];
+            $type = $prop['type'] ?? 'string';
+            
+            switch ($type) {
+                case 'number':
+                    $testData[$key] = is_numeric($value) ? (float)$value : 0;
+                    break;
+                    
+                case 'boolean':
+                    $testData[$key] = filter_var($value, FILTER_VALIDATE_BOOLEAN);
+                    break;
+                    
+                case 'array':
+                    try {
+                        // Intentar JSON decode primero
+                        $decoded = json_decode($value, true);
+                        if (is_array($decoded)) {
+                            $testData[$key] = $decoded;
+                        } else {
+                            // Split por comas como fallback
+                            $testData[$key] = array_map('trim', explode(',', $value));
+                        }
+                    } catch (\Exception $e) {
+                        $testData[$key] = array_map('trim', explode(',', $value));
+                    }
+                    break;
+                    
+                case 'json':
+                    try {
+                        $testData[$key] = json_decode($value, true) ?? $value;
+                    } catch (\Exception $e) {
+                        $testData[$key] = $value;
+                    }
+                    break;
+                    
+                default: // string
+                    $testData[$key] = (string)$value;
+            }
+        }
+        
+        return $testData;
+    }
+
+
+    public function store(Request $request)
+    {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'identifier' => 'required|string|max:100|unique:components,identifier',
+                'category' => 'required|string',
+                'description' => 'nullable|string',
+                'blade_template' => 'required|string',
+                'external_assets' => 'nullable|array',
+                'communication_config' => 'nullable|array',
+                'props_schema' => 'nullable|array',
+                'preview_config' => 'nullable|array',
+                'auto_generate_short' => 'boolean',
+            ]);
+
+            try {
+                $component = Component::create([
+                    'name' => $validated['name'],
+                    'identifier' => $validated['identifier'],
+                    'category' => $validated['category'],
+                    'description' => $validated['description'] ?? '',
+                    'blade_template' => $validated['blade_template'],
+                    'external_assets' => $validated['external_assets'] ?? [],
+                    'communication_config' => $validated['communication_config'] ?? [],
+                    'props_schema' => $validated['props_schema'] ?? [],
+                    'preview_config' => $validated['preview_config'] ?? [],
+                    'auto_generate_short' => $validated['auto_generate_short'] ?? true,
+                    'is_advanced' => true,
+                    'is_active' => true,
+                    'created_by_user_id' => Auth::id(),
+                    'last_edited_at' => now(),
+                    'version' => '1.0.0',
+                ]);
+
+                // Auto-generar templates duales
+                $this->templateService->updateComponentTemplates($component);
+
+                return redirect()
+                    ->route('component-builder.edit', $component)
+                    ->with('success', 'Componente creado exitosamente con template optimizado para Page Builder');
+
+            } catch (\Exception $e) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['blade_template' => 'Error en el código del componente: ' . $e->getMessage()]);
+            }
+    }
+
+        public function update(Request $request, Component $component)
+        {
+            try {
+                // Log para debugging
+                \Log::info('Update request received:', [
+                    'component_id' => $component->id,
+                    'request_data' => $request->all()
+                ]);
+
+                // Validación MÁS PERMISIVA
+                $validated = $request->validate([
+                    'name' => 'required|string|max:255',
+                    'category' => 'required|string|max:100',
+                    'description' => 'nullable|string|max:1000',
+                    'blade_template' => 'required|string',
+                    
+                    // NUEVOS CAMPOS OPCIONALES
+                    'page_builder_template' => 'nullable|string',
+                    'auto_generate_short' => 'nullable|boolean',
+                    'template_config' => 'nullable|array',
+                    
+                    // CAMPOS EXISTENTES
+                    'external_assets' => 'nullable|array',
+                    'communication_config' => 'nullable|array',
+                    'props_schema' => 'nullable|array',
+                    'preview_config' => 'nullable|array',
+                    
+                    // CAMPOS QUE SE IGNORAN PERO PUEDEN VENIR
+                    'id' => 'sometimes|integer',
+                    'identifier' => 'sometimes|string', // NO se actualiza pero se permite en request
+                ]);
+
+                // Actualizar solo los campos permitidos
+                $updateData = [
+                    'name' => $validated['name'],
+                    'category' => $validated['category'],
+                    'description' => $validated['description'] ?? '',
+                    'blade_template' => $validated['blade_template'],
+                    'page_builder_template' => $validated['page_builder_template'] ?? $component->page_builder_template,
+                    'auto_generate_short' => $validated['auto_generate_short'] ?? $component->auto_generate_short ?? true,
+                    'template_config' => $validated['template_config'] ?? [],
+                    'external_assets' => $validated['external_assets'] ?? [],
+                    'communication_config' => $validated['communication_config'] ?? [],
+                    'props_schema' => $validated['props_schema'] ?? [],
+                    'preview_config' => $validated['preview_config'] ?? [],
+                    'last_edited_at' => now(),
+                ];
+
+                // Incrementar versión
+                if (isset($component->version)) {
+                    $parts = explode('.', $component->version);
+                    $parts[2] = (int)($parts[2] ?? 0) + 1;
+                    $updateData['version'] = implode('.', $parts);
+                }
+
+                // Actualizar componente
+                $component->update($updateData);
+
+                // Auto-generar template corto si está habilitado
+                if ($component->auto_generate_short && $this->templateService) {
+                    try {
+                        $this->templateService->updateComponentTemplates($component);
+                    } catch (\Exception $e) {
+                        \Log::warning('Failed to auto-generate template:', ['error' => $e->getMessage()]);
+                    }
+                }
+
+                \Log::info('Component updated successfully:', ['component_id' => $component->id]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Componente actualizado exitosamente',
+                    'component' => $component->fresh()
+                ]);
+
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                \Log::error('Validation error in update:', [
+                    'errors' => $e->errors(),
+                    'request' => $request->all()
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error de validación',
+                    'errors' => $e->errors()
+                ], 422);
+
+            } catch (\Exception $e) {
+                \Log::error('Error updating component:', [
+                    'component_id' => $component->id ?? 'unknown',
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error al actualizar: ' . $e->getMessage()
+                ], 500);
+            }
+        }
+
+        /**
+         * Obtener template específico para Page Builder
+         */
+        public function getPageBuilderTemplate(Component $component)
+        {
+            return response()->json([
+                'template' => $this->templateService->getTemplateForContext($component, 'page-builder'),
+                'props' => $component->props_schema ?? [],
+                'identifier' => $component->identifier,
+            ]);
+        }
+
+        /**
+         * Regenerar manualmente el template corto
+         */
+        public function regenerateShortTemplate(Component $component)
+        {
+            try {
+                $this->templateService->updateComponentTemplates($component);
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Template corto regenerado exitosamente',
+                    'short_template' => $component->fresh()->page_builder_template
+                ]);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error al regenerar template: ' . $e->getMessage()
+                ], 500);
+            }
+        }
+
+        /**
+         * Vista para gestionar templates duales
+         */
+        public function manageTemplates(Component $component)
+        {
+            return view('component-builder.templates', [
+                'component' => $component,
+                'fullTemplate' => $component->blade_template,
+                'shortTemplate' => $component->page_builder_template,
+                'autoGenerate' => $component->auto_generate_short,
+            ]);
+        }
+
+        private function incrementVersion(string $version): string
+        {
+            $parts = explode('.', $version);
+            $parts[2] = (int)$parts[2] + 1;
+            return implode('.', $parts);
+        }
+
+
     public function index(Request $request)
     {
         $components = Component::query()
@@ -55,57 +485,7 @@ class ComponentBuilderController extends Controller
         return view('component-builder.create', compact('availableAssets', 'categories'));
     }
 
-    /**
-     * Guardar nuevo componente
-     */
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'identifier' => 'required|string|max:255|unique:components,identifier',
-            'category' => 'required|string|max:50',
-            'description' => 'nullable|string|max:500',
-            'blade_template' => 'required|string',
-            'external_assets' => 'nullable|array',
-            'communication_config' => 'nullable|array',
-            'props_schema' => 'nullable|array',
-            'preview_config' => 'nullable|array',
-        ]);
 
-        try {
-            // Validar código Blade
-            $this->validateBladeCode($validated['blade_template']);
-
-            $component = Component::create([
-                'name' => $validated['name'],
-                'identifier' => $validated['identifier'],
-                'category' => $validated['category'],
-                'description' => $validated['description'] ?? '',
-                'blade_template' => $validated['blade_template'],
-                'external_assets' => $validated['external_assets'] ?? [],
-                'communication_config' => $validated['communication_config'] ?? [],
-                'props_schema' => $validated['props_schema'] ?? [],
-                'preview_config' => $validated['preview_config'] ?? [],
-                'is_advanced' => true,
-                'is_active' => true,
-                'created_by_user_id' => Auth::id(),
-                'last_edited_at' => now(),
-                'version' => '1.0.0',
-            ]);
-
-            // Generar screenshot automático en background
-            // dispatch(new GenerateComponentScreenshot($component));
-
-            return redirect()
-                ->route('component-builder.edit', $component)
-                ->with('success', 'Componente creado exitosamente');
-
-        } catch (\Exception $e) {
-            return back()
-                ->withInput()
-                ->withErrors(['blade_template' => 'Error en el código del componente: ' . $e->getMessage()]);
-        }
-    }
 
     public function edit(Component $component)
     {
@@ -160,74 +540,6 @@ class ComponentBuilderController extends Controller
         ];
     }
 
-
-    public function update(Request $request, $id)
-    {
-        try {
-            $component = Component::findOrFail($id);
-            
-            // Validar datos
-            $validatedData = $request->validate([
-                'name' => 'required|string|max:255',
-                'identifier' => 'required|string|max:255|unique:components,identifier,' . $id,
-                'category' => 'required|string|max:100',
-                'description' => 'nullable|string',
-                'blade_template' => 'required|string',
-                'external_assets' => 'array',
-                'external_assets.*' => 'string',
-                'communication_config' => 'array',
-                'props_schema' => 'array',
-                'preview_config' => 'array',
-                'is_active' => 'boolean'
-            ]);
-            
-            // Incrementar versión correctamente
-            $currentVersion = $component->version ?? '1.0.0';
-            $newVersion = $this->incrementVersion($currentVersion);
-            
-            // Actualizar componente
-            $component->update([
-                'name' => $validatedData['name'],
-                'identifier' => $validatedData['identifier'],
-                'category' => $validatedData['category'],
-                'description' => $validatedData['description'] ?? '',
-                'blade_template' => $validatedData['blade_template'],
-                'external_assets' => $validatedData['external_assets'] ?? [],
-                'communication_config' => $validatedData['communication_config'] ?? [],
-                'props_schema' => $validatedData['props_schema'] ?? (object)[],
-                'preview_config' => $validatedData['preview_config'] ?? (object)[],
-                'is_active' => $validatedData['is_active'] ?? $component->is_active,
-                'last_edited_at' => now(),
-                'version' => $newVersion
-            ]);
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Componente actualizado exitosamente',
-                'component' => $component->fresh()
-            ]);
-            
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Datos de validación incorrectos',
-                'errors' => $e->errors()
-            ], 422);
-            
-        } catch (\Exception $e) {
-            \Log::error('Update component error: ' . $e->getMessage(), [
-                'component_id' => $id,
-                'request_data' => $request->all(),
-                'error_line' => $e->getLine(),
-                'error_file' => $e->getFile()
-            ]);
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al actualizar componente: ' . $e->getMessage()
-            ], 500);
-        }
-    }
 
     /**
      * Eliminar componente
@@ -311,31 +623,6 @@ class ComponentBuilderController extends Controller
     }
 
 
-
-    private function incrementVersion(string $version): string
-    {
-        // Manejar diferentes formatos de versión
-        if (preg_match('/^(\d+)\.(\d+)\.(\d+)$/', $version, $matches)) {
-            // Formato x.y.z - incrementar el patch
-            $major = (int)$matches[1];
-            $minor = (int)$matches[2];
-            $patch = (int)$matches[3] + 1;
-            return "{$major}.{$minor}.{$patch}";
-        } elseif (preg_match('/^(\d+)\.(\d+)$/', $version, $matches)) {
-            // Formato x.y - incrementar el minor
-            $major = (int)$matches[1];
-            $minor = (int)$matches[2] + 1;
-            return "{$major}.{$minor}";
-        } elseif (is_numeric($version)) {
-            // Solo número - incrementar
-            return (string)((float)$version + 0.1);
-        } else {
-            // Formato desconocido - devolver versión por defecto
-            return '1.0.1';
-        }
-    }
-
-
     public function getComponentData($id)
     {
         try {
@@ -384,9 +671,7 @@ class ComponentBuilderController extends Controller
         }
     }
     
-        /*** nuevo metodos  */
-
-
+ 
     private function getOptimizedAssets(array $requiredLibraries): array
     {
         $allAssets = $this->getAvailableAssetsList();
@@ -882,32 +1167,6 @@ class ComponentBuilderController extends Controller
                     File::delete($tempFile);
                 }
             }
-        }
-
-        /**
-         * Detectar librerías del código Blade
-         */
-        private function detectRequiredLibrariesFromCode(string $bladeCode): array
-        {
-            $libraries = [];
-            
-            $patterns = [
-                'gsap' => ['/x-data=["\']gsap/', '/gsap\./i', '/@gsap/'],
-                'swiper' => ['/x-data=["\']swiper/', '/swiper-/', '/new Swiper/i'],
-                'aos' => ['/data-aos/', '/AOS\./i'],
-                'fullcalendar' => ['/x-data=["\'].*calendar/', '/FullCalendar/i']
-            ];
-
-            foreach ($patterns as $library => $libraryPatterns) {
-                foreach ($libraryPatterns as $pattern) {
-                    if (preg_match($pattern, $bladeCode)) {
-                        $libraries[] = $library;
-                        break;
-                    }
-                }
-            }
-
-            return array_unique($libraries);
         }
 
 

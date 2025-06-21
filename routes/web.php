@@ -49,6 +49,29 @@ Route::prefix('admin/page-builder')->group(function () {
     // Para obtener datos del componente en JSON
     Route::get('/components/{component}/data', [ComponentBuilderController::class, 'getComponentData'])
         ->name('component-builder.data');
+
+
+    Route::post('/components/{component}/regenerate-template', [ComponentBuilderController::class, 'regenerateShortTemplate'])
+        ->name('component-builder.regenerate-template');
+    
+    // Obtener template específico para Page Builder
+    Route::get('/components/{component}/page-builder-template', [ComponentBuilderController::class, 'getPageBuilderTemplate'])
+        ->name('component-builder.page-builder-template');
+    
+    // Vista para gestionar templates duales
+    Route::get('/components/{component}/templates', [ComponentBuilderController::class, 'manageTemplates'])
+        ->name('component-builder.manage-templates');
+    
+    // Test de template en Page Builder (página temporal)
+    Route::get('/test-component', [ComponentBuilderController::class, 'testComponentInPageBuilder'])
+        ->name('component-builder.test-component');
+
+    Route::post('/components/{component}/preview-with-props', [ComponentBuilderController::class, 'previewWithProps'])
+        ->name('component-builder.preview-with-props');
+
+    // Validar template shortcode
+    Route::post('/components/{component}/validate-template', [ComponentBuilderController::class, 'validateTemplate'])
+        ->name('component-builder.validate-template');
         
 });
 
