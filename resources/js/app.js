@@ -1,58 +1,58 @@
-// resources/js/app.js - Refactorizado
+// resources/js/app.js - Optimizado y compatible con Moonshine
 import './bootstrap';
 import Alpine from 'alpinejs';
 import { gsap } from 'gsap';
+
+// 🚀 NUEVO: Sistema de librerías centralizado
 import LibraryManager from './libraries/library-manager.js';
 
 // 🎯 Configuración principal
 const AppConfig = {
+    // Detección automática de entorno
+    environment: {
+        isMoonshine: window.location.pathname.includes('/admin'),
+        isPreview: window.location.pathname.includes('/preview'),
+        isDev: import.meta.env.DEV
+    },
+    
     // Configuración de librerías
     libraries: {
         gsap: {
             duration: 0.6,
             ease: 'power2.out'
-        },
-        fullcalendar: {
-            locale: 'es',
-            firstDay: 1
         }
-    },
-    
-    // Configuración de Alpine
-    alpine: {
-        deferStart: true, // Moonshine maneja el inicio
-        debug: import.meta.env.DEV
     }
 };
 
-// 🚀 Clase principal de la aplicación
+// 🚀 Clase principal de la aplicación  
 class App {
     constructor() {
-        this.isInitialized = false;
-        this.libraryManager = LibraryManager;
         this.config = AppConfig;
+        this.libraryManager = null;
+        this.isInitialized = false;
         
-        console.log('🚀 App initializing...');
+        console.log('🚀 App initializing...', this.config.environment);
         this.init();
     }
 
     async init() {
         try {
-            // 1. Configurar Alpine
+            // 1. Configurar Alpine (para Moonshine)
             this.setupAlpine();
             
-            // 2. Registrar librerías globales disponibles
-            this.registerGlobalLibraries();
+            // 2. Inicializar sistema de librerías
+            await this.initializeLibrarySystem();
             
-            // 3. Configurar listeners de eventos
+            // 3. Registrar componentes Alpine básicos
+            this.registerBasicComponents();
+            
+            // 4. Configurar listeners
             this.setupEventListeners();
             
-            // 4. Marcar como inicializado
             this.isInitialized = true;
-            
             console.log('✅ App initialized successfully');
             
-            // 5. Emitir evento personalizado
+            // 5. Emitir evento de app lista
             this.emitAppReady();
             
         } catch (error) {
@@ -61,40 +61,97 @@ class App {
     }
 
     /**
-     * Configurar Alpine.js
+     * Configurar Alpine.js (compatible con Moonshine)
      */
     setupAlpine() {
-        // Hacer Alpine disponible globalmente
+        // Hacer Alpine disponible globalmente (Moonshine lo necesita)
         window.Alpine = Alpine;
         
-        // Configurar Alpine
-        if (this.config.alpine.debug) {
-            Alpine.data('debug', () => ({
-                log: (...args) => console.log('🐛 Alpine Debug:', ...args),
-                info: () => this.getDebugInfo()
+        // 🚨 IMPORTANTE: Diferir el start de Alpine hasta que todo esté listo
+        Alpine.plugin(() => {
+            console.log('🎿 Alpine plugin loaded, but start is deferred');
+        });
+        
+        // Debug en desarrollo
+        if (this.config.environment.isDev) {
+            Alpine.data('appDebug', () => ({
+                getInfo: () => this.getDebugInfo(),
+                logLibraries: () => console.log('📚 Libraries:', this.libraryManager?.getStatus())
             }));
         }
 
-        // Componentes Alpine básicos siempre disponibles
-        this.registerBasicAlpineComponents();
+        console.log('🎿 Alpine.js configured (Moonshine compatible) - start deferred');
+    }
 
-        // ⚠️ NO llamar Alpine.start() - Moonshine se encarga
-        console.log('🎿 Alpine.js configured (ready for Moonshine)');
+    /**
+     * Inicializar sistema de librerías
+     */
+    async initializeLibrarySystem() {
+        try {
+            this.libraryManager = new LibraryManager(this.config);
+            
+            // Hacer disponible globalmente
+            window.LibraryManager = this.libraryManager;
+            window.App = this;
+            
+            // Registrar librerías básicas disponibles
+            await this.registerAvailableLibraries();
+            
+            console.log('📚 Library system initialized');
+            
+        } catch (error) {
+            console.error('❌ Library system failed:', error);
+            // Fallback sin romper la app
+            this.libraryManager = null;
+        }
+    }
+
+    /**
+     * Registrar librerías que ya están disponibles
+     */
+    async registerAvailableLibraries() {
+        try {
+            // Verificar qué librerías están disponibles
+            const availableLibraries = {
+                'alpine': () => typeof window.Alpine !== 'undefined',
+                'gsap': () => typeof window.gsap !== 'undefined' || typeof gsap !== 'undefined'
+            };
+
+            // Registrar Alpine primero (orden importante)
+            if (availableLibraries.alpine()) {
+                await this.libraryManager.registerLibrary('alpine', {});
+                console.log(`✅ alpine registered automatically`);
+            }
+
+            // Luego registrar GSAP
+            if (availableLibraries.gsap()) {
+                // Asegurar que GSAP esté disponible globalmente
+                if (typeof window.gsap === 'undefined' && typeof gsap !== 'undefined') {
+                    window.gsap = gsap;
+                }
+                
+                await this.libraryManager.registerLibrary('gsap', this.config.libraries.gsap || {});
+                console.log(`✅ gsap registered automatically`);
+            } else {
+                console.warn('⚠️ GSAP not found, skipping GSAP components');
+            }
+
+        } catch (error) {
+            console.error('❌ Error registering available libraries:', error);
+        }
     }
 
     /**
      * Registrar componentes Alpine básicos
      */
-    registerBasicAlpineComponents() {
-        // Componente de toggle simple
+    registerBasicComponents() {
+        // Componente de toggle
         Alpine.data('toggle', (initialState = false) => ({
             open: initialState,
-            toggle() {
-                this.open = !this.open;
-            }
+            toggle() { this.open = !this.open; }
         }));
 
-        // Componente de loading state
+        // Componente de loading
         Alpine.data('loading', () => ({
             isLoading: false,
             async execute(asyncFn) {
@@ -107,106 +164,123 @@ class App {
             }
         }));
 
-        // Componente de forms mejorado
-        Alpine.data('form', (config = {}) => ({
-            data: config.data || {},
-            errors: {},
-            isSubmitting: false,
+        // Componente específico para GSAP (si está disponible)
+        if (this.libraryManager && this.libraryManager.isLibraryLoaded('gsap')) {
+            console.log('🎬 Registering GSAP Alpine components...');
             
-            async submit(url, options = {}) {
-                this.isSubmitting = true;
-                this.errors = {};
-                
-                try {
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                        },
-                        body: JSON.stringify(this.data),
-                        ...options
+            // Capturar referencia al libraryManager para el closure
+            const libraryManager = this.libraryManager;
+            
+            Alpine.data('gsapFade', (config = {}) => ({
+                init() {
+                    this.$nextTick(() => {
+                        const gsapInstance = libraryManager.getLibraryInstance('gsap');
+                        if (gsapInstance) {
+                            gsapInstance.fadeIn(this.$el, config);
+                        } else {
+                            console.warn('⚠️ GSAP instance not available for gsapFade');
+                        }
                     });
-                    
-                    const result = await response.json();
-                    
-                    if (!response.ok) {
-                        this.errors = result.errors || {};
-                        throw new Error(result.message || 'Error en el formulario');
-                    }
-                    
-                    return result;
-                } finally {
-                    this.isSubmitting = false;
                 }
-            }
-        }));
-    }
+            }));
 
-    /**
-     * Registrar librerías globales disponibles
-     */
-    registerGlobalLibraries() {
-        // Verificar qué librerías están disponibles y registrarlas
-        const availableLibraries = {
-            gsap: () => typeof window.gsap !== 'undefined' || typeof gsap !== 'undefined',
-            fullcalendar: () => typeof window.FullCalendar !== 'undefined'
-        };
+            Alpine.data('gsapSlideUp', (config = {}) => ({
+                init() {
+                    this.$nextTick(() => {
+                        const gsapInstance = libraryManager.getLibraryInstance('gsap');
+                        if (gsapInstance) {
+                            gsapInstance.slideUp(this.$el, config);
+                        } else {
+                            console.warn('⚠️ GSAP instance not available for gsapSlideUp');
+                        }
+                    });
+                }
+            }));
 
-        Object.entries(availableLibraries).forEach(([name, checkFn]) => {
-            if (checkFn()) {
-                this.libraryManager.registerLibrary(name, this.config.libraries[name]);
-                console.log(`📚 ${name} registered automatically`);
-            }
-        });
+            Alpine.data('gsapScale', (config = {}) => ({
+                init() {
+                    this.$nextTick(() => {
+                        const gsapInstance = libraryManager.getLibraryInstance('gsap');
+                        if (gsapInstance) {
+                            gsapInstance.scale(this.$el, config);
+                        } else {
+                            console.warn('⚠️ GSAP instance not available for gsapScale');
+                        }
+                    });
+                }
+            }));
 
-        // Hacer GSAP disponible globalmente si está presente
-        if (typeof gsap !== 'undefined') {
-            window.gsap = gsap;
+            console.log('✅ GSAP Alpine components registered');
+        } else {
+            console.warn('⚠️ GSAP not loaded, skipping GSAP Alpine components');
         }
+
+        console.log('🧩 Basic Alpine components registered');
     }
 
     /**
      * Configurar listeners de eventos
      */
     setupEventListeners() {
-        // Listener para cuando se solicite una librería dinámicamente
+        // Listener para cargar librerías dinámicamente
         document.addEventListener('app:loadLibrary', async (event) => {
             const { libraryName, config } = event.detail;
             try {
-                await this.libraryManager.registerLibrary(libraryName, config);
-                console.log(`📚 ${libraryName} loaded dynamically`);
+                if (this.libraryManager) {
+                    await this.libraryManager.registerLibrary(libraryName, config);
+                    console.log(`📚 ${libraryName} loaded dynamically`);
+                }
             } catch (error) {
                 console.error(`❌ Failed to load ${libraryName}:`, error);
             }
-        });
-
-        // Listener para el preview de componentes
-        document.addEventListener('app:registerComponent', (event) => {
-            const { componentName, componentDefinition } = event.detail;
-            this.libraryManager.registerAlpineComponent(componentName, componentDefinition);
         });
 
         // Listener para debug
         document.addEventListener('app:debug', () => {
             console.log('🐛 App Debug Info:', this.getDebugInfo());
         });
+
+        console.log('👂 Event listeners configured');
     }
 
     /**
-     * Emitir evento de aplicación lista
+     * Emitir evento de aplicación lista y iniciar Alpine
      */
     emitAppReady() {
         const event = new CustomEvent('app:ready', {
             detail: {
                 app: this,
                 libraryManager: this.libraryManager,
-                status: this.getStatus()
+                environment: this.config.environment,
+                timestamp: new Date().toISOString()
             }
         });
         
         document.dispatchEvent(event);
+        console.log('📡 App ready event emitted');
+        
+        // 🚨 AHORA SÍ iniciar Alpine (después de que todo esté registrado)
+        this.startAlpine();
+    }
+
+    /**
+     * Iniciar Alpine de forma segura
+     */
+    startAlpine() {
+        try {
+            // Solo iniciar si no está ya iniciado
+            if (!window.Alpine._isStarted) {
+                console.log('🎿 Starting Alpine.js now (all components registered)');
+                Alpine.start();
+                window.Alpine._isStarted = true;
+            } else {
+                console.log('🎿 Alpine.js already started');
+            }
+        } catch (error) {
+            console.error('❌ Error starting Alpine:', error);
+            // Fallback para compatibilidad con Moonshine
+            console.log('🌙 Falling back to default Alpine start for Moonshine compatibility');
+        }
     }
 
     /**
@@ -215,53 +289,34 @@ class App {
     getDebugInfo() {
         return {
             isInitialized: this.isInitialized,
-            libraries: this.libraryManager.getStatus(),
+            environment: this.config.environment,
+            libraries: this.libraryManager?.getStatus() || 'Not available',
             alpine: {
                 available: typeof window.Alpine !== 'undefined',
                 version: window.Alpine?.version || 'unknown'
             },
-            config: this.config
-        };
-    }
-
-    /**
-     * Obtener estado de la aplicación
-     */
-    getStatus() {
-        return {
-            initialized: this.isInitialized,
-            libraries: this.libraryManager.getStatus(),
             timestamp: new Date().toISOString()
         };
     }
 
     /**
-     * Método público para cargar librerías
+     * API pública para cargar librerías
      */
     async loadLibrary(name, config = {}) {
+        if (!this.libraryManager) {
+            console.warn('⚠️ Library system not available');
+            return null;
+        }
         return await this.libraryManager.registerLibrary(name, config);
-    }
-
-    /**
-     * Método público para registrar componentes Alpine
-     */
-    registerComponent(name, definition) {
-        return this.libraryManager.registerAlpineComponent(name, definition);
     }
 }
 
 // 🌟 Inicializar la aplicación
 const app = new App();
 
-// Hacer la aplicación disponible globalmente
-window.App = app;
-window.LibraryManager = LibraryManager;
+// 🎿 Alpine.start() - REMOVIDO de aquí
+// Ahora se ejecuta desde app.startAlpine() después de que todo esté listo
 
-// Compatibilidad con código existente
-window.Alpine = Alpine;
-
-// Export para módulos
+// Exports para compatibilidad
 export default app;
 export { LibraryManager };
-
-console.log('📦 App module loaded successfully');
