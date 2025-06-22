@@ -722,7 +722,7 @@ function componentEditor() {
             this.showNotification('success', 'Variable eliminada');
         },
 
-        // Guardar variable (crear o actualizar)
+        // Guardar variable (crear o actualizar) CON DEBOUNCE
         async saveVariable(index) {
             const variable = this.globalVariables[index];
             
@@ -730,6 +730,21 @@ function componentEditor() {
             if (!variable.name || !variable.name.trim()) {
                 return;
             }
+            
+            // DEBOUNCE: Cancelar timeout anterior
+            if (variable.saveTimeout) {
+                clearTimeout(variable.saveTimeout);
+            }
+            
+            // DEBOUNCE: Nuevo timeout de 1 segundo
+            variable.saveTimeout = setTimeout(async () => {
+                await this.performSaveVariable(index);
+            }, 1000);
+        },
+
+        // Método real para guardar (separado para el debounce)
+        async performSaveVariable(index) {
+            const variable = this.globalVariables[index];
             
             // Limpiar nombre de variable (solo letras, números y underscore)
             variable.name = variable.name.toLowerCase()
@@ -759,9 +774,12 @@ function componentEditor() {
                     const savedVariable = await response.json();
                     // Actualizar con datos del servidor
                     this.globalVariables[index] = { ...variable, ...savedVariable };
+                    console.log('✅ Variable guardada:', savedVariable.name);
+                } else {
+                    console.error('❌ Error al guardar variable:', response.status);
                 }
             } catch (error) {
-                console.error('Error saving variable:', error);
+                console.error('❌ Error saving variable:', error);
                 this.showNotification('error', 'Error al guardar variable');
             }
         },

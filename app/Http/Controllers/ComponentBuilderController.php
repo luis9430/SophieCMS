@@ -29,66 +29,125 @@ class ComponentBuilderController extends Controller
 
 
 
-    public function previewWindowWithData(Request $request, Component $component)
-    {
-        try {
-            // 🆕 AGREGAR VARIABLES GLOBALES DUMMY
-            $globalVariables = [
-                'site_name' => 'Mi Sitio Web',
-                'hotel_title' => 'Hotel Paradise', 
-                'max_guests' => 6
-            ];
-            
-            // Extraer todos los query parameters como datos de test
-            $queryData = $request->query();
-            
-            // Limpiar parámetros que no son datos
-            unset($queryData['_token']);
-            
-            // Procesar los datos según tipo
-            $processedData = [];
-            foreach ($queryData as $key => $value) {
-                $processedData[$key] = $this->processQueryParameter($value);
+        public function previewWindow(Component $component)
+        {
+            try {
+                // 🆕 OBTENER VARIABLES GLOBALES REALES DE LA BD
+                $globalVariables = GlobalVariable::getAllForBlade();
+                
+                // Datos de prueba por defecto
+                $defaultTestData = [
+                    'title' => 'Vista Previa del Componente',
+                    'description' => 'Esta es la vista previa del componente en ventana nueva.',
+                    'content' => 'Contenido de ejemplo para verificar el componente.',
+                    'image' => 'https://picsum.photos/400/200?random=1',
+                    'button_text' => 'Botón de Ejemplo',
+                    'link' => '#ejemplo',
+                    'author' => 'Autor de Ejemplo',
+                    'date' => now()->format('d/m/Y'),
+                    'price' => '$99.99',
+                    'category' => 'Categoría Ejemplo',
+                    'slides' => [
+                        ['title' => 'Slide 1', 'content' => 'Contenido del primer slide', 'image' => 'https://picsum.photos/400/200?random=2'],
+                        ['title' => 'Slide 2', 'content' => 'Contenido del segundo slide', 'image' => 'https://picsum.photos/400/200?random=3'],
+                        ['title' => 'Slide 3', 'content' => 'Contenido del tercer slide', 'image' => 'https://picsum.photos/400/200?random=4']
+                    ],
+                    'items' => [
+                        ['name' => 'Item 1', 'value' => 'Valor 1'],
+                        ['name' => 'Item 2', 'value' => 'Valor 2'],
+                        ['name' => 'Item 3', 'value' => 'Valor 3']
+                    ]
+                ];
+
+                // 🆕 COMBINAR VARIABLES REALES CON DATOS DEFAULT
+                $testData = array_merge($globalVariables, $defaultTestData);
+
+                \Log::info('Preview window with real variables:', [
+                    'component_id' => $component->id,
+                    'global_variables_count' => count($globalVariables),
+                    'global_variables' => $globalVariables
+                ]);
+
+                $renderedComponent = $this->renderComponentSafely($component->blade_template, $testData);
+
+                // Detectar librerías requeridas automáticamente
+                $requiredLibraries = $this->detectRequiredLibrariesFromCode($component->blade_template);
+
+                return view('component-preview.window', [
+                    'component' => $component,
+                    'renderedComponent' => $renderedComponent,
+                    'requiredLibraries' => $requiredLibraries,
+                    'testData' => $testData
+                ]);
+
+            } catch (\Exception $e) {
+                \Log::error('Preview window error', [
+                    'component_id' => $component->id,
+                    'error' => $e->getMessage()
+                ]);
+
+                return view('component-preview.error', [
+                    'error' => $e->getMessage(),
+                    'component' => $component
+                ]);
             }
-            
-            // 🆕 COMBINAR: VARIABLES GLOBALES + QUERY DATA
-            $testData = array_merge($globalVariables, $processedData);
-            
-            \Log::info('Preview window with custom data + variables:', [
-                'component_id' => $component->id,
-                'global_variables' => $globalVariables,
-                'query_data' => $queryData,
-                'processed_data' => $processedData,
-                'final_test_data' => $testData
-            ]);
-
-            // 🔧 USAR renderComponentSafely CON TODOS LOS DATOS
-            $renderedComponent = $this->renderComponentSafely($component->blade_template, $testData);
-            
-            // Detectar librerías requeridas
-            $requiredLibraries = $this->detectRequiredLibrariesFromCode($component->blade_template);
-            
-            return view('component-preview.window', [
-                'component' => $component,
-                'renderedComponent' => $renderedComponent,
-                'requiredLibraries' => $requiredLibraries,
-                'testData' => $testData
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error('Preview window error', [
-                'component_id' => $component->id,
-                'error' => $e->getMessage(),
-                'query_data' => $request->query()
-            ]);
-
-            return view('component-preview.error', [
-                'error' => $e->getMessage(),
-                'component' => $component
-            ]);
         }
-    }
 
+        public function previewWindowWithData(Request $request, Component $component)
+        {
+            try {
+                // 🆕 OBTENER VARIABLES GLOBALES REALES DE LA BD
+                $globalVariables = GlobalVariable::getAllForBlade();
+                
+                // Extraer todos los query parameters como datos de test
+                $queryData = $request->query();
+                
+                // Limpiar parámetros que no son datos
+                unset($queryData['_token']);
+                
+                // Procesar los datos según tipo
+                $processedData = [];
+                foreach ($queryData as $key => $value) {
+                    $processedData[$key] = $this->processQueryParameter($value);
+                }
+                
+                // 🆕 COMBINAR: VARIABLES REALES + QUERY DATA
+                $testData = array_merge($globalVariables, $processedData);
+                
+                \Log::info('Preview window with real variables + custom data:', [
+                    'component_id' => $component->id,
+                    'global_variables_count' => count($globalVariables),
+                    'global_variables' => $globalVariables,
+                    'query_data' => $queryData,
+                    'processed_data' => $processedData,
+                    'final_test_data' => $testData
+                ]);
+
+                $renderedComponent = $this->renderComponentSafely($component->blade_template, $testData);
+                
+                // Detectar librerías requeridas
+                $requiredLibraries = $this->detectRequiredLibrariesFromCode($component->blade_template);
+                
+                return view('component-preview.window', [
+                    'component' => $component,
+                    'renderedComponent' => $renderedComponent,
+                    'requiredLibraries' => $requiredLibraries,
+                    'testData' => $testData
+                ]);
+
+            } catch (\Exception $e) {
+                \Log::error('Preview window error', [
+                    'component_id' => $component->id,
+                    'error' => $e->getMessage(),
+                    'query_data' => $request->query()
+                ]);
+
+                return view('component-preview.error', [
+                    'error' => $e->getMessage(),
+                    'component' => $component
+                ]);
+            }
+        }
     /**
      * Procesar parámetro de query según su formato
      */
@@ -981,69 +1040,6 @@ class ComponentBuilderController extends Controller
             }
             
             return implode('; ', $basePolicy) . ';';
-        }
-
-        public function previewWindow(Component $component)
-        {
-            try {
-                // 🆕 AGREGAR VARIABLES GLOBALES DUMMY
-                $globalVariables = [
-                    'site_name' => 'Mi Sitio Web',
-                    'hotel_title' => 'Hotel Paradise',
-                    'max_guests' => 6
-                ];
-                
-                // Datos de prueba por defecto
-                $defaultTestData = [
-                    'title' => 'Vista Previa del Componente',
-                    'description' => 'Esta es la vista previa del componente en ventana nueva.',
-                    'content' => 'Contenido de ejemplo para verificar el componente.',
-                    'image' => 'https://picsum.photos/400/200?random=1',
-                    'button_text' => 'Botón de Ejemplo',
-                    'link' => '#ejemplo',
-                    'author' => 'Autor de Ejemplo',
-                    'date' => now()->format('d/m/Y'),
-                    'price' => '$99.99',
-                    'category' => 'Categoría Ejemplo',
-                    'slides' => [
-                        ['title' => 'Slide 1', 'content' => 'Contenido del primer slide', 'image' => 'https://picsum.photos/400/200?random=2'],
-                        ['title' => 'Slide 2', 'content' => 'Contenido del segundo slide', 'image' => 'https://picsum.photos/400/200?random=3'],
-                        ['title' => 'Slide 3', 'content' => 'Contenido del tercer slide', 'image' => 'https://picsum.photos/400/200?random=4']
-                    ],
-                    'items' => [
-                        ['name' => 'Item 1', 'value' => 'Valor 1'],
-                        ['name' => 'Item 2', 'value' => 'Valor 2'],
-                        ['name' => 'Item 3', 'value' => 'Valor 3']
-                    ]
-                ];
-
-                // 🆕 COMBINAR VARIABLES GLOBALES CON DATOS DEFAULT
-                $testData = array_merge($globalVariables, $defaultTestData);
-
-                // 🔧 USAR renderComponentSafely EN LUGAR DE templateService
-                $renderedComponent = $this->renderComponentSafely($component->blade_template, $testData);
-
-                // Detectar librerías requeridas automáticamente
-                $requiredLibraries = $this->detectRequiredLibrariesFromCode($component->blade_template);
-
-                return view('component-preview.window', [
-                    'component' => $component,
-                    'renderedComponent' => $renderedComponent,
-                    'requiredLibraries' => $requiredLibraries,
-                    'testData' => $testData
-                ]);
-
-            } catch (\Exception $e) {
-                \Log::error('Preview window error', [
-                    'component_id' => $component->id,
-                    'error' => $e->getMessage()
-                ]);
-
-                return view('component-preview.error', [
-                    'error' => $e->getMessage(),
-                    'component' => $component
-                ]);
-            }
         }
 
 
