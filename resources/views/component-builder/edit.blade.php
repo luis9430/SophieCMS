@@ -69,24 +69,24 @@
     <div class="flex-1 flex overflow-hidden">
         
         <!-- Sidebar con configuración -->
-        <div class="w-80 bg-white border-r border-gray-200 flex flex-col">
+        <div class="w-84 bg-white border-r border-gray-200 flex flex-col">
             
             <!-- Tabs -->
             <div class="border-b border-gray-200">
                 <nav class="flex">
                     <button @click="activeTab = 'basic'" 
                             :class="activeTab === 'basic' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'"
-                            class="w-1/4 py-2 px-1 text-center border-b-2 font-medium text-sm">
+                            class="w-1/3 py-2 px-1 text-center border-b-2 font-medium text-sm">
                         Básico
                     </button>
                     <button @click="activeTab = 'props'" 
                             :class="activeTab === 'props' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'"
-                            class="w-1/4 py-2 px-1 text-center border-b-2 font-medium text-sm">
+                            class="w-1/3 py-2 px-1 text-center border-b-2 font-medium text-sm">
                         Props
                     </button>
                     <button @click="activeTab = 'communication'" 
                             :class="activeTab === 'communication' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'"
-                            class="w-1/4 py-2 px-1 text-center border-b-2 font-medium text-sm">
+                            class="w-1/3 py-2 px-1 text-center border-b-2 font-medium text-sm">
                         Comunicación
                     </button>
                 </nav>
@@ -103,10 +103,6 @@
                         <div class="text-blue-700">Creado {{ $component->created_at->diffForHumans() }}</div>
                         <div class="text-blue-700">ID: {{ $component->identifier }}</div>
                     </div>
-
-
-
-
 
                     <!-- Name -->
                     <div>
@@ -167,142 +163,263 @@
                     </div>
                 </div>
 
-
+                <!-- Props Tab -->
                 <div x-show="activeTab === 'props'" class="space-y-4">
-                    <div class="flex items-center justify-between">
-                        <h4 class="font-medium text-gray-900">Props Simulator</h4>
-                        <button @click="addProp()" 
-                                class="text-sm bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200">
-                            + Agregar Prop
-                        </button>
-                    </div>
-                    
-                    <div class="text-sm text-gray-600 mb-4">
-                        Define props para testing y preview. Estos valores son solo para desarrollo.
+                    <!-- Header con tabs para Props y Variables -->
+                    <div class="border-b border-gray-200">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex space-x-1">
+                                <button @click="propsSubTab = 'props'" 
+                                        :class="propsSubTab === 'props' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-gray-50 text-gray-600 border-gray-200'"
+                                        class="px-3 py-1 text-sm border rounded-lg transition-colors">
+                                    📊 Props
+                                </button>
+                                <button @click="propsSubTab = 'variables'" 
+                                        :class="propsSubTab === 'variables' ? 'bg-green-100 text-green-700 border-green-300' : 'bg-gray-50 text-gray-600 border-gray-200'"
+                                        class="px-3 py-1 text-sm border rounded-lg transition-colors">
+                                    🔄 Variables
+                                </button>
+                            </div>
+                            
+                            <button @click="propsSubTab === 'props' ? addProp() : addVariable()" 
+                                    :class="propsSubTab === 'props' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-green-100 text-green-700 hover:bg-green-200'"
+                                    class="text-sm px-3 py-1 rounded transition-colors">
+                                <span x-text="propsSubTab === 'props' ? '+ Agregar Prop' : '+ Agregar Variable'"></span>
+                            </button>
+                        </div>
+                        
+                        <!-- Descripción dinámica -->
+                        <div class="text-sm text-gray-600 mb-4">
+                            <template x-if="propsSubTab === 'props'">
+                                <p>Define props para testing y preview. Estos valores son solo para desarrollo.</p>
+                            </template>
+                            <template x-if="propsSubTab === 'variables'">
+                                <p>Crea variables globales reutilizables en todos tus componentes. Estas se guardan permanentemente.</p>
+                            </template>
+                        </div>
                     </div>
 
-                    <!-- Props List -->
-                    <div class="space-y-3">
-                        <template x-for="(prop, index) in testProps" :key="index">
-                            <div class="border border-gray-200 rounded-lg p-3">
-                                <div class="flex gap-2 items-start">
-                                    <!-- Key Input -->
-                                    <div class="flex-1">
-                                        <label class="block text-xs font-medium text-gray-700 mb-1">Nombre</label>
-                                        <input type="text" 
-                                            x-model="prop.key"
-                                            @input="updatePreviewWithProps()"
-                                            placeholder="title, description..."
-                                            class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
-                                    </div>
-                                    
-                                    <!-- Type Select -->
-                                    <div class="w-20">
-                                        <label class="block text-xs font-medium text-gray-700 mb-1">Tipo</label>
-                                        <select x-model="prop.type" 
-                                                @change="updatePreviewWithProps()"
-                                                class="w-full px-1 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
-                                            <option value="string">String</option>
-                                            <option value="number">Number</option>
-                                            <option value="boolean">Boolean</option>
-                                            <option value="array">Array</option>
-                                        </select>
-                                    </div>
-                                    
-                                    <!-- Value Input -->
-                                    <div class="flex-1">
-                                        <label class="block text-xs font-medium text-gray-700 mb-1">Valor</label>
-                                        <template x-if="prop.type === 'boolean'">
-                                            <select x-model="prop.value" 
-                                                    @change="updatePreviewWithProps()"
-                                                    class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
-                                                <option value="true">true</option>
-                                                <option value="false">false</option>
-                                            </select>
-                                        </template>
-                                        <template x-if="prop.type !== 'boolean'">
+                    <!-- ===== PROPS TAB ===== -->
+                    <div x-show="propsSubTab === 'props'">
+                        <!-- Props List -->
+                        <div class="space-y-3" x-show="testProps.length > 0">
+                            <template x-for="(prop, index) in testProps" :key="index">
+                                <div class="border border-gray-200 rounded-lg p-3 bg-blue-50/30">
+                                    <div class="flex gap-2 items-start">
+                                        <!-- Key Input -->
+                                        <div class="flex-1">
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Nombre</label>
                                             <input type="text" 
-                                                x-model="prop.value"
-                                                @input="updatePreviewWithProps()"
-                                                :placeholder="getPlaceholderForType(prop.type)"
+                                                x-model="prop.key"
+                                                placeholder="title, description..."
                                                 class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
-                                        </template>
-                                    </div>
-
-
-                                    <template x-if="prop.type === 'array'">
-                                        <div class="w-full">
-                                            <textarea x-model="prop.value"
-                                                    @input="updatePreviewWithProps()"
-                                                    :placeholder="getPlaceholderForType(prop.type)"
-                                                    rows="3"
-                                                    class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"></textarea>
-                                            <div class="flex items-center justify-between mt-1">
-                                                <div class="text-xs text-gray-500">
-                                                    Formato: ["item1", "item2"] o item1, item2, item3
-                                                </div>
-                                                <button @click="validateArrayFormat(prop)" 
-                                                        type="button"
-                                                        class="text-xs text-blue-600 hover:text-blue-800">
-                                                    Validar
-                                                </button>
-                                            </div>
-                                            <!-- Validation feedback -->
-                                            <div x-show="prop.validationError" 
-                                                x-text="prop.validationError"
-                                                class="text-xs text-red-600 mt-1"></div>
                                         </div>
-                                    </template>
-                                    
-                                    <!-- Remove Button -->
-                                    <div class="pt-5">
-                                        <button @click="removeProp(index)" 
-                                                class="text-red-500 hover:text-red-700 text-sm">
-                                            ×
-                                        </button>
+                                        
+                                        <!-- Type Select -->
+                                        <div class="w-20">
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Tipo</label>
+                                            <select x-model="prop.type" 
+                                                    class="w-full px-1 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                                <option value="string">String</option>
+                                                <option value="number">Number</option>
+                                                <option value="boolean">Boolean</option>
+                                                <option value="array">Array</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <!-- Value Input -->
+                                        <div class="flex-1">
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Valor</label>
+                                            
+                                            <!-- Boolean Select -->
+                                            <template x-if="prop.type === 'boolean'">
+                                                <select x-model="prop.value" 
+                                                        class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                                    <option value="true">true</option>
+                                                    <option value="false">false</option>
+                                                </select>
+                                            </template>
+                                            
+                                            <!-- Array Textarea -->
+                                            <template x-if="prop.type === 'array'">
+                                                <div>
+                                                    <textarea x-model="prop.value"
+                                                            placeholder='["Item 1", "Item 2"] o item1, item2, item3'
+                                                            rows="2"
+                                                            class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"></textarea>
+                                                    <div class="flex items-center justify-between mt-1">
+                                                        <span class="text-xs text-gray-500">Formato: ["item1", "item2"] o item1, item2, item3</span>
+                                                        <button @click="validateArrayFormat(prop)" 
+                                                                class="text-xs text-blue-600 hover:text-blue-800">
+                                                            Validar
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            
+                                            <!-- Other types Input -->
+                                            <template x-if="prop.type !== 'boolean' && prop.type !== 'array'">
+                                                <input type="text" 
+                                                    x-model="prop.value"
+                                                    :placeholder="getPlaceholderForType(prop.type)"
+                                                    class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                            </template>
+                                        </div>
+                                        
+                                        <!-- Remove Button -->
+                                        <div class="pt-5">
+                                            <button @click="removeProp(index)" 
+                                                    class="text-red-500 hover:text-red-700 transition-colors">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                                </svg>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </template>
-                    </div>
-
-                    <!-- Empty State -->
-                    <div x-show="testProps.length === 0" class="text-center py-8 text-gray-500">
-                        <svg class="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                        </svg>
-                        <p class="text-sm">No hay props definidos</p>
-                        <p class="text-xs">Agrega props para testear tu componente</p>
-                    </div>
-
-                    <!-- Generated Code Preview -->
-                    <div x-show="testProps.length > 0" class="mt-6">
-                        <h5 class="text-sm font-medium text-gray-700 mb-2">Código generado para Page Builder:</h5>
-                        <div class="bg-gray-100 p-3 rounded-lg">
-                            <code class="text-sm font-mono text-gray-800" x-text="getGeneratedCode()"></code>
+                            </template>
                         </div>
-                        <button @click="copyGeneratedCode()" 
-                                class="mt-2 text-xs bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700">
-                            Copiar código
-                        </button>
+                        
+                        <!-- Empty state for Props -->
+                        <div x-show="testProps.length === 0" class="text-center py-8 text-gray-500">
+                            <svg class="w-12 h-12 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a4 4 0 004-4V5z"/>
+                            </svg>
+                            <p class="text-sm">No hay props configurados</p>
+                            <button @click="addProp()" class="mt-2 text-blue-600 hover:text-blue-800 text-sm">
+                                + Agregar primer prop
+                            </button>
+                        </div>
                     </div>
 
-                    <!-- Quick Presets -->
-                    <div class="mt-6 pt-4 border-t border-gray-200">
-                        <h5 class="text-sm font-medium text-gray-700 mb-2">Presets rápidos:</h5>
-                        <div class="flex flex-wrap gap-2">
-                            <button @click="loadPreset('card')" 
-                                    class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200">
-                                Card básica
+                    <!-- ===== VARIABLES TAB ===== -->
+                    <div x-show="propsSubTab === 'variables'">
+                        <!-- Variables List -->
+                        <div class="space-y-3" x-show="globalVariables.length > 0">
+                            <template x-for="(variable, index) in globalVariables" :key="index">
+                                <div class="border border-green-200 rounded-lg p-3 bg-green-50/30">
+                                    <div class="flex gap-2 items-start">
+                                        <!-- Variable Name -->
+                                        <div class="flex-1">
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Nombre Variable</label>
+                                            <input type="text" 
+                                                x-model="variable.name"
+                                                @input="saveVariable(index)"
+                                                placeholder="hotel_title, site_name..."
+                                                class="w-full px-2 py-1 text-sm border border-green-300 rounded focus:outline-none focus:ring-1 focus:ring-green-500">
+                                            <div class="text-xs text-gray-500 mt-1">
+                                                Úsalo como: <code class="bg-gray-100 px-1 rounded" x-text="'@{{ $' + (variable.name || 'nombre') + ' }}'"></code>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Variable Type -->
+                                        <div class="w-20">
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Tipo</label>
+                                            <select x-model="variable.type" 
+                                                    @change="saveVariable(index)"
+                                                    class="w-full px-1 py-1 text-sm border border-green-300 rounded focus:outline-none focus:ring-1 focus:ring-green-500">
+                                                <option value="string">String</option>
+                                                <option value="number">Number</option>
+                                                <option value="boolean">Boolean</option>
+                                                <option value="array">Array</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <!-- Variable Value -->
+                                        <div class="flex-1">
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Valor</label>
+                                            
+                                            <!-- Boolean Select -->
+                                            <template x-if="variable.type === 'boolean'">
+                                                <select x-model="variable.value" 
+                                                        @change="saveVariable(index)"
+                                                        class="w-full px-2 py-1 text-sm border border-green-300 rounded focus:outline-none focus:ring-1 focus:ring-green-500">
+                                                    <option value="true">true</option>
+                                                    <option value="false">false</option>
+                                                </select>
+                                            </template>
+                                            
+                                            <!-- Array Textarea -->
+                                            <template x-if="variable.type === 'array'">
+                                                <textarea x-model="variable.value"
+                                                        @input="saveVariable(index)"
+                                                        placeholder='["Item 1", "Item 2"] o separado por comas'
+                                                        rows="2"
+                                                        class="w-full px-2 py-1 text-sm border border-green-300 rounded focus:outline-none focus:ring-1 focus:ring-green-500 font-mono"></textarea>
+                                            </template>
+                                            
+                                            <!-- Other types Input -->
+                                            <template x-if="variable.type !== 'boolean' && variable.type !== 'array'">
+                                                <input type="text" 
+                                                    x-model="variable.value"
+                                                    @input="saveVariable(index)"
+                                                    :placeholder="variable.type === 'number' ? '123' : 'Valor de la variable...'"
+                                                    class="w-full px-2 py-1 text-sm border border-green-300 rounded focus:outline-none focus:ring-1 focus:ring-green-500">
+                                            </template>
+                                        </div>
+                                        
+                                        <!-- Remove Button -->
+                                        <div class="pt-5">
+                                            <button @click="removeVariable(index)" 
+                                                    class="text-red-500 hover:text-red-700 transition-colors">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Status indicator -->
+                                    <div class="mt-2 flex items-center justify-between">
+                                        <div class="flex items-center gap-2 text-xs">
+                                            <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                                            <span class="text-green-700">Variable global guardada</span>
+                                        </div>
+                                        <div class="text-xs text-gray-500">
+                                            ID: <span x-text="variable.id || 'nuevo'"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        
+                        <!-- Empty state for Variables -->
+                        <div x-show="globalVariables.length === 0" class="text-center py-8 text-gray-500">
+                            <svg class="w-12 h-12 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
+                            </svg>
+                            <p class="text-sm font-medium">No hay variables globales</p>
+                            <p class="text-xs text-gray-400 mt-1">Las variables te permiten reutilizar valores en todos tus componentes</p>
+                            <button @click="addVariable()" class="mt-3 text-green-600 hover:text-green-800 text-sm">
+                                + Crear primera variable
                             </button>
-                            <button @click="loadPreset('hero')" 
-                                    class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded hover:bg-purple-200">
-                                Hero section
-                            </button>
-                            <button @click="loadPreset('button')" 
-                                    class="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded hover:bg-orange-200">
-                                Botón
-                            </button>
+                        </div>
+                        
+                        <!-- Variables Info -->
+                        <div x-show="globalVariables.length > 0" class="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <h5 class="text-sm font-medium text-green-900 mb-2">💡 Cómo usar variables:</h5>
+                            <div class="text-xs text-green-800 space-y-1">
+                                <div>• En tu código Blade: <code class="bg-green-100 px-1 rounded">@{{ $variable_name }}</code></div>
+                                <div>• Las variables son globales para todo el proyecto</div>
+                                <div>• Se incluyen automáticamente en el preview</div>
+                                <div>• Perfectas para: títulos del sitio, URLs, configuraciones, etc.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Preview integration info -->
+                    <div class="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg" x-show="testProps.length > 0 || globalVariables.length > 0">
+                        <h5 class="text-sm font-medium text-gray-900 mb-2">📊 Datos del Preview:</h5>
+                        <div class="text-xs text-gray-700 space-y-1">
+                            <div x-show="testProps.length > 0">
+                                <strong>Props:</strong> <span x-text="testProps.length"></span> configurados (solo desarrollo)
+                            </div>
+                            <div x-show="globalVariables.length > 0">
+                                <strong>Variables:</strong> <span x-text="globalVariables.length"></span> globales (permanentes)
+                            </div>
+                            <div class="text-gray-500 mt-2">
+                                Todos se incluyen automáticamente cuando abres el preview en nueva ventana
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -330,11 +447,19 @@
             </div>
         </div>
 
-        <!-- Editor y Preview -->
-        <div class="flex-1 flex">
+        <!-- Editor y Preview - Layout Optimizado -->
+        <div class="flex-1 flex" x-data="{ previewCollapsed: false }" x-init="
+            const savedCollapsed = localStorage.getItem('componentBuilderPreviewCollapsed');
+            if (savedCollapsed !== null) {
+                previewCollapsed = savedCollapsed === 'true';
+            }
+        ">
             
-            <!-- Editor -->
-            <div class="w-1/2 flex flex-col">
+            <!-- Editor - Más espacio -->
+            <div :class="previewCollapsed ? 'w-4/5' : 'w-3/5'" 
+                 class="flex flex-col transition-all duration-300 ease-in-out">
+                
+                <!-- Header del Editor -->
                 <div class="bg-gray-800 text-white px-4 py-2 text-sm flex items-center justify-between">
                     <span>Editor de Código Blade</span>
                     <div class="flex gap-2 text-xs">
@@ -352,73 +477,138 @@
                     </div>
                 </div>
                 
+                <!-- Textarea del Editor -->
                 <textarea x-model="component.blade_template"              
+                          @input="markAsChanged()"
                           class="flex-1 bg-gray-900 text-green-400 font-mono text-sm p-4 resize-none border-0 outline-none"></textarea>
             </div>
 
-            <!-- Preview -->
-            <div class="w-1/2 flex flex-col border-l border-gray-200">
-                <div class="bg-gray-100 px-4 py-2 text-sm flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <span>Preview</span>
-                        <span class="text-xs text-gray-500">(Click en "Nueva Ventana" para ver el preview)</span>
+            <!-- Preview Panel - Compacto y Retraíble -->
+            <div :class="previewCollapsed ? 'w-1/5' : 'w-2/5'" 
+                 class="border-l border-gray-200 transition-all duration-300 ease-in-out relative flex flex-col">
+                
+                <!-- Botón Toggle Preview -->
+                <button @click="previewCollapsed = !previewCollapsed; localStorage.setItem('componentBuilderPreviewCollapsed', previewCollapsed)"
+                        class="absolute -left-3 top-4 z-10 bg-white border border-gray-300 rounded-full w-6 h-6 flex items-center justify-center hover:bg-gray-50 transition-colors shadow-sm"
+                        :title="previewCollapsed ? 'Expandir Preview' : 'Colapsar Preview'">
+                    <svg :class="previewCollapsed ? 'rotate-180' : ''" 
+                         class="w-3 h-3 transition-transform duration-300" 
+                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                </button>
+                
+                <!-- Preview Expandido -->
+                <div x-show="!previewCollapsed" 
+                     x-transition:enter="transition ease-out duration-300"
+                     x-transition:enter-start="opacity-0 transform scale-95"
+                     x-transition:enter-end="opacity-100 transform scale-100"
+                     x-transition:leave="transition ease-in duration-200"
+                     x-transition:leave-start="opacity-100 transform scale-100"
+                     x-transition:leave-end="opacity-0 transform scale-95"
+                     class="flex flex-col h-full">
+                    
+                    <!-- Header Preview -->
+                    <div class="bg-gray-100 px-4 py-2 text-sm flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span>Preview</span>
+                            <span class="text-xs text-gray-500">(Nueva Ventana recomendada)</span>
+                        </div>
+                        
+                        <div class="flex items-center gap-2">
+                            <button @click="openPreviewWindow()" 
+                                    class="px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition-colors">
+                                🪟 Abrir Preview
+                            </button>
+                        </div>
                     </div>
                     
-                    <div class="flex items-center gap-2">
-                        <button @click="openPreviewWindow()" 
-                                class="px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition-colors">
-                            🪟 Abrir Preview
-                        </button>
+                    <!-- Área de preview compacta -->
+                    <div class="flex-1 p-4 bg-gray-50 flex items-center justify-center">
+                        <div class="text-center">
+                            <svg class="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 002 2v8a2 2 0 002 2z"/>
+                            </svg>
+                            
+                            <h3 class="text-base font-medium text-gray-900 mb-2">Preview en Ventana Nueva</h3>
+                            <p class="text-sm text-gray-600 mb-3">
+                                Para mejor experiencia, abre el componente en ventana separada.
+                            </p>
+                            
+                            <button @click="openPreviewWindow()" 
+                                    class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
+                                🪟 Abrir Preview
+                            </button>
+                            
+                            <!-- Ventajas compactas -->
+                            <div class="mt-4 text-xs text-gray-500">
+                                <h4 class="font-medium mb-2">Ventajas:</h4>
+                                <div class="grid grid-cols-2 gap-1 text-left">
+                                    <div>• ✅ Tailwind completo</div>
+                                    <div>• ✅ Alpine + GSAP</div>
+                                    <div>• ✅ Sin restricciones</div>
+                                    <div>• ✅ Debug completo</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Info de props -->
+                            <div x-show="testProps.length > 0" class="mt-4 p-3 bg-blue-50 rounded-lg">
+                                <h4 class="font-medium text-blue-900 mb-2 text-sm">Props configurados:</h4>
+                                <div class="text-xs text-blue-800">
+                                    <template x-for="prop in testProps.slice(0, 4)" :key="prop.key">
+                                        <div x-show="prop.key && prop.value" class="flex justify-between">
+                                            <span x-text="prop.key" class="truncate"></span>
+                                            <span x-text="prop.type === 'string' ? `'${prop.value.substring(0,8)}...'` : prop.value" 
+                                                  class="font-mono text-blue-600 ml-1 truncate"></span>
+                                        </div>
+                                    </template>
+                                    <div x-show="testProps.length > 4" class="text-blue-600 text-center mt-1">
+                                        ... y <span x-text="testProps.length - 4"></span> más
+                                    </div>
+                                </div>
+                                <p class="text-xs text-blue-600 mt-2">
+                                    Se incluirán automáticamente en el preview
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
-                <!-- Área de preview placeholder -->
-                <div class="flex-1 p-8 bg-gray-50 flex items-center justify-center">
-                    <div class="text-center">
-                        <svg class="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                <!-- Preview Colapsado -->
+                <div x-show="previewCollapsed" 
+                     x-transition:enter="transition ease-out duration-300"
+                     x-transition:enter-start="opacity-0"
+                     x-transition:enter-end="opacity-100"
+                     class="h-full flex flex-col items-center justify-center p-3">
+                    
+                    <!-- Botón vertical para preview -->
+                    <button @click="openPreviewWindow()" 
+                            class="bg-green-500 text-white px-2 py-8 rounded-lg hover:bg-green-600 transition-colors flex flex-col items-center gap-2 transform hover:scale-105 shadow-lg">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
                         </svg>
-                        
-                        <h3 class="text-lg font-medium text-gray-900 mb-2">Preview en Ventana Nueva</h3>
-                        <p class="text-gray-600 mb-4">
-                            Para una mejor experiencia de preview, abre el componente en una ventana separada.
-                        </p>
-                        
-                        <button @click="openPreviewWindow()" 
-                                class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
-                            🪟 Abrir Preview
-                        </button>
-                        
-                        <div class="mt-6 text-sm text-gray-500">
-                            <h4 class="font-medium mb-2">Ventajas del preview en ventana nueva:</h4>
-                            <ul class="text-left space-y-1">
-                                <li>• ✅ Tailwind funciona perfectamente</li>
-                                <li>• ✅ Alpine + GSAP sin problemas</li>
-                                <li>• ✅ Sin restricciones de iframe</li>
-                                <li>• ✅ Debugging completo en consola</li>
-                                <li>• ✅ Más espacio para visualizar</li>
-                            </ul>
+                        <div class="text-xs font-medium transform rotate-90 whitespace-nowrap">
+                            Preview
                         </div>
-                        
-                        <!-- Info de props actual -->
-                        <div x-show="testProps.length > 0" class="mt-6 p-4 bg-blue-50 rounded-lg">
-                            <h4 class="font-medium text-blue-900 mb-2">Props configurados:</h4>
-                            <div class="text-sm text-blue-800">
-                                <template x-for="prop in testProps" :key="prop.key">
-                                    <div x-show="prop.key && prop.value" class="flex justify-between">
-                                        <span x-text="prop.key"></span>
-                                        <span x-text="prop.type === 'string' ? `'${prop.value}'` : prop.value" class="font-mono"></span>
-                                    </div>
-                                </template>
-                            </div>
-                            <p class="text-xs text-blue-600 mt-2">
-                                Estos props se incluirán automáticamente en el preview
-                            </p>
+                    </button>
+                    
+                    <!-- Indicador de props (si hay) -->
+                    <div x-show="testProps.length > 0" class="mt-6 text-center">
+                        <div class="w-3 h-3 bg-blue-500 rounded-full mx-auto mb-1 animate-pulse"></div>
+                        <div class="text-xs text-gray-600">
+                            <span x-text="testProps.length"></span> props
                         </div>
+                    </div>
+                    
+                    <!-- Tip para expandir -->
+                    <div class="mt-4 text-xs text-gray-400 text-center">
+                        <svg class="w-3 h-3 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                        Click para expandir
                     </div>
                 </div>
             </div>
-          
         </div>
     </div>
 
@@ -443,6 +633,11 @@ function componentEditor() {
         testProps: [],
         showPreviewModal: false,
         previewComponent: null,
+        
+        // ===== VARIABLES GLOBALES =====
+        globalVariables: [],
+        propsSubTab: 'props', // Sub-tab para Props/Variables
+
         // Component data - cargado de forma ultra segura
         component: {
             id: {{ $component->id }},
@@ -464,10 +659,114 @@ function componentEditor() {
         },
 
         // Init
-        init() {
+        async init() {
             console.log('Component Editor initialized');
             this.setupAutoSave();
+            
+            // Cargar variables globales
+            await this.loadGlobalVariables();
         },
+
+        // ===== VARIABLES GLOBALES METHODS =====
+
+        // Cargar variables globales del servidor
+        async loadGlobalVariables() {
+            try {
+                const response = await fetch('/api/component-builder/global-variables', {
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    }
+                });
+                
+                if (response.ok) {
+                    this.globalVariables = await response.json();
+                } else {
+                    this.globalVariables = [];
+                }
+            } catch (error) {
+                console.error('Error loading global variables:', error);
+                this.globalVariables = [];
+            }
+        },
+
+        // Agregar nueva variable
+        addVariable() {
+            this.globalVariables.push({
+                id: null,
+                name: '',
+                value: '',
+                type: 'string',
+                created_at: new Date().toISOString()
+            });
+        },
+
+        // Remover variable
+        async removeVariable(index) {
+            const variable = this.globalVariables[index];
+            
+            if (variable.id) {
+                // Si tiene ID, eliminar del servidor
+                try {
+                    await fetch(`/api/component-builder/global-variables/${variable.id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error deleting variable:', error);
+                }
+            }
+            
+            this.globalVariables.splice(index, 1);
+            this.showNotification('success', 'Variable eliminada');
+        },
+
+        // Guardar variable (crear o actualizar)
+        async saveVariable(index) {
+            const variable = this.globalVariables[index];
+            
+            // Validar nombre de variable
+            if (!variable.name || !variable.name.trim()) {
+                return;
+            }
+            
+            // Limpiar nombre de variable (solo letras, números y underscore)
+            variable.name = variable.name.toLowerCase()
+                .replace(/[^a-z0-9_]/g, '')
+                .replace(/^[0-9]/, ''); // No puede empezar con número
+            
+            try {
+                const method = variable.id ? 'PUT' : 'POST';
+                const url = variable.id 
+                    ? `/api/component-builder/global-variables/${variable.id}`
+                    : '/api/component-builder/global-variables';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify({
+                        name: variable.name,
+                        value: variable.value,
+                        type: variable.type
+                    })
+                });
+                
+                if (response.ok) {
+                    const savedVariable = await response.json();
+                    // Actualizar con datos del servidor
+                    this.globalVariables[index] = { ...variable, ...savedVariable };
+                }
+            } catch (error) {
+                console.error('Error saving variable:', error);
+                this.showNotification('error', 'Error al guardar variable');
+            }
+        },
+
+        // ===== PROPS METHODS =====
 
         // Setup auto-save
         setupAutoSave() {
@@ -512,44 +811,6 @@ function componentEditor() {
             }
         },
 
-    
-
-        // Communication events
-        addEmittedEvent() {
-            this.component.communication_config.emits.push({
-                name: '',
-                type: 'normal'
-            });
-        },
-
-        removeEmittedEvent(index) {
-            this.component.communication_config.emits.splice(index, 1);
-        },
-
-        addListenedEvent() {
-            this.component.communication_config.listens.push({
-                name: '',
-                callback: ''
-            });
-        },
-
-        removeListenedEvent(index) {
-            this.component.communication_config.listens.splice(index, 1);
-        },
-
-        addStateKey() {
-            this.component.communication_config.state.push({
-                key: '',
-                defaultValue: '',
-                type: 'string'
-            });
-        },
-
-        removeStateKey(index) {
-            this.component.communication_config.state.splice(index, 1);
-        },
-
-     
         // Props Management
         addProp() {
             this.testProps.push({
@@ -563,129 +824,111 @@ function componentEditor() {
             this.testProps.splice(index, 1);
         },
 
-
-        // Convert props array to test data object
-            convertPropsToTestData() {
-                const testData = {};
+        // Fix para validar formato de array
+        validateArrayFormat(prop) {
+            try {
+                if (prop.value.trim() === '') {
+                    this.showNotification('info', 'Array está vacío');
+                    return;
+                }
                 
-                this.testProps.forEach(prop => {
-                    if (prop.key && prop.value !== '') {
-                        let value = prop.value;
-                        
-                        switch (prop.type) {
-                            case 'number':
-                                value = parseFloat(prop.value) || 0;
-                                break;
-                            case 'boolean':
-                                value = prop.value === 'true';
-                                break;
-                            case 'array':
-                                value = this.parseArrayValue(prop.value);
-                                break;
-                            default:
-                                value = prop.value;
-                        }
-                        
-                        testData[prop.key] = value;
-                    }
-                });
-                
-                // DEBUG TEMPORAL - agrega estas líneas
-                console.log('🔍 Test Data enviado:', testData);
-                console.log('🔍 Props configurados:', this.testProps);
-                
-                return testData;
-            },
+                const parsed = this.parseArrayValue(prop.value);
+                if (Array.isArray(parsed)) {
+                    this.showNotification('success', `Array válido: ${parsed.length} elementos`);
+                } else {
+                    this.showNotification('error', 'Formato de array inválido');
+                }
+            } catch (error) {
+                this.showNotification('error', 'Error en formato: ' + error.message);
+            }
+        },
 
-
-            parseArrayValue(arrayString) {
-                try {
-                    // Intentar parsear como JSON primero
+        // Mejorar parseArrayValue (ya existente pero mejorada)
+        parseArrayValue(arrayString) {
+            try {
+                // Si está vacío, devolver array vacío
+                if (!arrayString || arrayString.trim() === '') {
+                    return [];
+                }
+                
+                // Intentar parsear como JSON primero
+                if (arrayString.trim().startsWith('[') && arrayString.trim().endsWith(']')) {
                     const parsed = JSON.parse(arrayString);
-                    return Array.isArray(parsed) ? parsed : [parsed];
-                } catch (e) {
-                    // Si falla, split por comas
-                    return arrayString.split(',').map(item => item.trim()).filter(item => item !== '');
+                    return Array.isArray(parsed) ? parsed : [];
                 }
-            },
-
-
-            validateArrayFormat(prop) {
-                prop.validationError = '';
                 
-                try {
-                    const parsed = JSON.parse(prop.value);
-                    if (Array.isArray(parsed)) {
-                        prop.validationError = '';
-                        this.showNotification('success', 'Array válido');
-                    } else {
-                        prop.validationError = 'Debe ser un array';
-                    }
-                } catch (e) {
-                    // Verificar si es formato simple (comma-separated)
-                    const simpleArray = prop.value.split(',').map(item => item.trim());
-                    if (simpleArray.length > 0 && simpleArray.every(item => item !== '')) {
-                        prop.validationError = '';
-                        this.showNotification('success', 'Formato simple válido');
-                    } else {
-                        prop.validationError = 'Formato inválido. Use ["item1", "item2"] o item1, item2';
-                    }
-                }
-            },
-        // Generate code for Page Builder
-        getGeneratedCode() {
-            if (this.testProps.length === 0) return '';
+                // Si no es JSON, dividir por comas y limpiar
+                return arrayString.split(',')
+                    .map(item => item.trim())
+                    .filter(item => item.length > 0);
+                    
+            } catch (error) {
+                // Si falla todo, dividir por comas
+                return arrayString.split(',')
+                    .map(item => item.trim())
+                    .filter(item => item.length > 0);
+            }
+        },
+
+        // Mejorar convertPropsToTestData para incluir variables
+        convertPropsToTestData() {
+            const testData = {};
             
-            let code = `<x-page-builder.${this.component.identifier}`;
-            
+            // Agregar props normales
             this.testProps.forEach(prop => {
                 if (prop.key && prop.value !== '') {
-                    if (prop.type === 'string') {
-                        code += `\n    ${prop.key}="${prop.value}"`;
-                    } else {
-                        code += `\n    :${prop.key}="${this.formatPropValue(prop)}"`;
+                    let value = prop.value;
+                    
+                    switch (prop.type) {
+                        case 'number':
+                            value = parseFloat(prop.value) || 0;
+                            break;
+                        case 'boolean':
+                            value = prop.value === 'true';
+                            break;
+                        case 'array':
+                            value = this.parseArrayValue(prop.value);
+                            break;
+                        default:
+                            value = prop.value;
                     }
+                    
+                    testData[prop.key] = value;
                 }
             });
             
-            code += ' />';
-            return code;
-        },
-
-        // Format prop value for Blade
-         formatPropValue(prop) {
-            switch (prop.type) {
-                case 'number':
-                    return prop.value;
-                case 'boolean':
-                    return prop.value;
-                case 'array':
-                    try {
-                        // Si es JSON válido, usarlo directamente
-                        const parsed = JSON.parse(prop.value);
-                        return JSON.stringify(parsed);
-                    } catch (e) {
-                        // Si es formato simple, convertir a array de strings
-                        const items = prop.value.split(',').map(item => `'${item.trim()}'`);
-                        return `[${items.join(', ')}]`;
+            // Agregar variables globales
+            this.globalVariables.forEach(variable => {
+                if (variable.name && variable.value !== '') {
+                    let value = variable.value;
+                    
+                    switch (variable.type) {
+                        case 'number':
+                            value = parseFloat(variable.value) || 0;
+                            break;
+                        case 'boolean':
+                            value = variable.value === 'true';
+                            break;
+                        case 'array':
+                            value = this.parseArrayValue(variable.value);
+                            break;
+                        default:
+                            value = variable.value;
                     }
-                default:
-                    return `"${prop.value}"`;
-            }
+                    
+                    testData[variable.name] = value;
+                }
+            });
+            
+            // Debug mejorado
+            console.log('🔍 Test Data (Props + Variables):', testData);
+            console.log('📊 Props:', this.testProps.length);
+            console.log('🔄 Variables:', this.globalVariables.length);
+            
+            return testData;
         },
 
-        // Copy generated code to clipboard
-        async copyGeneratedCode() {
-            try {
-                await navigator.clipboard.writeText(this.getGeneratedCode());
-                this.showNotification('success', 'Código copiado al portapapeles');
-            } catch (err) {
-                console.error('Error copying to clipboard:', err);
-                this.showNotification('error', 'Error al copiar código');
-            }
-        },
-
-        // Get placeholder text for input types
+        // Mejorar placeholder para tipos
         getPlaceholderForType(type) {
             switch (type) {
                 case 'string':
@@ -699,45 +942,6 @@ function componentEditor() {
                 default:
                     return '';
             }
-        },
-
-        // Load preset props
-                loadPreset(presetName) {
-                    switch (presetName) {
-                        case 'card':
-                            this.testProps = [
-                                { key: 'title', value: 'Título de Card', type: 'string' },
-                                { key: 'description', value: 'Descripción de la card', type: 'string' },
-                                { key: 'image', value: 'https://via.placeholder.com/300x200', type: 'string' },
-                                { key: 'tags', value: '["Nuevo", "Popular", "Oferta"]', type: 'array' },
-                                { key: 'url', value: '#', type: 'string' }
-                            ];
-                            break;
-                        case 'hero':
-                            this.testProps = [
-                                { key: 'title', value: 'Título Principal', type: 'string' },
-                                { key: 'subtitle', value: 'Subtítulo descriptivo', type: 'string' },
-                                { key: 'button_text', value: 'Llamada a acción', type: 'string' },
-                                { key: 'features', value: 'Rápido, Seguro, Confiable', type: 'array' },
-                                { key: 'background_image', value: 'https://via.placeholder.com/1200x600', type: 'string' }
-                            ];
-                            break;
-                        case 'button':
-                            this.testProps = [
-                                { key: 'text', value: 'Click aquí', type: 'string' },
-                                { key: 'url', value: '#', type: 'string' },
-                                { key: 'variant', value: 'primary', type: 'string' },
-                                { key: 'classes', value: '["hover:scale-105", "transition-transform"]', type: 'array' },
-                                { key: 'disabled', value: 'false', type: 'boolean' }
-                            ];
-                            break;
-                    }
-                },
-
-        // Generate preview
-         async generatePreview() {
-    // Redirigir al método que usa props
-            return this.generatePreviewWithProps();
         },
 
         // Save component
@@ -775,21 +979,6 @@ function componentEditor() {
             }
         },
 
-        // Publish component
-        async publishComponent() {
-            if (!confirm('¿Estás seguro de que quieres publicar este componente?')) {
-                return;
-            }
-
-            try {
-                this.component.is_active = true;
-                await this.saveComponent();
-                this.showNotification('success', 'Componente publicado exitosamente');
-            } catch (error) {
-                this.showNotification('error', 'Error al publicar componente');
-            }
-        },
-
         // Show notification
         showNotification(type, message) {
             this.notification = {
@@ -808,58 +997,6 @@ function componentEditor() {
             this.notification.show = false;
         },
 
-        async showComponentPreview() {
-            try {
-                // Usar los datos del componente actual
-                this.previewComponent = {
-                    id: this.component.id,
-                    name: this.component.name,
-                    description: this.component.description,
-                };
-
-                // Generar preview con el código actual
-                const previewResponse = await fetch(`/admin/page-builder/components/${this.component.id}/preview`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                    },
-                    body: JSON.stringify({
-                        blade_template: this.component.blade_template,
-                        test_data: {
-                            title: 'Título de Ejemplo',
-                            description: 'Descripción de ejemplo para el preview.',
-                            content: 'Contenido de prueba para verificar el componente.',
-                            image: 'https://via.placeholder.com/400x200/6366f1/ffffff?text=Preview',
-                            url: '#',
-                            button_text: 'Ver más'
-                        }
-                    })
-                });
-
-                if (!previewResponse.ok) {
-                    throw new Error(`Preview error: ${previewResponse.status}`);
-                }
-
-                const previewHtml = await previewResponse.text();
-                
-                // Mostrar el modal
-                this.showPreviewModal = true;
-                
-                // Cargar el HTML en el iframe después de que el modal se muestre
-                this.$nextTick(() => {
-                    const iframe = this.$refs.modalPreviewFrame;
-                    if (iframe) {
-                        iframe.srcdoc = previewHtml;
-                    }
-                });
-
-            } catch (error) {
-                console.error('Error in showComponentPreview:', error);
-                this.showNotification('error', 'Error al cargar preview: ' + error.message);
-            }
-        },
-
         // Agregar método faltante
         markAsChanged() {
             this.hasChanges = true;
@@ -869,13 +1006,11 @@ function componentEditor() {
         async submitForm() {
             await this.saveComponent();
         },
-        
-
 
         openPreviewWindow() {
             const componentId = this.component.id;
             
-            // Obtener datos actuales de los props
+            // Obtener datos actuales de los props y variables
             const testData = this.convertPropsToTestData();
             
             // URL base para el preview
@@ -927,32 +1062,10 @@ function componentEditor() {
             return previewWindow;
         },
 
-        /**
-         * Abrir preview con datos específicos (método adicional por si lo necesitas)
-         */
-        openPreviewWithCustomData(customData = {}) {
-            const componentId = this.component.id;
-            const mergedData = { ...this.convertPropsToTestData(), ...customData };
-            
-            let previewUrl = `/preview/component/${componentId}`;
-            
-            if (Object.keys(mergedData).length > 0) {
-                const params = new URLSearchParams();
-                Object.entries(mergedData).forEach(([key, value]) => {
-                    params.append(key, typeof value === 'object' ? JSON.stringify(value) : value);
-                });
-                previewUrl = `/preview/component/${componentId}/custom?${params.toString()}`;
-            }
-            
-            window.open(previewUrl, `component-preview-${componentId}`, 'width=1200,height=800,scrollbars=yes,resizable=yes');
-        },
-
-
-
         // Navigate back
-goBack() {
-    window.location.href = '{{ route("component-builder.index") }}';
-}
+        goBack() {
+            window.location.href = '{{ route("component-builder.index") }}';
+        }
     };
 }
 </script>

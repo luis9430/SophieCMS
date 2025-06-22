@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Services\ComponentPreviewService;
 use App\Services\ComponentTemplateService;
+use App\Models\GlobalVariable;
 
 
 
@@ -27,42 +28,51 @@ class ComponentBuilderController extends Controller
     }
 
 
+
     public function previewWindowWithData(Request $request, Component $component)
     {
         try {
+            // 🆕 AGREGAR VARIABLES GLOBALES DUMMY
+            $globalVariables = [
+                'site_name' => 'Mi Sitio Web',
+                'hotel_title' => 'Hotel Paradise', 
+                'max_guests' => 6
+            ];
+            
             // Extraer todos los query parameters como datos de test
-            $testData = $request->query();
+            $queryData = $request->query();
             
             // Limpiar parámetros que no son datos
-            unset($testData['_token']);
+            unset($queryData['_token']);
             
             // Procesar los datos según tipo
             $processedData = [];
-            foreach ($testData as $key => $value) {
+            foreach ($queryData as $key => $value) {
                 $processedData[$key] = $this->processQueryParameter($value);
             }
             
-            \Log::info('Preview window with custom data:', [
+            // 🆕 COMBINAR: VARIABLES GLOBALES + QUERY DATA
+            $testData = array_merge($globalVariables, $processedData);
+            
+            \Log::info('Preview window with custom data + variables:', [
                 'component_id' => $component->id,
-                'raw_data' => $testData,
-                'processed_data' => $processedData
+                'global_variables' => $globalVariables,
+                'query_data' => $queryData,
+                'processed_data' => $processedData,
+                'final_test_data' => $testData
             ]);
 
-            // Renderizar el componente con los datos
-            $renderedComponent = $this->templateService->renderComponentVirtually($component, $processedData);
+            // 🔧 USAR renderComponentSafely CON TODOS LOS DATOS
+            $renderedComponent = $this->renderComponentSafely($component->blade_template, $testData);
             
             // Detectar librerías requeridas
             $requiredLibraries = $this->detectRequiredLibrariesFromCode($component->blade_template);
             
-            // Generar nonce para CSP
-            $nonce = base64_encode(random_bytes(16));
-            
-            return view('component-preview.window-with-data', [
+            return view('component-preview.window', [
                 'component' => $component,
                 'renderedComponent' => $renderedComponent,
                 'requiredLibraries' => $requiredLibraries,
-                'testData' => $processedData,
-                'nonce' => $nonce
+                'testData' => $testData
             ]);
 
         } catch (\Exception $e) {
@@ -82,36 +92,29 @@ class ComponentBuilderController extends Controller
     /**
      * Procesar parámetro de query según su formato
      */
-    private function processQueryParameter($value)
-    {
-        // Si es un string que parece JSON, intentar decodificar
-        if (is_string($value) && (str_starts_with($value, '[') || str_starts_with($value, '{'))) {
-            try {
+        private function processQueryParameter($value)
+        {
+            // Si parece JSON, intentar decodificar
+            if (is_string($value) && (str_starts_with($value, '[') || str_starts_with($value, '{'))) {
                 $decoded = json_decode($value, true);
                 if (json_last_error() === JSON_ERROR_NONE) {
                     return $decoded;
                 }
-            } catch (\Exception $e) {
-                // Si falla el JSON, usar como string
             }
+            
+            // Si es número
+            if (is_numeric($value)) {
+                return is_float($value + 0) ? (float)$value : (int)$value;
+            }
+            
+            // Si es boolean
+            if (in_array(strtolower($value), ['true', 'false'])) {
+                return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+            }
+            
+            // Retornar como string
+            return $value;
         }
-        
-        // Detectar booleanos
-        if (is_string($value)) {
-            if ($value === 'true') return true;
-            if ($value === 'false') return false;
-            if ($value === 'null') return null;
-        }
-        
-        // Detectar números
-        if (is_string($value) && is_numeric($value)) {
-            return str_contains($value, '.') ? (float)$value : (int)$value;
-        }
-        
-        // Devolver como string por defecto
-        return $value;
-    }
-
     /**
      * Detectar librerías requeridas desde el código del componente
      */
@@ -913,60 +916,6 @@ class ComponentBuilderController extends Controller
         }
 
 
-        public function previewWindow(Component $component)
-        {
-            try {
-                // Datos de prueba por defecto
-                $testData = [
-                    'title' => 'Vista Previa del Componente',
-                    'description' => 'Esta es la vista previa del componente en ventana nueva.',
-                    'content' => 'Contenido de ejemplo para verificar el componente.',
-                    'image' => 'https://picsum.photos/400/200?random=1',
-                    'button_text' => 'Botón de Ejemplo',
-                    'link' => '#ejemplo',
-                    'author' => 'Autor de Ejemplo',
-                    'date' => now()->format('d/m/Y'),
-                    'price' => '$99.99',
-                    'category' => 'Categoría Ejemplo',
-                    'slides' => [
-                        ['title' => 'Slide 1', 'content' => 'Contenido del primer slide', 'image' => 'https://picsum.photos/400/200?random=2'],
-                        ['title' => 'Slide 2', 'content' => 'Contenido del segundo slide', 'image' => 'https://picsum.photos/400/200?random=3'],
-                        ['title' => 'Slide 3', 'content' => 'Contenido del tercer slide', 'image' => 'https://picsum.photos/400/200?random=4']
-                    ],
-                    'items' => [
-                        ['name' => 'Item 1', 'value' => 'Valor 1'],
-                        ['name' => 'Item 2', 'value' => 'Valor 2'],
-                        ['name' => 'Item 3', 'value' => 'Valor 3']
-                    ]
-                ];
-
-                // Renderizar el componente con datos de prueba
-                $renderedComponent = $this->renderComponentSafely($component->blade_template, $testData);
-
-                // Detectar librerías requeridas automáticamente
-                $requiredLibraries = $this->detectRequiredLibrariesFromCode($component->blade_template);
-
-                return view('component-preview.window', [
-                    'component' => $component,
-                    'renderedComponent' => $renderedComponent,
-                    'requiredLibraries' => $requiredLibraries,
-                    'testData' => $testData
-                ]);
-
-            } catch (\Exception $e) {
-                \Log::error('Preview window error', [
-                    'component_id' => $component->id,
-                    'error' => $e->getMessage()
-                ]);
-
-                return view('component-preview.error', [
-                    'error' => $e->getMessage(),
-                    'component' => $component
-                ]);
-            }
-        }
-
-
         private function getInitializationJS(): string
         {
             return '
@@ -1034,45 +983,69 @@ class ComponentBuilderController extends Controller
             return implode('; ', $basePolicy) . ';';
         }
 
-         public function preview(Request $request, Component $component)
+        public function previewWindow(Component $component)
         {
             try {
-                $testData = $request->input('test_data', []);
+                // 🆕 AGREGAR VARIABLES GLOBALES DUMMY
+                $globalVariables = [
+                    'site_name' => 'Mi Sitio Web',
+                    'hotel_title' => 'Hotel Paradise',
+                    'max_guests' => 6
+                ];
                 
-                Log::info('🔍 Test Data enviado: ' . json_encode($testData));
-                Log::info('🔍 Props configurados: ' . json_encode($component->props_schema ?? []));
-                
-                // ✅ TODO el procesamiento delegado al Service
-                $html = app(ComponentPreviewService::class)->generatePreview(
-                    $component->blade_template, 
-                    $testData
-                );
-                
-                Log::info('🔍 Preview generado exitosamente');
-                
-                // ✅ CSP dinámico según entorno
-                $csp = app()->environment('local') 
-                    ? "default-src *; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline'; connect-src *;"
-                    : "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:;";
-                
-                return response($html)
-                    ->header('Content-Type', 'text/html; charset=utf-8')
-                    ->header('X-Frame-Options', 'SAMEORIGIN')
-                    ->header('Content-Security-Policy', $csp);
-                    
+                // Datos de prueba por defecto
+                $defaultTestData = [
+                    'title' => 'Vista Previa del Componente',
+                    'description' => 'Esta es la vista previa del componente en ventana nueva.',
+                    'content' => 'Contenido de ejemplo para verificar el componente.',
+                    'image' => 'https://picsum.photos/400/200?random=1',
+                    'button_text' => 'Botón de Ejemplo',
+                    'link' => '#ejemplo',
+                    'author' => 'Autor de Ejemplo',
+                    'date' => now()->format('d/m/Y'),
+                    'price' => '$99.99',
+                    'category' => 'Categoría Ejemplo',
+                    'slides' => [
+                        ['title' => 'Slide 1', 'content' => 'Contenido del primer slide', 'image' => 'https://picsum.photos/400/200?random=2'],
+                        ['title' => 'Slide 2', 'content' => 'Contenido del segundo slide', 'image' => 'https://picsum.photos/400/200?random=3'],
+                        ['title' => 'Slide 3', 'content' => 'Contenido del tercer slide', 'image' => 'https://picsum.photos/400/200?random=4']
+                    ],
+                    'items' => [
+                        ['name' => 'Item 1', 'value' => 'Valor 1'],
+                        ['name' => 'Item 2', 'value' => 'Valor 2'],
+                        ['name' => 'Item 3', 'value' => 'Valor 3']
+                    ]
+                ];
+
+                // 🆕 COMBINAR VARIABLES GLOBALES CON DATOS DEFAULT
+                $testData = array_merge($globalVariables, $defaultTestData);
+
+                // 🔧 USAR renderComponentSafely EN LUGAR DE templateService
+                $renderedComponent = $this->renderComponentSafely($component->blade_template, $testData);
+
+                // Detectar librerías requeridas automáticamente
+                $requiredLibraries = $this->detectRequiredLibrariesFromCode($component->blade_template);
+
+                return view('component-preview.window', [
+                    'component' => $component,
+                    'renderedComponent' => $renderedComponent,
+                    'requiredLibraries' => $requiredLibraries,
+                    'testData' => $testData
+                ]);
+
             } catch (\Exception $e) {
-                Log::error('Error generating preview: ' . $e->getMessage());
-                
-                return response(view('component-preview.error', [
-                    'errorMessage' => 'Error al generar preview: ' . $e->getMessage()
-                ])->render())
-                    ->header('Content-Type', 'text/html; charset=utf-8')
-                    ->header('Content-Security-Policy', 
-                        "default-src 'self'; script-src 'self' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline' https:;"
-                    );
+                \Log::error('Preview window error', [
+                    'component_id' => $component->id,
+                    'error' => $e->getMessage()
+                ]);
+
+                return view('component-preview.error', [
+                    'error' => $e->getMessage(),
+                    'component' => $component
+                ]);
             }
         }
-        
+
 
         /**
          * Obtener información completa de assets disponibles (para el Asset Manager)
@@ -1169,6 +1142,18 @@ class ComponentBuilderController extends Controller
             }
         }
 
+        public function debugVariables(Component $component)
+        {
+            $globalVariables = GlobalVariable::getAllForBlade();
+            
+            return response()->json([
+                'component_id' => $component->id,
+                'component_name' => $component->name,
+                'global_variables' => $globalVariables,
+                'variable_count' => count($globalVariables),
+                'available_in_blade' => array_keys($globalVariables)
+            ]);
+        }
 
                         
 
