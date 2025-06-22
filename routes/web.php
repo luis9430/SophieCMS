@@ -81,68 +81,68 @@ Route::prefix('admin/page-builder')->group(function () {
 
 Route::prefix('api/component-builder')->group(function () {
     
-   
-   
-         Route::get('/global-variables', [GlobalVariablesController::class, 'index'])
-            ->name('global-variables.index');
+    // 🔥 CRÍTICO: RUTAS ESPECÍFICAS PRIMERO (antes de las rutas con parámetros)
+    
+    // NUEVAS RUTAS para categorías - MOVER AL INICIO
+    Route::get('/global-variables/categories', [GlobalVariablesController::class, 'categories'])
+        ->name('global-variables.categories');
 
-        Route::post('/global-variables', [GlobalVariablesController::class, 'store'])
-            ->name('global-variables.store');
+    Route::get('/global-variables/grouped', [GlobalVariablesController::class, 'grouped'])
+        ->name('global-variables.grouped');
 
-        Route::put('/global-variables/{globalVariable}', [GlobalVariablesController::class, 'update'])
-            ->name('global-variables.update');
+    Route::post('/global-variables/validate', [GlobalVariablesController::class, 'validate'])
+        ->name('global-variables.validate');
 
-        Route::delete('/global-variables/{globalVariable}', [GlobalVariablesController::class, 'destroy'])
-            ->name('global-variables.destroy');
+    Route::get('/global-variables/for-blade', [GlobalVariablesController::class, 'forBlade'])
+        ->name('global-variables.for-blade');
+    
+    // DESPUÉS las rutas generales de variables (MOVER DESPUÉS DE LAS ESPECÍFICAS)
+    Route::get('/global-variables', [GlobalVariablesController::class, 'index'])
+        ->name('global-variables.index');
 
-        // Variables para Blade (formato optimizado)
-        Route::get('/global-variables/for-blade', [GlobalVariablesController::class, 'forBlade'])
-            ->name('global-variables.for-blade');
+    Route::post('/global-variables', [GlobalVariablesController::class, 'store'])
+        ->name('global-variables.store');
 
-        // Validar formato de variable
-        Route::post('/global-variables/validate', [GlobalVariablesController::class, 'validate'])
-            ->name('global-variables.validate');
+    Route::put('/global-variables/{globalVariable}', [GlobalVariablesController::class, 'update'])
+        ->name('global-variables.update');
 
-   
-   
-        // Preview de componente en tiempo real
-        Route::post('/preview', [ComponentBuilderController::class, 'preview'])
-            ->name('component-builder.preview');
-        
-        // Preview por ID de componente (NUEVA RUTA)
-        Route::post('/components/{component}/preview', [ComponentBuilderController::class, 'previewById'])
-            ->name('component-builder.preview-by-id');
-        
-        // Multi-component preview (para testear comunicación)
-        Route::post('/preview-multi', [ComponentBuilderController::class, 'previewMulti'])
-            ->name('component-builder.preview-multi');
-        
-        // Generar screenshot automático
-        Route::post('/components/{component}/screenshot', [ComponentBuilderController::class, 'generateScreenshot'])
-            ->name('component-builder.screenshot');
-        
-        // Obtener assets disponibles
-        Route::get('/assets', [ComponentBuilderController::class, 'getAvailableAssets'])
-            ->name('component-builder.assets');
+    Route::delete('/global-variables/{globalVariable}', [GlobalVariablesController::class, 'destroy'])
+        ->name('global-variables.destroy');
+    
+    // Preview de componente en tiempo real
+    Route::post('/preview', [ComponentBuilderController::class, 'preview'])
+        ->name('component-builder.preview');
+    
+    // Preview por ID de componente (NUEVA RUTA)
+    Route::post('/components/{component}/preview', [ComponentBuilderController::class, 'previewById'])
+        ->name('component-builder.preview-by-id');
+    
+    // Multi-component preview (para testear comunicación)
+    Route::post('/preview-multi', [ComponentBuilderController::class, 'previewMulti'])
+        ->name('component-builder.preview-multi');
+    
+    // Generar screenshot automático
+    Route::post('/components/{component}/screenshot', [ComponentBuilderController::class, 'generateScreenshot'])
+        ->name('component-builder.screenshot');
+    
+    // Obtener assets disponibles
+    Route::get('/assets', [ComponentBuilderController::class, 'getAvailableAssets'])
+        ->name('component-builder.assets');
 
-        Route::post('/detect-assets', [ComponentBuilderController::class, 'detectAssets'])
-        ->name('component-builder.detect-assets');
+    Route::post('/detect-assets', [ComponentBuilderController::class, 'detectAssets'])
+    ->name('component-builder.detect-assets');
 
-        // 📋 Assets disponibles (para el Asset Manager)
-        Route::get('/available-assets', [ComponentBuilderController::class, 'getAvailableAssets'])
-        ->name('component-builder.available-assets');
-        
-        // Validar código Blade
-        Route::post('/validate', [ComponentBuilderController::class, 'validateCode'])
-            ->name('component-builder.validate');
-        
-        // Export component
-        Route::get('/components/{component}/export', [ComponentBuilderController::class, 'export'])
-            ->name('component-builder.export');
-
-
-
-
+    // 📋 Assets disponibles (para el Asset Manager)
+    Route::get('/available-assets', [ComponentBuilderController::class, 'getAvailableAssets'])
+    ->name('component-builder.available-assets');
+    
+    // Validar código Blade
+    Route::post('/validate', [ComponentBuilderController::class, 'validateCode'])
+        ->name('component-builder.validate');
+    
+    // Export component
+    Route::get('/components/{component}/export', [ComponentBuilderController::class, 'export'])
+        ->name('component-builder.export');
 });
 
 
@@ -177,11 +177,6 @@ Route::prefix('api')->group(function () {
     // Preview - CORREGIDA CON NOMBRE
     Route::match(['GET', 'POST'], '/page-builder/preview', [PageBuilderController::class, 'preview'])
         ->name('pagebuilder.preview');
-
-
-    
-
-
 });
 
    
@@ -193,10 +188,7 @@ Route::get('/preview/component/{component}/custom', [ComponentBuilderController:
 
 Route::get('/debug-component-files', [ComponentBuilderController::class, 'debugFiles']);
 
-
-
-
-    // Rutas públicas para mostrar las páginas
+// Rutas públicas para mostrar las páginas
 Route::get('/{page:slug}', [PageController::class, 'show'])
     ->where('page', '^(?!admin|api).*$')
     ->name('page.show');

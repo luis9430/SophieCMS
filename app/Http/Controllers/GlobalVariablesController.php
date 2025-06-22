@@ -12,29 +12,112 @@ use Illuminate\Support\Facades\Auth;
 class GlobalVariablesController extends Controller
 {
     /**
-     * Obtener todas las variables globales
+     * Obtener todas las variables globales con filtros
      */
-    public function index()
+    public function index(Request $request)
     {
         try {
-            $variables = GlobalVariable::active()
-                ->orderBy('name')
-                ->get()
-                ->map(function ($variable) {
+            $query = GlobalVariable::active();
+            
+            // Filtro por categoría
+            if ($request->has('category') && $request->category !== 'all' && !empty($request->category)) {
+                $query->byCategory($request->category);
+            }
+            
+            // Búsqueda por nombre o descripción
+            if ($request->has('search') && !empty($request->search)) {
+                $searchTerm = $request->search;
+                $query->where(function($q) use ($searchTerm) {
+                    $q->where('name', 'like', '%' . $searchTerm . '%')
+                      ->orWhere('description', 'like', '%' . $searchTerm . '%');
+                });
+            }
+            
+            // Ordenamiento
+            $sortBy = $request->get('sort_by', 'category');
+            $sortOrder = $request->get('sort_order', 'asc');
+            
+            if ($sortBy === 'category') {
+                $query->orderBy('category', $sortOrder)->orderBy('name', 'asc');
+            } else {
+                $query->orderBy($sortBy, $sortOrder);
+            }
+            
+            $variables = $query->get()->map(function ($variable) {
+                return [
+                    'id' => $variable->id,
+                    'name' => $variable->name,
+                    'value' => $variable->value,
+                    'type' => $variable->type,
+                    'category' => $variable->category,
+                    'description' => $variable->description,
+                    'created_at' => $variable->created_at->toISOString(),
+                    'updated_at' => $variable->updated_at->toISOString()
+                ];
+            });
+
+            return response()->json($variables);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error loading variables'], 500);
+        }
+    }
+
+    /**
+     * Obtener categorías disponibles
+     */
+    public function categories()
+    {
+        try {
+            $categories = GlobalVariable::getCategories();
+            $counts = GlobalVariable::getCategoryCounts();
+            
+            // Agregar conteos a cada categoría
+            foreach ($categories as $key => &$category) {
+                $category['count'] = $counts[$key] ?? 0;
+            }
+            
+            return response()->json($categories);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error loading categories'], 500);
+        }
+    }
+
+    /**
+     * Obtener variables agrupadas por categoría
+     */
+    public function grouped()
+    {
+        try {
+            $grouped = GlobalVariable::getGroupedByCategory();
+            $categories = GlobalVariable::getCategories();
+            
+            $result = [];
+            
+            foreach ($categories as $categoryKey => $categoryData) {
+                $variables = $grouped->get($categoryKey, collect())->map(function ($variable) {
                     return [
                         'id' => $variable->id,
                         'name' => $variable->name,
                         'value' => $variable->value,
                         'type' => $variable->type,
+                        'category' => $variable->category,
                         'description' => $variable->description,
                         'created_at' => $variable->created_at->toISOString(),
                         'updated_at' => $variable->updated_at->toISOString()
                     ];
                 });
-
-            return response()->json($variables);
+                
+                if ($variables->count() > 0) {
+                    $result[$categoryKey] = [
+                        'category_info' => $categoryData,
+                        'variables' => $variables->toArray()
+                    ];
+                }
+            }
+            
+            return response()->json($result);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Error loading variables'], 500);
+            return response()->json(['error' => 'Error loading grouped variables'], 500);
         }
     }
 
@@ -47,6 +130,7 @@ class GlobalVariablesController extends Controller
             'name' => 'required|string|max:255|regex:/^[a-zA-Z_][a-zA-Z0-9_]*$/',
             'value' => 'required|string',
             'type' => 'required|in:string,number,boolean,array',
+            'category' => 'required|string|in:design,content,site,media,seo,social,api,custom',
             'description' => 'nullable|string|max:500'
         ]);
 
@@ -69,6 +153,7 @@ class GlobalVariablesController extends Controller
                 'name' => $request->name,
                 'value' => $request->value,
                 'type' => $request->type,
+                'category' => $request->category,
                 'description' => $request->description,
                 'created_by_user_id' => Auth::id(),
                 'is_active' => true
@@ -79,6 +164,7 @@ class GlobalVariablesController extends Controller
                 'name' => $variable->name,
                 'value' => $variable->value,
                 'type' => $variable->type,
+                'category' => $variable->category,
                 'description' => $variable->description,
                 'created_at' => $variable->created_at->toISOString(),
                 'updated_at' => $variable->updated_at->toISOString()
@@ -100,6 +186,7 @@ class GlobalVariablesController extends Controller
             'name' => 'required|string|max:255|regex:/^[a-zA-Z_][a-zA-Z0-9_]*$/',
             'value' => 'required|string',
             'type' => 'required|in:string,number,boolean,array',
+            'category' => 'required|string|in:design,content,site,media,seo,social,api,custom',
             'description' => 'nullable|string|max:500'
         ]);
 
@@ -126,6 +213,7 @@ class GlobalVariablesController extends Controller
                 'name' => $request->name,
                 'value' => $request->value,
                 'type' => $request->type,
+                'category' => $request->category,
                 'description' => $request->description
             ]);
 
@@ -134,6 +222,7 @@ class GlobalVariablesController extends Controller
                 'name' => $globalVariable->name,
                 'value' => $globalVariable->value,
                 'type' => $globalVariable->type,
+                'category' => $globalVariable->category,
                 'description' => $globalVariable->description,
                 'created_at' => $globalVariable->created_at->toISOString(),
                 'updated_at' => $globalVariable->updated_at->toISOString()
@@ -186,7 +275,8 @@ class GlobalVariablesController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|regex:/^[a-zA-Z_][a-zA-Z0-9_]*$/',
             'value' => 'required|string',
-            'type' => 'required|in:string,number,boolean,array'
+            'type' => 'required|in:string,number,boolean,array',
+            'category' => 'required|string|in:design,content,site,media,seo,social,api,custom'
         ]);
 
         if ($validator->fails()) {

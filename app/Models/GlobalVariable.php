@@ -16,6 +16,7 @@ class GlobalVariable extends Model
         'name',
         'value',
         'type',
+        'category',
         'description',
         'created_by_user_id',
         'is_active'
@@ -41,6 +42,14 @@ class GlobalVariable extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    /**
+     * Scope para filtrar por categoría
+     */
+    public function scopeByCategory($query, $category)
+    {
+        return $query->where('category', $category);
     }
 
     /**
@@ -108,7 +117,7 @@ class GlobalVariable extends Model
     /**
      * Crear o actualizar variable
      */
-    public static function createOrUpdate($name, $value, $type = 'string', $userId = null)
+    public static function createOrUpdate($name, $value, $type = 'string', $category = 'custom', $userId = null)
     {
         // Validar nombre
         if (!static::validateVariableName($name)) {
@@ -120,9 +129,83 @@ class GlobalVariable extends Model
             [
                 'value' => $value,
                 'type' => $type,
+                'category' => $category,
                 'created_by_user_id' => $userId ?: auth()->id(),
                 'is_active' => true
             ]
         );
+    }
+
+    /**
+     * Obtener categorías disponibles con sus metadatos
+     */
+    public static function getCategories()
+    {
+        return [
+            'design' => [
+                'label' => 'Diseño',
+                'icon' => '🎨',
+                'description' => 'Colores, fuentes, espaciados'
+            ],
+            'content' => [
+                'label' => 'Contenido',
+                'icon' => '📝',
+                'description' => 'Textos, títulos, descripciones'
+            ],
+            'site' => [
+                'label' => 'Sitio',
+                'icon' => '⚙️',
+                'description' => 'Configuración general del sitio'
+            ],
+            'media' => [
+                'label' => 'Media',
+                'icon' => '🖼️',
+                'description' => 'Imágenes, videos, assets'
+            ],
+            'seo' => [
+                'label' => 'SEO',
+                'icon' => '🔍',
+                'description' => 'Meta tags, analytics, structured data'
+            ],
+            'social' => [
+                'label' => 'Social',
+                'icon' => '📱',
+                'description' => 'Redes sociales, compartir'
+            ],
+            'api' => [
+                'label' => 'API',
+                'icon' => '🔗',
+                'description' => 'Endpoints, integraciones'
+            ],
+            'custom' => [
+                'label' => 'Personalizado',
+                'icon' => '✨',
+                'description' => 'Variables personalizadas'
+            ]
+        ];
+    }
+
+    /**
+     * Obtener conteo de variables por categoría
+     */
+    public static function getCategoryCounts()
+    {
+        return static::active()
+            ->selectRaw('category, COUNT(*) as count')
+            ->groupBy('category')
+            ->pluck('count', 'category')
+            ->toArray();
+    }
+
+    /**
+     * Obtener variables agrupadas por categoría
+     */
+    public static function getGroupedByCategory()
+    {
+        return static::active()
+            ->orderBy('category')
+            ->orderBy('name')
+            ->get()
+            ->groupBy('category');
     }
 }

@@ -79,8 +79,8 @@
                             class="w-1/3 py-2 px-1 text-center border-b-2 font-medium text-sm">
                         Básico
                     </button>
-                    <button @click="activeTab = 'props'" 
-                            :class="activeTab === 'props' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'"
+                    <button @click="activeTab = 'variables'" 
+                            :class="activeTab === 'variables' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'"
                             class="w-1/3 py-2 px-1 text-center border-b-2 font-medium text-sm">
                         Props
                     </button>
@@ -163,266 +163,328 @@
                     </div>
                 </div>
 
-                <!-- Props Tab -->
-                <div x-show="activeTab === 'props'" class="space-y-4">
-                    <!-- Header con tabs para Props y Variables -->
-                    <div class="border-b border-gray-200">
-                        <div class="flex items-center justify-between mb-3">
-                            <div class="flex space-x-1">
-                                <button @click="propsSubTab = 'props'" 
-                                        :class="propsSubTab === 'props' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-gray-50 text-gray-600 border-gray-200'"
-                                        class="px-3 py-1 text-sm border rounded-lg transition-colors">
-                                    📊 Props
+<!-- Sección de Variables Globales actualizada para edit.blade.php -->
+<!-- Reemplazar la sección existente de variables con esto: -->
+
+                <div x-show="activeTab === 'variables'" class="space-y-4">
+                    <!-- Header con controles -->
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h4 class="text-lg font-medium text-gray-900">Variables Globales</h4>
+                            <p class="text-sm text-gray-600">Variables reutilizables en todo el proyecto</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <!-- Toggle de vista -->
+                            <div class="flex bg-gray-100 rounded-lg p-1">
+                                <button 
+                                    @click="viewMode = 'grouped'"
+                                    :class="viewMode === 'grouped' ? 'bg-white shadow-sm' : ''"
+                                    class="px-3 py-1 text-sm rounded transition-all"
+                                    title="Vista agrupada"
+                                >
+                                    📂
                                 </button>
-                                <button @click="propsSubTab = 'variables'" 
-                                        :class="propsSubTab === 'variables' ? 'bg-green-100 text-green-700 border-green-300' : 'bg-gray-50 text-gray-600 border-gray-200'"
-                                        class="px-3 py-1 text-sm border rounded-lg transition-colors">
-                                    🔄 Variables
+                                <button 
+                                    @click="viewMode = 'list'"
+                                    :class="viewMode === 'list' ? 'bg-white shadow-sm' : ''"
+                                    class="px-3 py-1 text-sm rounded transition-all"
+                                    title="Vista lista"
+                                >
+                                    📋
                                 </button>
                             </div>
                             
-                            <button @click="propsSubTab === 'props' ? addProp() : addVariable()" 
-                                    :class="propsSubTab === 'props' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-green-100 text-green-700 hover:bg-green-200'"
-                                    class="text-sm px-3 py-1 rounded transition-colors">
-                                <span x-text="propsSubTab === 'props' ? '+ Agregar Prop' : '+ Agregar Variable'"></span>
+                            <button @click="addVariable()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                                + Agregar Variable
                             </button>
-                        </div>
-                        
-                        <!-- Descripción dinámica -->
-                        <div class="text-sm text-gray-600 mb-4">
-                            <template x-if="propsSubTab === 'props'">
-                                <p>Define props para testing y preview. Estos valores son solo para desarrollo.</p>
-                            </template>
-                            <template x-if="propsSubTab === 'variables'">
-                                <p>Crea variables globales reutilizables en todos tus componentes. Estas se guardan permanentemente.</p>
-                            </template>
                         </div>
                     </div>
 
-                    <!-- ===== PROPS TAB ===== -->
-                    <div x-show="propsSubTab === 'props'">
-                        <!-- Props List -->
-                        <div class="space-y-3" x-show="testProps.length > 0">
-                            <template x-for="(prop, index) in testProps" :key="index">
-                                <div class="border border-gray-200 rounded-lg p-3 bg-blue-50/30">
-                                    <div class="flex gap-2 items-start">
-                                        <!-- Key Input -->
-                                        <div class="flex-1">
-                                            <label class="block text-xs font-medium text-gray-700 mb-1">Nombre</label>
-                                            <input type="text" 
-                                                x-model="prop.key"
-                                                placeholder="title, description..."
-                                                class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
-                                        </div>
-                                        
-                                        <!-- Type Select -->
-                                        <div class="w-20">
-                                            <label class="block text-xs font-medium text-gray-700 mb-1">Tipo</label>
-                                            <select x-model="prop.type" 
-                                                    class="w-full px-1 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
-                                                <option value="string">String</option>
-                                                <option value="number">Number</option>
-                                                <option value="boolean">Boolean</option>
-                                                <option value="array">Array</option>
-                                            </select>
-                                        </div>
-                                        
-                                        <!-- Value Input -->
-                                        <div class="flex-1">
-                                            <label class="block text-xs font-medium text-gray-700 mb-1">Valor</label>
-                                            
-                                            <!-- Boolean Select -->
-                                            <template x-if="prop.type === 'boolean'">
-                                                <select x-model="prop.value" 
-                                                        class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
-                                                    <option value="true">true</option>
-                                                    <option value="false">false</option>
-                                                </select>
-                                            </template>
-                                            
-                                            <!-- Array Textarea -->
-                                            <template x-if="prop.type === 'array'">
-                                                <div>
-                                                    <textarea x-model="prop.value"
-                                                            placeholder='["Item 1", "Item 2"] o item1, item2, item3'
-                                                            rows="2"
-                                                            class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"></textarea>
-                                                    <div class="flex items-center justify-between mt-1">
-                                                        <span class="text-xs text-gray-500">Formato: ["item1", "item2"] o item1, item2, item3</span>
-                                                        <button @click="validateArrayFormat(prop)" 
-                                                                class="text-xs text-blue-600 hover:text-blue-800">
-                                                            Validar
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </template>
-                                            
-                                            <!-- Other types Input -->
-                                            <template x-if="prop.type !== 'boolean' && prop.type !== 'array'">
-                                                <input type="text" 
-                                                    x-model="prop.value"
-                                                    :placeholder="getPlaceholderForType(prop.type)"
-                                                    class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
-                                            </template>
-                                        </div>
-                                        
-                                        <!-- Remove Button -->
-                                        <div class="pt-5">
-                                            <button @click="removeProp(index)" 
-                                                    class="text-red-500 hover:text-red-700 transition-colors">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </template>
-                        </div>
-                        
-                        <!-- Empty state for Props -->
-                        <div x-show="testProps.length === 0" class="text-center py-8 text-gray-500">
-                            <svg class="w-12 h-12 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a4 4 0 004-4V5z"/>
+                    <!-- Barra de filtros -->
+                    <div class="bg-gray-50 rounded-lg p-4 space-y-3">
+                        <!-- Búsqueda -->
+                        <div class="relative">
+                            <input 
+                                x-model="searchTerm" 
+                                type="text" 
+                                placeholder="Buscar variables por nombre o descripción..."
+                                class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                            <svg class="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                             </svg>
-                            <p class="text-sm">No hay props configurados</p>
-                            <button @click="addProp()" class="mt-2 text-blue-600 hover:text-blue-800 text-sm">
-                                + Agregar primer prop
+                        </div>
+                        
+                        <!-- Filtros de categoría -->
+                        <div class="flex flex-wrap gap-2">
+                            <button 
+                                @click="filterByCategory('all')"
+                                :class="selectedCategory === 'all' ? 'bg-blue-500 text-white shadow-md' : 'bg-white text-gray-700 hover:bg-gray-50'"
+                                class="px-3 py-1 rounded-full text-sm font-medium border transition-all"
+                            >
+                                🌟 Todas (<span x-text="globalVariables.length"></span>)
+                            </button>
+                            
+                            <template x-for="(category, key) in categories" :key="key">
+                                <button 
+                                    @click="filterByCategory(key)"
+                                    :class="selectedCategory === key ? 'bg-blue-500 text-white shadow-md' : 'bg-white text-gray-700 hover:bg-gray-50'"
+                                    class="px-3 py-1 rounded-full text-sm font-medium border transition-all"
+                                >
+                                    <span x-text="category.icon"></span>
+                                    <span x-text="category.label"></span>
+                                    (<span x-text="getCategoryCount(key)"></span>)
+                                </button>
+                            </template>
+                            
+                            <!-- Limpiar filtros -->
+                            <button 
+                                @click="clearFilters()"
+                                x-show="selectedCategory !== 'all' || searchTerm"
+                                class="px-3 py-1 rounded-full text-sm text-red-600 hover:bg-red-50 border border-red-200 transition-all"
+                            >
+                                🗑️ Limpiar
+                            </button>
+                        </div>
+
+                        <!-- Ordenamiento -->
+                        <div class="flex items-center gap-3 text-sm">
+                            <span class="text-gray-600">Ordenar por:</span>
+                            <button 
+                                @click="toggleSort('category')"
+                                :class="sortBy === 'category' ? 'text-blue-600 font-medium' : 'text-gray-500'"
+                                class="hover:text-blue-600 transition-colors"
+                            >
+                                Categoría 
+                                <span x-show="sortBy === 'category'" x-text="sortOrder === 'asc' ? '↑' : '↓'"></span>
+                            </button>
+                            <button 
+                                @click="toggleSort('name')"
+                                :class="sortBy === 'name' ? 'text-blue-600 font-medium' : 'text-gray-500'"
+                                class="hover:text-blue-600 transition-colors"
+                            >
+                                Nombre 
+                                <span x-show="sortBy === 'name'" x-text="sortOrder === 'asc' ? '↑' : '↓'"></span>
+                            </button>
+                            <button 
+                                @click="toggleSort('created_at')"
+                                :class="sortBy === 'created_at' ? 'text-blue-600 font-medium' : 'text-gray-500'"
+                                class="hover:text-blue-600 transition-colors"
+                            >
+                                Fecha 
+                                <span x-show="sortBy === 'created_at'" x-text="sortOrder === 'asc' ? '↑' : '↓'"></span>
                             </button>
                         </div>
                     </div>
 
-                    <!-- ===== VARIABLES TAB ===== -->
-                    <div x-show="propsSubTab === 'variables'">
-                        <!-- Variables List -->
-                        <div class="space-y-3" x-show="globalVariables.length > 0">
-                            <template x-for="(variable, index) in globalVariables" :key="index">
-                                <div class="border border-green-200 rounded-lg p-3 bg-green-50/30">
-                                    <div class="flex gap-2 items-start">
-                                        <!-- Variable Name -->
-                                        <div class="flex-1">
-                                            <label class="block text-xs font-medium text-gray-700 mb-1">Nombre Variable</label>
-                                            <input type="text" 
-                                                x-model="variable.name"
-                                                @input="saveVariable(index)"
-                                                placeholder="hotel_title, site_name..."
-                                                class="w-full px-2 py-1 text-sm border border-green-300 rounded focus:outline-none focus:ring-1 focus:ring-green-500">
-                                            <div class="text-xs text-gray-500 mt-1">
-                                                Úsalo como: <code class="bg-gray-100 px-1 rounded" x-text="'@{{ $' + (variable.name || 'nombre') + ' }}'"></code>
+                    <!-- Vista Agrupada por Categorías -->
+                    <div x-show="viewMode === 'grouped' && Object.keys(groupedVariables).length > 0" class="space-y-6">
+                        <template x-for="(variables, categoryKey) in groupedVariables" :key="categoryKey">
+                            <div class="border border-gray-200 rounded-lg overflow-hidden">
+                                <!-- Header de categoría -->
+                                <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-3">
+                                            <span x-text="getCategoryInfo(categoryKey).icon" class="text-xl"></span>
+                                            <div>
+                                                <h5 x-text="getCategoryInfo(categoryKey).label" class="font-medium text-gray-900"></h5>
+                                                <p x-text="getCategoryInfo(categoryKey).description" class="text-sm text-gray-600"></p>
                                             </div>
                                         </div>
-                                        
-                                        <!-- Variable Type -->
-                                        <div class="w-20">
-                                            <label class="block text-xs font-medium text-gray-700 mb-1">Tipo</label>
-                                            <select x-model="variable.type" 
-                                                    @change="saveVariable(index)"
-                                                    class="w-full px-1 py-1 text-sm border border-green-300 rounded focus:outline-none focus:ring-1 focus:ring-green-500">
-                                                <option value="string">String</option>
-                                                <option value="number">Number</option>
-                                                <option value="boolean">Boolean</option>
-                                                <option value="array">Array</option>
-                                            </select>
-                                        </div>
-                                        
-                                        <!-- Variable Value -->
-                                        <div class="flex-1">
-                                            <label class="block text-xs font-medium text-gray-700 mb-1">Valor</label>
-                                            
-                                            <!-- Boolean Select -->
-                                            <template x-if="variable.type === 'boolean'">
-                                                <select x-model="variable.value" 
-                                                        @change="saveVariable(index)"
-                                                        class="w-full px-2 py-1 text-sm border border-green-300 rounded focus:outline-none focus:ring-1 focus:ring-green-500">
-                                                    <option value="true">true</option>
-                                                    <option value="false">false</option>
-                                                </select>
-                                            </template>
-                                            
-                                            <!-- Array Textarea -->
-                                            <template x-if="variable.type === 'array'">
-                                                <textarea x-model="variable.value"
-                                                        @input="saveVariable(index)"
-                                                        placeholder='["Item 1", "Item 2"] o separado por comas'
-                                                        rows="2"
-                                                        class="w-full px-2 py-1 text-sm border border-green-300 rounded focus:outline-none focus:ring-1 focus:ring-green-500 font-mono"></textarea>
-                                            </template>
-                                            
-                                            <!-- Other types Input -->
-                                            <template x-if="variable.type !== 'boolean' && variable.type !== 'array'">
-                                                <input type="text" 
-                                                    x-model="variable.value"
-                                                    @input="saveVariable(index)"
-                                                    :placeholder="variable.type === 'number' ? '123' : 'Valor de la variable...'"
-                                                    class="w-full px-2 py-1 text-sm border border-green-300 rounded focus:outline-none focus:ring-1 focus:ring-green-500">
-                                            </template>
-                                        </div>
-                                        
-                                        <!-- Remove Button -->
-                                        <div class="pt-5">
-                                            <button @click="removeVariable(index)" 
-                                                    class="text-red-500 hover:text-red-700 transition-colors">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Status indicator -->
-                                    <div class="mt-2 flex items-center justify-between">
-                                        <div class="flex items-center gap-2 text-xs">
-                                            <div class="w-2 h-2 bg-green-500 rounded-full"></div>
-                                            <span class="text-green-700">Variable global guardada</span>
-                                        </div>
-                                        <div class="text-xs text-gray-500">
-                                            ID: <span x-text="variable.id || 'nuevo'"></span>
+                                        <div class="flex items-center gap-2">
+                                            <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
+                                                <span x-text="variables.length"></span> variable<span x-show="variables.length !== 1">s</span>
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
-                            </template>
-                        </div>
-                        
-                        <!-- Empty state for Variables -->
-                        <div x-show="globalVariables.length === 0" class="text-center py-8 text-gray-500">
-                            <svg class="w-12 h-12 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
+                                
+                                <!-- Variables de la categoría -->
+                                <div class="divide-y divide-gray-100">
+                                    <template x-for="(variable, index) in variables" :key="variable.id || index">
+                                        <div class="p-4 hover:bg-gray-50 transition-colors">
+                                            <div class="grid grid-cols-12 gap-4 items-start">
+                                                <!-- Nombre -->
+                                                <div class="col-span-3">
+                                                    <label class="block text-xs font-medium text-gray-700 mb-1">Nombre</label>
+                                                    <input 
+                                                        x-model="variable.name" 
+                                                        type="text" 
+                                                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                                                        placeholder="variable_name"
+                                                    >
+                                                </div>
+                                                
+                                                <!-- Valor -->
+                                                <div class="col-span-4">
+                                                    <label class="block text-xs font-medium text-gray-700 mb-1">Valor</label>
+                                                    <template x-if="variable.type === 'array'">
+                                                        <textarea 
+                                                            x-model="variable.value" 
+                                                            rows="2"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder='["item1", "item2"] o item1, item2'
+                                                        ></textarea>
+                                                    </template>
+                                                    <template x-if="variable.type !== 'array'">
+                                                        <input 
+                                                            x-model="variable.value" 
+                                                            type="text" 
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="Valor de la variable"
+                                                        >
+                                                    </template>
+                                                </div>
+                                                
+                                                <!-- Tipo -->
+                                                <div class="col-span-2">
+                                                    <label class="block text-xs font-medium text-gray-700 mb-1">Tipo</label>
+                                                    <select 
+                                                        x-model="variable.type" 
+                                                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                                                    >
+                                                        <option value="string">String</option>
+                                                        <option value="number">Number</option>
+                                                        <option value="boolean">Boolean</option>
+                                                        <option value="array">Array</option>
+                                                    </select>
+                                                </div>
+
+                                                <!-- Categoría -->
+                                                <div class="col-span-2">
+                                                    <label class="block text-xs font-medium text-gray-700 mb-1">Categoría</label>
+                                                    <select 
+                                                        x-model="variable.category" 
+                                                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                                                    >
+                                                        <template x-for="(cat, key) in categories" :key="key">
+                                                            <option :value="key" x-text="cat.icon + ' ' + cat.label"></option>
+                                                        </template>
+                                                    </select>
+                                                </div>
+                                                
+                                                <!-- Acciones -->
+                                                <div class="col-span-1 flex justify-end">
+                                                    <button 
+                                                        @click="removeVariable(globalVariables.findIndex(v => v === variable))" 
+                                                        class="text-red-600 hover:text-red-800 hover:bg-red-50 p-1 rounded transition-colors"
+                                                        title="Eliminar variable"
+                                                    >
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Descripción -->
+                                            <div class="mt-3">
+                                                <label class="block text-xs font-medium text-gray-700 mb-1">Descripción (opcional)</label>
+                                                <input 
+                                                    x-model="variable.description" 
+                                                    type="text" 
+                                                    class="w-full px-3 py-1 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                                                    placeholder="Descripción de qué hace esta variable"
+                                                >
+                                            </div>
+
+                                            <!-- Preview del uso -->
+                                        <div class="mt-2 text-xs text-gray-500">
+                                            💡 Usar en Blade: <code class="bg-gray-100 px-1 rounded font-mono">@{{ '$' }}<span x-text="variable.name || 'variable_name'"></span>@{{ '' }}</code>
+                                        </div>
+                                    </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Vista Lista (fallback) -->
+                    <div x-show="viewMode === 'list' || Object.keys(groupedVariables).length === 0" class="space-y-3">
+                        <template x-for="(variable, index) in filteredVariables" :key="variable.id || index">
+                            <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                                <div class="grid grid-cols-12 gap-4 items-start">
+                                    <!-- Badge de categoría -->
+                                    <div class="col-span-1 flex justify-center">
+                                        <span 
+                                            :title="getCategoryInfo(variable.category).label"
+                                            class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                                        >
+                                            <span x-text="getCategoryInfo(variable.category).icon"></span>
+                                        </span>
+                                    </div>
+                                    
+                                    <!-- Resto igual que la vista agrupada pero en col-span-11 -->
+                                    <div class="col-span-11">
+                                        <!-- Contenido de la variable igual que arriba -->
+                                        <!-- ... (mismo HTML que en vista agrupada) -->
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    
+                    <!-- Empty state -->
+                    <div x-show="filteredVariables.length === 0" class="text-center py-12">
+                        <div class="text-gray-400 mb-4">
+                            <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
                             </svg>
-                            <p class="text-sm font-medium">No hay variables globales</p>
-                            <p class="text-xs text-gray-400 mt-1">Las variables te permiten reutilizar valores en todos tus componentes</p>
-                            <button @click="addVariable()" class="mt-3 text-green-600 hover:text-green-800 text-sm">
+                        </div>
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">
+                            <span x-show="searchTerm || selectedCategory !== 'all'">No se encontraron variables</span>
+                            <span x-show="!searchTerm && selectedCategory === 'all'">No hay variables globales</span>
+                        </h3>
+                        <p class="text-gray-600 mb-4">
+                            <span x-show="searchTerm || selectedCategory !== 'all'">
+                                Prueba ajustando los filtros o búsqueda
+                            </span>
+                            <span x-show="!searchTerm && selectedCategory === 'all'">
+                                Las variables globales te permiten reutilizar valores en todos tus componentes
+                            </span>
+                        </p>
+                        <div class="space-x-3">
+                            <button 
+                                x-show="searchTerm || selectedCategory !== 'all'"
+                                @click="clearFilters()" 
+                                class="px-4 py-2 text-blue-600 hover:text-blue-800 transition-colors"
+                            >
+                                Limpiar filtros
+                            </button>
+                            <button 
+                                @click="addVariable()" 
+                                class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                            >
                                 + Crear primera variable
                             </button>
                         </div>
-                        
-                        <!-- Variables Info -->
-                        <div x-show="globalVariables.length > 0" class="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                            <h5 class="text-sm font-medium text-green-900 mb-2">💡 Cómo usar variables:</h5>
-                            <div class="text-xs text-green-800 space-y-1">
-                                <div>• En tu código Blade: <code class="bg-green-100 px-1 rounded">@{{ $variable_name }}</code></div>
-                                <div>• Las variables son globales para todo el proyecto</div>
-                                <div>• Se incluyen automáticamente en el preview</div>
-                                <div>• Perfectas para: títulos del sitio, URLs, configuraciones, etc.</div>
-                            </div>
+                    </div>
+
+                    <!-- Variables Info -->
+                    <div x-show="globalVariables.length > 0" class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h5 class="text-sm font-medium text-blue-900 mb-2">💡 Guía de uso rápido:</h5>
+                        <div class="text-xs text-blue-800 space-y-1">
+                                <div>• En Blade: <code class="bg-blue-100 px-1 rounded font-mono">@{{ '$variable_name' }}</code></div>
+                            <div>• Se incluyen automáticamente en el preview</div>
+                            <div>• Perfectas para: títulos del sitio, colores, configuraciones, datos dinámicos</div>
+                            <div>• <strong>Categorías:</strong> organiza por tipo de uso (diseño, contenido, SEO, etc.)</div>
                         </div>
                     </div>
 
-                    <!-- Preview integration info -->
-                    <div class="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg" x-show="testProps.length > 0 || globalVariables.length > 0">
-                        <h5 class="text-sm font-medium text-gray-900 mb-2">📊 Datos del Preview:</h5>
-                        <div class="text-xs text-gray-700 space-y-1">
-                            <div x-show="testProps.length > 0">
-                                <strong>Props:</strong> <span x-text="testProps.length"></span> configurados (solo desarrollo)
-                            </div>
-                            <div x-show="globalVariables.length > 0">
-                                <strong>Variables:</strong> <span x-text="globalVariables.length"></span> globales (permanentes)
-                            </div>
-                            <div class="text-gray-500 mt-2">
-                                Todos se incluyen automáticamente cuando abres el preview en nueva ventana
-                            </div>
-                        </div>
+                    <!-- Botón para guardar variables -->
+                    <div x-show="globalVariables.length > 0" class="flex justify-end pt-4 border-t border-gray-200">
+                        <button 
+                            @click="saveAllVariables()" 
+                            class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                        >
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            Guardar Variables
+                        </button>
                     </div>
                 </div>
+     
 
                 <!-- Communication Tab -->
                 <div x-show="activeTab === 'communication'" class="space-y-4">
@@ -634,6 +696,14 @@ function componentEditor() {
         showPreviewModal: false,
         previewComponent: null,
         
+        // ===== NUEVAS PROPIEDADES PARA CATEGORÍAS =====
+        categories: {},
+        selectedCategory: 'all',
+        searchTerm: '',
+        sortBy: 'category',
+        sortOrder: 'asc',
+        viewMode: 'grouped', // 'grouped' o 'list'
+        
         // ===== VARIABLES GLOBALES =====
         globalVariables: [],
         propsSubTab: 'props', // Sub-tab para Props/Variables
@@ -658,16 +728,129 @@ function componentEditor() {
             message: ''
         },
 
+        // ===== COMPUTADAS PARA FILTROS =====
+        get filteredVariables() {
+            let filtered = this.globalVariables;
+            
+            // Filtro por categoría
+            if (this.selectedCategory !== 'all') {
+                filtered = filtered.filter(v => v.category === this.selectedCategory);
+            }
+            
+            // Búsqueda
+            if (this.searchTerm) {
+                const search = this.searchTerm.toLowerCase();
+                filtered = filtered.filter(v => 
+                    v.name.toLowerCase().includes(search) ||
+                    (v.description && v.description.toLowerCase().includes(search))
+                );
+            }
+            
+            // Ordenamiento
+            filtered.sort((a, b) => {
+                if (this.sortBy === 'category') {
+                    // Primero por categoría, luego por nombre
+                    if (a.category !== b.category) {
+                        return this.sortOrder === 'asc' 
+                            ? a.category.localeCompare(b.category)
+                            : b.category.localeCompare(a.category);
+                    }
+                    return a.name.localeCompare(b.name);
+                } else {
+                    const valueA = a[this.sortBy] || '';
+                    const valueB = b[this.sortBy] || '';
+                    return this.sortOrder === 'asc' 
+                        ? valueA.localeCompare(valueB)
+                        : valueB.localeCompare(valueA);
+                }
+            });
+            
+            return filtered;
+        },
+
+        get groupedVariables() {
+            const grouped = {};
+            this.filteredVariables.forEach(variable => {
+                if (!grouped[variable.category]) {
+                    grouped[variable.category] = [];
+                }
+                grouped[variable.category].push(variable);
+            });
+            return grouped;
+        },
+
         // Init
         async init() {
             console.log('Component Editor initialized');
             this.setupAutoSave();
             
+            // Cargar categorías ANTES que variables
+            await this.loadCategories();
+            
             // Cargar variables globales
             await this.loadGlobalVariables();
         },
 
-        // ===== VARIABLES GLOBALES METHODS =====
+        // ===== NUEVOS MÉTODOS PARA CATEGORÍAS =====
+
+        // Cargar categorías del servidor
+        async loadCategories() {
+            try {
+                const response = await fetch('/api/component-builder/global-variables/categories', {
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    }
+                });
+                
+                if (response.ok) {
+                    this.categories = await response.json();
+                } else {
+                    this.categories = {};
+                }
+            } catch (error) {
+                console.error('Error loading categories:', error);
+                this.categories = {};
+            }
+        },
+
+        // Filtrar por categoría
+        filterByCategory(category) {
+            this.selectedCategory = category;
+        },
+
+        // Cambiar orden
+        toggleSort(field) {
+            if (this.sortBy === field) {
+                this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.sortBy = field;
+                this.sortOrder = 'asc';
+            }
+        },
+
+        // Limpiar filtros
+        clearFilters() {
+            this.selectedCategory = 'all';
+            this.searchTerm = '';
+            this.sortBy = 'category';
+            this.sortOrder = 'asc';
+        },
+
+        // Obtener información de categoría
+        getCategoryInfo(categoryKey) {
+            return this.categories[categoryKey] || {
+                label: categoryKey,
+                icon: '✨',
+                description: 'Categoría personalizada'
+            };
+        },
+
+        // Contar variables por categoría
+        getCategoryCount(categoryKey) {
+            return this.globalVariables.filter(v => v.category === categoryKey).length;
+        },
+
+        // ===== VARIABLES GLOBALES METHODS (ACTUALIZADOS) =====
 
         // Cargar variables globales del servidor
         async loadGlobalVariables() {
@@ -689,13 +872,15 @@ function componentEditor() {
             }
         },
 
-        // Agregar nueva variable
+        // Agregar nueva variable (ACTUALIZADO con categoría)
         addVariable() {
             this.globalVariables.push({
                 id: null,
                 name: '',
                 value: '',
                 type: 'string',
+                category: 'custom', // NUEVA PROPIEDAD
+                description: '',
                 created_at: new Date().toISOString()
             });
         },
@@ -720,6 +905,97 @@ function componentEditor() {
             
             this.globalVariables.splice(index, 1);
             this.showNotification('success', 'Variable eliminada');
+        },
+
+        // NUEVO: Guardar todas las variables
+        async saveAllVariables() {
+            this.isSaving = true;
+            let savedCount = 0;
+            let errorCount = 0;
+            
+            try {
+                for (const variable of this.globalVariables) {
+                    // Validar variable antes de guardar
+                    if (!variable.name || !variable.value) {
+                        continue; // Saltar variables incompletas
+                    }
+                    
+                    try {
+                        if (variable.id) {
+                            // Actualizar variable existente
+                            const response = await fetch(`/api/component-builder/global-variables/${variable.id}`, {
+                                method: 'PUT',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                                },
+                                body: JSON.stringify({
+                                    name: variable.name,
+                                    value: variable.value,
+                                    type: variable.type,
+                                    category: variable.category || 'custom',
+                                    description: variable.description || ''
+                                })
+                            });
+                            
+                            if (response.ok) {
+                                const updated = await response.json();
+                                // Actualizar la variable en el array local
+                                Object.assign(variable, updated);
+                                savedCount++;
+                            } else {
+                                console.error('Error updating variable:', variable.name);
+                                errorCount++;
+                            }
+                        } else {
+                            // Crear nueva variable
+                            const response = await fetch('/api/component-builder/global-variables', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                                },
+                                body: JSON.stringify({
+                                    name: variable.name,
+                                    value: variable.value,
+                                    type: variable.type,
+                                    category: variable.category || 'custom',
+                                    description: variable.description || ''
+                                })
+                            });
+                            
+                            if (response.ok) {
+                                const created = await response.json();
+                                // Actualizar la variable local con el ID del servidor
+                                Object.assign(variable, created);
+                                savedCount++;
+                            } else {
+                                const error = await response.json();
+                                console.error('Error creating variable:', error);
+                                errorCount++;
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error processing variable:', variable.name, error);
+                        errorCount++;
+                    }
+                }
+                
+                // Mostrar notificación de resultado
+                if (errorCount === 0) {
+                    this.showNotification('success', `${savedCount} variables guardadas correctamente`);
+                } else if (savedCount > 0) {
+                    this.showNotification('warning', `${savedCount} guardadas, ${errorCount} con errores`);
+                } else {
+                    this.showNotification('error', 'No se pudieron guardar las variables');
+                }
+                
+            } catch (error) {
+                console.error('Error saving variables:', error);
+                this.showNotification('error', 'Error inesperado al guardar variables');
+            } finally {
+                this.isSaving = false;
+            }
         },
 
         // Guardar variable (crear o actualizar) CON DEBOUNCE
@@ -766,7 +1042,9 @@ function componentEditor() {
                     body: JSON.stringify({
                         name: variable.name,
                         value: variable.value,
-                        type: variable.type
+                        type: variable.type,
+                        category: variable.category || 'custom',
+                        description: variable.description || ''
                     })
                 });
                 
@@ -784,7 +1062,7 @@ function componentEditor() {
             }
         },
 
-        // ===== PROPS METHODS =====
+        // ===== PROPS METHODS (SIN CAMBIOS) =====
 
         // Setup auto-save
         setupAutoSave() {
