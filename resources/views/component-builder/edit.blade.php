@@ -806,6 +806,26 @@
 
                                 <!-- Contenido del Modal -->
                                 <div class="flex-1 overflow-y-auto p-6">
+
+                                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6"
+                                        x-show="!selectedToken?.metadata">
+                                        <h4 class="text-yellow-800 font-medium mb-2">⚠️ Debug: Token sin metadata</h4>
+                                        <div class="text-yellow-700 text-sm space-y-1">
+                                            <div>Token ID: <span x-text="selectedToken?.id"></span></div>
+                                            <div>Tiene metadata: <span
+                                                    x-text="selectedToken?.metadata ? 'Sí' : 'No'"></span></div>
+                                            <div>Estructura completa:</div>
+                                            <pre class="bg-yellow-100 p-2 rounded text-xs overflow-x-auto" x-text="JSON.stringify(selectedToken, null, 2)"></pre>
+                                        </div>
+                                        <div class="mt-3 text-yellow-800 text-sm">
+                                            <strong>Solución:</strong> Este token no tiene metadata. Intenta:
+                                            <ol class="list-decimal list-inside mt-1 space-y-1">
+                                                <li>Eliminar este token y crear uno nuevo</li>
+                                                <li>Verificar que el backend incluya metadata</li>
+                                                <li>Revisar la ruta API que devuelve los tokens</li>
+                                            </ol>
+                                        </div>
+                                    </div>
                                     <!-- Color Palette Details -->
                                     <template x-if="selectedToken?.type === 'color_palette'">
                                         <div>
@@ -1154,6 +1174,35 @@
                                                         </template>
                                                     </template>
                                                 </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <!-- Fallback si no hay metadata -->
+
+                                    <template x-if="!selectedToken?.metadata">
+                                        <div class="text-center py-12">
+                                            <div class="text-gray-400 mb-4">
+                                                <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor"
+                                                    viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+                                                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                            </div>
+                                            <h3 class="text-lg font-medium text-gray-900 mb-2">Token Incompleto</h3>
+                                            <p class="text-gray-600 mb-4">Este design token no tiene metadata generada.</p>
+                                            <div class="space-y-2">
+                                                <p class="text-sm text-gray-500">
+                                                    <strong>Información básica:</strong>
+                                                </p>
+                                                <div class="bg-gray-100 rounded p-3 text-sm">
+                                                    <div>Nombre: <span x-text="selectedToken?.name"></span></div>
+                                                    <div>Valor: <span x-text="selectedToken?.value"></span></div>
+                                                    <div>Tipo: <span x-text="selectedToken?.type"></span></div>
+                                                </div>
+                                                <button @click="recreateToken(selectedToken)"
+                                                    class="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                                                    🔄 Recrear Token con Metadata
+                                                </button>
                                             </div>
                                         </div>
                                     </template>
@@ -1714,6 +1763,33 @@
                     } catch (error) {
                         console.error('Error copying CSS:', error);
                         this.showNotification('error', 'Error al copiar CSS');
+                    }
+                },
+
+                async recreateToken(token) {
+                    if (!token) return;
+
+                    try {
+                        // Eliminar token actual
+                        await this.removeDesignToken(token);
+
+                        // Configurar formulario con datos del token
+                        if (token.type === 'color_palette') {
+                            this.colorForm = {
+                                name: token.name,
+                                base_color: token.value,
+                                palette_name: '',
+                                description: token.description || ''
+                            };
+                            this.showCreateColorModal = true;
+                        }
+
+                        this.showTokenDetailsModal = false;
+                        this.showNotification('info', 'Recrea el token para generar metadata completa');
+
+                    } catch (error) {
+                        console.error('Error recreating token:', error);
+                        this.showNotification('error', 'Error al recrear token');
                     }
                 },
 
