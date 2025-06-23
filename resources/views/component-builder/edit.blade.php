@@ -425,61 +425,62 @@
                     </div>
                     
 
-                    <div x-show="viewMode === 'grouped' && Object.keys(groupedVariables).length > 0" class="mt-8">
-                        <div class="border-t border-gray-200 pt-6">
-                            <div class="flex items-center justify-between mb-4">
-                                <div class="flex items-center gap-3">
-                                    <div class="p-2 bg-purple-100 rounded-lg">
-                                        <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5H9a2 2 0 00-2 2v12a4 4 0 004 4h6a2 2 0 002-2V7a2 2 0 00-2-2z"/>
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <h3 class="text-lg font-semibold text-gray-900">🎨 Design Tokens</h3>
-                                        <p class="text-sm text-gray-600">Crea paletas de colores y sistemas tipográficos completos</p>
-                                    </div>
+                <div x-show="viewMode === 'grouped' && Object.keys(groupedVariables).length > 0" class="mt-8">
+                    <div class="border-t border-gray-200 pt-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="flex items-center gap-3">
+                                <div class="p-2 bg-purple-100 rounded-lg">
+                                    <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5H9a2 2 0 00-2 2v12a4 4 0 004 4h6a2 2 0 002-2V7a2 2 0 00-2-2z"/>
+                                    </svg>
                                 </div>
-                                
-                                <div class="flex gap-2">
-                                    <button 
-                                        @click="showCreateColorModal = true"
-                                        class="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all text-sm font-medium flex items-center gap-2"
-                                    >
-                                        <span>🎨</span>
-                                        Color Palette
-                                    </button>
-                                    
-                                    <button 
-                                        @click="showCreateTypographyModal = true"
-                                        class="px-4 py-2 bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-lg hover:from-green-600 hover:to-teal-700 transition-all text-sm font-medium flex items-center gap-2"
-                                    >
-                                        <span>📝</span>
-                                        Typography
-                                    </button>
+                                <div>
+                                    <h3 class="text-lg font-semibold text-gray-900">🎨 Design Tokens</h3>
+                                    <p class="text-sm text-gray-600">Crea paletas de colores y sistemas tipográficos completos</p>
                                 </div>
                             </div>
+                            
+                            <div class="flex gap-2">
+                                <button 
+                                    @click="showCreateColorModal = true"
+                                    class="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all text-sm font-medium flex items-center gap-2"
+                                >
+                                    <span>🎨</span>
+                                    Color Palette
+                                </button>
+                                
+                                <button 
+                                    @click="showCreateTypographyModal = true"
+                                    class="px-4 py-2 bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-lg hover:from-green-600 hover:to-teal-700 transition-all text-sm font-medium flex items-center gap-2"
+                                >
+                                    <span>📝</span>
+                                    Typography
+                                </button>
+                            </div>
+                        </div>
 
-                            <!-- Design Tokens existentes -->
-                            <div class="grid gap-4 md:grid-cols-2" x-show="designTokens.length > 0">
-                                <template x-for="token in designTokens" :key="token.id">
-                                    <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                                        <!-- Color Palette Token -->
-                                        <template x-if="token.type === 'color_palette'">
-                                            <div>
-                                                <div class="flex items-start justify-between mb-3">
-                                                    <div>
-                                                        <h4 class="font-medium text-gray-900" x-text="token.name"></h4>
-                                                        <p class="text-sm text-gray-600" x-text="token.description || 'Paleta de colores'"></p>
-                                                    </div>
-                                                    <button @click="removeDesignToken(token)" class="text-red-500 hover:text-red-700">
-                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                                        </svg>
-                                                    </button>
+                        <!-- Design Tokens existentes -->
+                        <div class="grid gap-4 md:grid-cols-2" x-show="designTokens.length > 0">
+                            <template x-for="token in designTokens" :key="token.id">
+                                <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                                    <!-- Color Palette Token -->
+                                    <template x-if="token.type === 'color_palette'">
+                                        <div>
+                                            <div class="flex items-start justify-between mb-3">
+                                                <div>
+                                                    <h4 class="font-medium text-gray-900" x-text="token.name"></h4>
+                                                    <p class="text-sm text-gray-600" x-text="token.description || 'Paleta de colores'"></p>
                                                 </div>
-                                                
-                                                <!-- Paleta de colores visual -->
-                                                <div class="flex rounded-lg overflow-hidden mb-3" x-show="token.metadata && token.metadata.shades">
+                                                <button @click="removeDesignToken(token)" class="text-red-500 hover:text-red-700">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                            
+                                            <!-- Paleta de colores visual con VERIFICACIÓN -->
+                                            <div class="flex rounded-lg overflow-hidden mb-3" x-show="token.metadata && token.metadata.shades">
+                                                <template x-if="token.metadata && token.metadata.shades">
                                                     <template x-for="(color, shade) in token.metadata.shades" :key="shade">
                                                         <div 
                                                             class="flex-1 h-8 cursor-pointer hover:scale-105 transition-transform"
@@ -488,83 +489,92 @@
                                                             @click="copyToClipboard(color)"
                                                         ></div>
                                                     </template>
-                                                </div>
-                                                
-                                                <!-- Información técnica -->
-                                                <div class="text-xs text-gray-500 space-y-1">
-                                                    <div>Base: <span class="font-mono bg-gray-100 px-1 rounded" x-text="token.value"></span></div>
-                                                    <div>CSS: <span class="font-mono bg-gray-100 px-1 rounded">var(--color-<span x-text="token.metadata.name"></span>)</span></div>
-                                                </div>
+                                                </template>
                                             </div>
-                                        </template>
+                                            
+                                            <!-- Información técnica con VERIFICACIÓN -->
+                                            <div class="text-xs text-gray-500 space-y-1">
+                                                <div>Base: <span class="font-mono bg-gray-100 px-1 rounded" x-text="token.value"></span></div>
+                                                <template x-if="token.metadata && token.metadata.name">
+                                                    <div>CSS: <span class="font-mono bg-gray-100 px-1 rounded">var(--color-<span x-text="token.metadata.name"></span>)</span></div>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
 
-                                        <!-- Typography System Token -->
-                                        <template x-if="token.type === 'typography_system'">
-                                            <div>
-                                                <div class="flex items-start justify-between mb-3">
-                                                    <div>
-                                                        <h4 class="font-medium text-gray-900" x-text="token.name"></h4>
-                                                        <p class="text-sm text-gray-600" x-text="token.description || 'Sistema tipográfico'"></p>
-                                                    </div>
-                                                    <button @click="removeDesignToken(token)" class="text-red-500 hover:text-red-700">
-                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                                        </svg>
-                                                    </button>
+                                    <!-- Typography System Token -->
+                                    <template x-if="token.type === 'typography_system'">
+                                        <div>
+                                            <div class="flex items-start justify-between mb-3">
+                                                <div>
+                                                    <h4 class="font-medium text-gray-900" x-text="token.name"></h4>
+                                                    <p class="text-sm text-gray-600" x-text="token.description || 'Sistema tipográfico'"></p>
                                                 </div>
-                                                
-                                                <!-- Preview tipográfico -->
-                                                <div class="space-y-2 mb-3" x-show="token.metadata && token.metadata.fonts">
-                                                    <div class="text-lg font-medium" :style="`font-family: ${token.metadata.fonts.primary}`">
-                                                        <span x-text="token.metadata.fonts.primary.split(',')[0]"></span>
-                                                    </div>
-                                                    <div class="grid grid-cols-3 gap-2 text-xs">
-                                                        <template x-for="(size, name) in token.metadata.sizes" :key="name">
-                                                            <div class="text-center">
-                                                                <div class="text-gray-500" x-text="name"></div>
-                                                                <div class="font-mono text-gray-600" x-text="size"></div>
+                                                <button @click="removeDesignToken(token)" class="text-red-500 hover:text-red-700">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                            
+                                            <!-- Preview tipográfico con VERIFICACIÓN -->
+                                            <div class="space-y-2 mb-3" x-show="token.metadata && token.metadata.fonts">
+                                                <template x-if="token.metadata && token.metadata.fonts && token.metadata.fonts.primary">
+                                                    <div>
+                                                        <div class="text-lg font-medium" :style="`font-family: ${token.metadata.fonts.primary}`">
+                                                            <span x-text="token.metadata.fonts.primary.split(',')[0]"></span>
+                                                        </div>
+                                                        <template x-if="token.metadata.sizes">
+                                                            <div class="grid grid-cols-3 gap-2 text-xs">
+                                                                <template x-for="(size, name) in token.metadata.sizes" :key="name">
+                                                                    <div class="text-center">
+                                                                        <div class="text-gray-500" x-text="name"></div>
+                                                                        <div class="font-mono text-gray-600" x-text="size"></div>
+                                                                    </div>
+                                                                </template>
                                                             </div>
                                                         </template>
                                                     </div>
-                                                </div>
-                                                
-                                                <!-- Información técnica -->
-                                                <div class="text-xs text-gray-500 space-y-1">
-                                                    <div>Font: <span class="font-mono bg-gray-100 px-1 rounded" x-text="token.value"></span></div>
-                                                    <div>CSS: <span class="font-mono bg-gray-100 px-1 rounded">var(--font-primary)</span></div>
-                                                </div>
+                                                </template>
                                             </div>
-                                        </template>
-                                    </div>
-                                </template>
-                            </div>
+                                            
+                                            <!-- Información técnica -->
+                                            <div class="text-xs text-gray-500 space-y-1">
+                                                <div>Font: <span class="font-mono bg-gray-100 px-1 rounded" x-text="token.value"></span></div>
+                                                <div>CSS: <span class="font-mono bg-gray-100 px-1 rounded">var(--font-primary)</span></div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
 
-                            <!-- Empty state para design tokens -->
-                            <div x-show="designTokens.length === 0" class="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg">
-                                <div class="text-gray-400 mb-3">
-                                    <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5H9a2 2 0 00-2 2v12a4 4 0 004 4h6a2 2 0 002-2V7a2 2 0 00-2-2z"/>
-                                    </svg>
-                                </div>
-                                <h4 class="text-lg font-medium text-gray-900 mb-2">¡Crea tu primer Design Token!</h4>
-                                <p class="text-gray-600 mb-4">Los design tokens te permiten crear sistemas de diseño consistentes</p>
-                                <div class="flex justify-center gap-3">
-                                    <button 
-                                        @click="showCreateColorModal = true"
-                                        class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                                    >
-                                        🎨 Paleta de Colores
-                                    </button>
-                                    <button 
-                                        @click="showCreateTypographyModal = true"
-                                        class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-                                    >
-                                        📝 Tipografía
-                                    </button>
-                                </div>
+                        <!-- Empty state para design tokens -->
+                        <div x-show="designTokens.length === 0" class="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg">
+                            <div class="text-gray-400 mb-3">
+                                <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5H9a2 2 0 00-2 2v12a4 4 0 004 4h6a2 2 0 002-2V7a2 2 0 00-2-2z"/>
+                                </svg>
+                            </div>
+                            <h4 class="text-lg font-medium text-gray-900 mb-2">¡Crea tu primer Design Token!</h4>
+                            <p class="text-gray-600 mb-4">Los design tokens te permiten crear sistemas de diseño consistentes</p>
+                            <div class="flex justify-center gap-3">
+                                <button 
+                                    @click="showCreateColorModal = true"
+                                    class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                                >
+                                    🎨 Paleta de Colores
+                                </button>
+                                <button 
+                                    @click="showCreateTypographyModal = true"
+                                    class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                                >
+                                    📝 Tipografía
+                                </button>
                             </div>
                         </div>
                     </div>
+                </div>
 
                     <!-- MODAL: Crear Paleta de Colores -->
                     <div x-show="showCreateColorModal" 
@@ -1063,7 +1073,7 @@ function componentEditor() {
         showPreviewModal: false,
         previewComponent: null,
         
-        // ===== NUEVAS PROPIEDADES PARA CATEGORÍAS =====
+        // ===== PROPIEDADES PARA CATEGORÍAS =====
         categories: {},
         selectedCategory: 'all',
         searchTerm: '',
@@ -1094,6 +1104,30 @@ function componentEditor() {
             type: 'info',
             message: ''
         },
+
+        // ===== PROPIEDADES para Design Tokens =====
+        designTokens: [], // Array para almacenar design tokens
+        showCreateColorModal: false,
+        showCreateTypographyModal: false,
+        creatingToken: false,
+
+        // Formularios para modales
+        colorForm: {
+            name: '',
+            base_color: '#3B82F6',
+            palette_name: '',
+            description: ''
+        },
+
+        typographyForm: {
+            name: '',
+            primary_font: '',
+            secondary_font: '',
+            description: ''
+        },
+
+        // Preview data
+        colorPreview: {},
 
         // ===== COMPUTADAS PARA FILTROS =====
         get filteredVariables() {
@@ -1146,32 +1180,6 @@ function componentEditor() {
             return grouped;
         },
 
-
-
-        // ===== NUEVAS PROPIEDADES para Design Tokens =====
-        designTokens: [], // Array para almacenar design tokens
-        showCreateColorModal: false,
-        showCreateTypographyModal: false,
-        creatingToken: false,
-
-        // Formularios para modales
-        colorForm: {
-            name: '',
-            base_color: '#3B82F6',
-            palette_name: '',
-            description: ''
-        },
-
-        typographyForm: {
-            name: '',
-            primary_font: '',
-            secondary_font: '',
-            description: ''
-        },
-
-        // Preview data
-        colorPreview: {},
-
         // Init
         async init() {
             console.log('Component Editor initialized');
@@ -1182,27 +1190,15 @@ function componentEditor() {
             
             // Cargar variables globales
             await this.loadGlobalVariables();
-
-             console.log('Component Editor initialized');
-            this.setupAutoSave();
             
-            // Cargar categorías ANTES que variables
-            await this.loadCategories();
-            
-            // Cargar variables globales
-            await this.loadGlobalVariables();
-            
-            // NUEVO: Cargar design tokens
+            // Cargar design tokens
             await this.loadDesignTokens();
             
-            // NUEVO: Inyectar CSS de design tokens
+            // Inyectar CSS de design tokens
             await this.injectDesignTokensCSS();
-
-
-
         },
 
-        // ===== NUEVOS MÉTODOS PARA CATEGORÍAS =====
+        // ===== MÉTODOS PARA CATEGORÍAS =====
 
         // Cargar categorías del servidor
         async loadCategories() {
@@ -1261,7 +1257,7 @@ function componentEditor() {
             return this.globalVariables.filter(v => v.category === categoryKey).length;
         },
 
-        // ===== VARIABLES GLOBALES METHODS (ACTUALIZADOS) =====
+        // ===== VARIABLES GLOBALES METHODS =====
 
         // Cargar variables globales del servidor
         async loadGlobalVariables() {
@@ -1283,14 +1279,14 @@ function componentEditor() {
             }
         },
 
-        // Agregar nueva variable (ACTUALIZADO con categoría)
+        // Agregar nueva variable
         addVariable() {
             this.globalVariables.push({
                 id: null,
                 name: '',
                 value: '',
                 type: 'string',
-                category: 'custom', // NUEVA PROPIEDAD
+                category: 'custom',
                 description: '',
                 created_at: new Date().toISOString()
             });
@@ -1318,7 +1314,7 @@ function componentEditor() {
             this.showNotification('success', 'Variable eliminada');
         },
 
-        // NUEVO: Guardar todas las variables
+        // Guardar todas las variables
         async saveAllVariables() {
             this.isSaving = true;
             let savedCount = 0;
@@ -1351,7 +1347,6 @@ function componentEditor() {
                             
                             if (response.ok) {
                                 const updated = await response.json();
-                                // Actualizar la variable en el array local
                                 Object.assign(variable, updated);
                                 savedCount++;
                             } else {
@@ -1377,7 +1372,6 @@ function componentEditor() {
                             
                             if (response.ok) {
                                 const created = await response.json();
-                                // Actualizar la variable local con el ID del servidor
                                 Object.assign(variable, created);
                                 savedCount++;
                             } else {
@@ -1409,282 +1403,217 @@ function componentEditor() {
             }
         },
 
-        // Guardar variable (crear o actualizar) CON DEBOUNCE
-        async saveVariable(index) {
-            const variable = this.globalVariables[index];
-            
-            // Validar nombre de variable
-            if (!variable.name || !variable.name.trim()) {
-                return;
+        // ===== MÉTODOS para Design Tokens =====
+
+        // Cargar design tokens del servidor
+        async loadDesignTokens() {
+            try {
+                const response = await fetch('/api/component-builder/global-variables?category=design', {
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    }
+                });
+                
+                if (response.ok) {
+                    const allVariables = await response.json();
+                    this.designTokens = allVariables.filter(v => 
+                        v.type === 'color_palette' || v.type === 'typography_system'
+                    );
+                } else {
+                    this.designTokens = [];
+                }
+            } catch (error) {
+                console.error('Error loading design tokens:', error);
+                this.designTokens = [];
             }
-            
-            // DEBOUNCE: Cancelar timeout anterior
-            if (variable.saveTimeout) {
-                clearTimeout(variable.saveTimeout);
-            }
-            
-            // DEBOUNCE: Nuevo timeout de 1 segundo
-            variable.saveTimeout = setTimeout(async () => {
-                await this.performSaveVariable(index);
-            }, 1000);
         },
 
-        // Método real para guardar (separado para el debounce)
-        async performSaveVariable(index) {
-            const variable = this.globalVariables[index];
-            
-            // Limpiar nombre de variable (solo letras, números y underscore)
-            variable.name = variable.name.toLowerCase()
-                .replace(/[^a-z0-9_]/g, '')
-                .replace(/^[0-9]/, ''); // No puede empezar con número
-            
+        // Preview de paleta de colores en tiempo real
+        async previewColorPalette() {
+            if (!this.colorForm.base_color || !this.colorForm.base_color.match(/^#[0-9A-Fa-f]{6}$/)) {
+                this.colorPreview = {};
+                return;
+            }
+
             try {
-                const method = variable.id ? 'PUT' : 'POST';
-                const url = variable.id 
-                    ? `/api/component-builder/global-variables/${variable.id}`
-                    : '/api/component-builder/global-variables';
-                
-                const response = await fetch(url, {
-                    method: method,
+                const response = await fetch('/api/component-builder/design-tokens/preview-color', {
+                    method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                     },
                     body: JSON.stringify({
-                        name: variable.name,
-                        value: variable.value,
-                        type: variable.type,
-                        category: variable.category || 'custom',
-                        description: variable.description || ''
+                        base_color: this.colorForm.base_color,
+                        name: this.colorForm.palette_name || this.colorForm.name || 'preview'
                     })
                 });
-                
+
                 if (response.ok) {
-                    const savedVariable = await response.json();
-                    // Actualizar con datos del servidor
-                    this.globalVariables[index] = { ...variable, ...savedVariable };
-                    console.log('✅ Variable guardada:', savedVariable.name);
-                } else {
-                    console.error('❌ Error al guardar variable:', response.status);
+                    const data = await response.json();
+                    this.colorPreview = data.palette;
+                    this.colorPreview.contrast_info = data.contrast_info;
                 }
             } catch (error) {
-                console.error('❌ Error saving variable:', error);
-                this.showNotification('error', 'Error al guardar variable');
+                console.error('Error previewing color palette:', error);
             }
         },
 
-            // ===== MÉTODOS para Design Tokens =====
+        // Crear paleta de colores
+        async createColorPalette() {
+            if (this.creatingToken) return;
+            
+            this.creatingToken = true;
 
-            // Cargar design tokens del servidor
-            async loadDesignTokens() {
-                try {
-                    const response = await fetch('/api/component-builder/global-variables?category=design', {
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        }
-                    });
+            try {
+                const response = await fetch('/api/component-builder/design-tokens/color-palette', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify(this.colorForm)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    this.showNotification('success', 'Paleta de colores creada exitosamente');
+                    this.designTokens.push(data.variable);
                     
-                    if (response.ok) {
-                        const allVariables = await response.json();
-                        this.designTokens = allVariables.filter(v => 
-                            v.type === 'color_palette' || v.type === 'typography_system'
-                        );
-                    } else {
-                        this.designTokens = [];
-                    }
-                } catch (error) {
-                    console.error('Error loading design tokens:', error);
-                    this.designTokens = [];
-                }
-            },
-
-            // Preview de paleta de colores en tiempo real
-            async previewColorPalette() {
-                if (!this.colorForm.base_color || !this.colorForm.base_color.match(/^#[0-9A-Fa-f]{6}$/)) {
+                    // Cerrar modal y limpiar formulario
+                    this.showCreateColorModal = false;
+                    this.colorForm = {
+                        name: '',
+                        base_color: '#3B82F6',
+                        palette_name: '',
+                        description: ''
+                    };
                     this.colorPreview = {};
-                    return;
+
+                    // Recargar variables globales para incluir las nuevas
+                    await this.loadGlobalVariables();
+                    
+                } else {
+                    this.showNotification('error', data.error || 'Error al crear paleta de colores');
                 }
 
-                try {
-                    const response = await fetch('/api/component-builder/design-tokens/preview-color', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        },
-                        body: JSON.stringify({
-                            base_color: this.colorForm.base_color,
-                            name: this.colorForm.palette_name || this.colorForm.name || 'preview'
-                        })
-                    });
+            } catch (error) {
+                console.error('Error creating color palette:', error);
+                this.showNotification('error', 'Error de conexión al crear paleta');
+            } finally {
+                this.creatingToken = false;
+            }
+        },
 
-                    if (response.ok) {
-                        const data = await response.json();
-                        this.colorPreview = data.palette;
-                        this.colorPreview.contrast_info = data.contrast_info;
+        // Crear sistema tipográfico
+        async createTypographySystem() {
+            if (this.creatingToken) return;
+            
+            this.creatingToken = true;
+
+            try {
+                const response = await fetch('/api/component-builder/design-tokens/typography-system', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify(this.typographyForm)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    this.showNotification('success', 'Sistema tipográfico creado exitosamente');
+                    this.designTokens.push(data.variable);
+                    
+                    // Cerrar modal y limpiar formulario
+                    this.showCreateTypographyModal = false;
+                    this.typographyForm = {
+                        name: '',
+                        primary_font: '',
+                        secondary_font: '',
+                        description: ''
+                    };
+
+                    // Recargar variables globales
+                    await this.loadGlobalVariables();
+                    
+                } else {
+                    this.showNotification('error', data.error || 'Error al crear sistema tipográfico');
+                }
+
+            } catch (error) {
+                console.error('Error creating typography system:', error);
+                this.showNotification('error', 'Error de conexión al crear tipografía');
+            } finally {
+                this.creatingToken = false;
+            }
+        },
+
+        // Remover design token
+        async removeDesignToken(token) {
+            if (!confirm('¿Estás seguro de que quieres eliminar este design token?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/component-builder/global-variables/${token.id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                     }
-                } catch (error) {
-                    console.error('Error previewing color palette:', error);
+                });
+
+                if (response.ok) {
+                    this.designTokens = this.designTokens.filter(t => t.id !== token.id);
+                    this.showNotification('success', 'Design token eliminado');
+                    
+                    // Recargar variables globales
+                    await this.loadGlobalVariables();
+                } else {
+                    this.showNotification('error', 'Error al eliminar design token');
                 }
-            },
 
-            // Crear paleta de colores
-            async createColorPalette() {
-                if (this.creatingToken) return;
-                
-                this.creatingToken = true;
+            } catch (error) {
+                console.error('Error removing design token:', error);
+                this.showNotification('error', 'Error de conexión');
+            }
+        },
 
-                try {
-                    const response = await fetch('/api/component-builder/design-tokens/color-palette', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        },
-                        body: JSON.stringify(this.colorForm)
-                    });
+        // Copiar color al clipboard
+        async copyToClipboard(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                this.showNotification('success', `Copiado: ${text}`);
+            } catch (error) {
+                console.error('Error copying to clipboard:', error);
+            }
+        },
 
-                    const data = await response.json();
-
-                    if (response.ok) {
-                        this.showNotification('success', 'Paleta de colores creada exitosamente');
-                        this.designTokens.push(data.variable);
-                        
-                        // Cerrar modal y limpiar formulario
-                        this.showCreateColorModal = false;
-                        this.colorForm = {
-                            name: '',
-                            base_color: '#3B82F6',
-                            palette_name: '',
-                            description: ''
-                        };
-                        this.colorPreview = {};
-
-                        // Recargar variables globales para incluir las nuevas
-                        await this.loadGlobalVariables();
-                        
-                    } else {
-                        this.showNotification('error', data.error || 'Error al crear paleta de colores');
+        // Inyectar CSS de design tokens en el preview
+        async injectDesignTokensCSS() {
+            try {
+                const response = await fetch('/api/component-builder/design-tokens/css');
+                if (response.ok) {
+                    const css = await response.text();
+                    
+                    // Si estás en preview window, inyectar el CSS
+                    if (window.opener) {
+                        const styleElement = document.createElement('style');
+                        styleElement.textContent = css;
+                        document.head.appendChild(styleElement);
                     }
-
-                } catch (error) {
-                    console.error('Error creating color palette:', error);
-                    this.showNotification('error', 'Error de conexión al crear paleta');
-                } finally {
-                    this.creatingToken = false;
+                    
+                    return css;
                 }
-            },
+            } catch (error) {
+                console.error('Error loading design tokens CSS:', error);
+            }
+            return '';
+        },
 
-            // Crear sistema tipográfico
-            async createTypographySystem() {
-                if (this.creatingToken) return;
-                
-                this.creatingToken = true;
-
-                try {
-                    const response = await fetch('/api/component-builder/design-tokens/typography-system', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        },
-                        body: JSON.stringify(this.typographyForm)
-                    });
-
-                    const data = await response.json();
-
-                    if (response.ok) {
-                        this.showNotification('success', 'Sistema tipográfico creado exitosamente');
-                        this.designTokens.push(data.variable);
-                        
-                        // Cerrar modal y limpiar formulario
-                        this.showCreateTypographyModal = false;
-                        this.typographyForm = {
-                            name: '',
-                            primary_font: '',
-                            secondary_font: '',
-                            description: ''
-                        };
-
-                        // Recargar variables globales
-                        await this.loadGlobalVariables();
-                        
-                    } else {
-                        this.showNotification('error', data.error || 'Error al crear sistema tipográfico');
-                    }
-
-                } catch (error) {
-                    console.error('Error creating typography system:', error);
-                    this.showNotification('error', 'Error de conexión al crear tipografía');
-                } finally {
-                    this.creatingToken = false;
-                }
-            },
-
-            // Remover design token
-            async removeDesignToken(token) {
-                if (!confirm('¿Estás seguro de que quieres eliminar este design token?')) {
-                    return;
-                }
-
-                try {
-                    const response = await fetch(`/api/component-builder/global-variables/${token.id}`, {
-                        method: 'DELETE',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        }
-                    });
-
-                    if (response.ok) {
-                        this.designTokens = this.designTokens.filter(t => t.id !== token.id);
-                        this.showNotification('success', 'Design token eliminado');
-                        
-                        // Recargar variables globales
-                        await this.loadGlobalVariables();
-                    } else {
-                        this.showNotification('error', 'Error al eliminar design token');
-                    }
-
-                } catch (error) {
-                    console.error('Error removing design token:', error);
-                    this.showNotification('error', 'Error de conexión');
-                }
-            },
-
-            // Copiar color al clipboard
-            async copyToClipboard(text) {
-                try {
-                    await navigator.clipboard.writeText(text);
-                    this.showNotification('success', `Copiado: ${text}`);
-                } catch (error) {
-                    console.error('Error copying to clipboard:', error);
-                }
-            },
-
-            // Inyectar CSS de design tokens en el preview
-            async injectDesignTokensCSS() {
-                try {
-                    const response = await fetch('/api/component-builder/design-tokens/css');
-                    if (response.ok) {
-                        const css = await response.text();
-                        
-                        // Si estás en preview window, inyectar el CSS
-                        if (window.opener) {
-                            const styleElement = document.createElement('style');
-                            styleElement.textContent = css;
-                            document.head.appendChild(styleElement);
-                        }
-                        
-                        return css;
-                    }
-                } catch (error) {
-                    console.error('Error loading design tokens CSS:', error);
-                }
-                return '';
-            },
-
-
-        // ===== PROPS METHODS (SIN CAMBIOS) =====
+        // ===== MÉTODOS BÁSICOS =====
 
         // Setup auto-save
         setupAutoSave() {
@@ -1717,18 +1646,6 @@ function componentEditor() {
             }
         },
 
-        // Update identifier based on name
-        updateIdentifier() {
-            if (!this.component.identifier) {
-                this.component.identifier = this.component.name
-                    .toLowerCase()
-                    .replace(/[^a-z0-9\s-]/g, '')
-                    .replace(/\s+/g, '-')
-                    .replace(/-+/g, '-')
-                    .trim('-');
-            }
-        },
-
         // Props Management
         addProp() {
             this.testProps.push({
@@ -1742,7 +1659,7 @@ function componentEditor() {
             this.testProps.splice(index, 1);
         },
 
-        // Fix para validar formato de array
+        // Validar formato de array
         validateArrayFormat(prop) {
             try {
                 if (prop.value.trim() === '') {
@@ -1761,7 +1678,7 @@ function componentEditor() {
             }
         },
 
-        // Mejorar parseArrayValue (ya existente pero mejorada)
+        // Parse array value
         parseArrayValue(arrayString) {
             try {
                 // Si está vacío, devolver array vacío
@@ -1788,7 +1705,7 @@ function componentEditor() {
             }
         },
 
-        // Mejorar convertPropsToTestData para incluir variables
+        // Convertir props a test data
         convertPropsToTestData() {
             const testData = {};
             
@@ -1838,7 +1755,6 @@ function componentEditor() {
                 }
             });
             
-            // Debug mejorado
             console.log('🔍 Test Data (Props + Variables):', testData);
             console.log('📊 Props:', this.testProps.length);
             console.log('🔄 Variables:', this.globalVariables.length);
@@ -1846,7 +1762,7 @@ function componentEditor() {
             return testData;
         },
 
-        // Mejorar placeholder para tipos
+        // Get placeholder for type
         getPlaceholderForType(type) {
             switch (type) {
                 case 'string':
@@ -1915,7 +1831,7 @@ function componentEditor() {
             this.notification.show = false;
         },
 
-        // Agregar método faltante
+        // Mark as changed
         markAsChanged() {
             this.hasChanges = true;
         },
@@ -1925,6 +1841,7 @@ function componentEditor() {
             await this.saveComponent();
         },
 
+        // Open preview window
         openPreviewWindow() {
             const componentId = this.component.id;
             
@@ -1974,7 +1891,7 @@ function componentEditor() {
                 console.log('🚀 Preview window opened for component:', componentId);
                 this.showNotification('success', 'Preview abierto en nueva ventana');
                 
-                // NUEVO: Inyectar design tokens CSS en la ventana de preview
+                // Inyectar design tokens CSS en la ventana de preview
                 previewWindow.addEventListener('load', async () => {
                     try {
                         const response = await fetch('/api/component-builder/design-tokens/css');
@@ -1997,8 +1914,7 @@ function componentEditor() {
             return previewWindow;
         },
 
-
-        // Método utilitario para resetear formularios
+        // Métodos utilitarios para Design tokens
         resetForms() {
             this.colorForm = {
                 name: '',
@@ -2028,7 +1944,7 @@ function componentEditor() {
             });
             
             return cssVars;
-        }
+        },
 
         // Navigate back
         goBack() {
