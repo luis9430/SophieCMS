@@ -29,69 +29,194 @@ class ComponentBuilderController extends Controller
 
 
 
-        public function previewWindow(Component $component)
-        {
-            try {
-                // 🆕 OBTENER VARIABLES GLOBALES REALES DE LA BD
-                $globalVariables = GlobalVariable::getAllForBlade();
-                
-                // Datos de prueba por defecto
-                $defaultTestData = [
-                    'title' => 'Vista Previa del Componente',
-                    'description' => 'Esta es la vista previa del componente en ventana nueva.',
-                    'content' => 'Contenido de ejemplo para verificar el componente.',
-                    'image' => 'https://picsum.photos/400/200?random=1',
-                    'button_text' => 'Botón de Ejemplo',
-                    'link' => '#ejemplo',
-                    'author' => 'Autor de Ejemplo',
-                    'date' => now()->format('d/m/Y'),
-                    'price' => '$99.99',
-                    'category' => 'Categoría Ejemplo',
-                    'slides' => [
-                        ['title' => 'Slide 1', 'content' => 'Contenido del primer slide', 'image' => 'https://picsum.photos/400/200?random=2'],
-                        ['title' => 'Slide 2', 'content' => 'Contenido del segundo slide', 'image' => 'https://picsum.photos/400/200?random=3'],
-                        ['title' => 'Slide 3', 'content' => 'Contenido del tercer slide', 'image' => 'https://picsum.photos/400/200?random=4']
-                    ],
-                    'items' => [
-                        ['name' => 'Item 1', 'value' => 'Valor 1'],
-                        ['name' => 'Item 2', 'value' => 'Valor 2'],
-                        ['name' => 'Item 3', 'value' => 'Valor 3']
-                    ]
-                ];
+    public function previewWindow(Component $component)
+    {
+        try {
+            // 🆕 OBTENER VARIABLES GLOBALES Y DESIGN TOKENS
+            $globalVariables = GlobalVariable::getAllForBlade();
+            
+            // 🆕 OBTENER CSS DE DESIGN TOKENS
+            $designTokensCSS = DesignSystemService::exportAllAsCSS();
+            
+            // Datos de prueba por defecto
+            $defaultTestData = [
+                'title' => 'Vista Previa del Componente',
+                'description' => 'Esta es la vista previa del componente en ventana nueva.',
+                'content' => 'Contenido de ejemplo para verificar el componente.',
+                'image' => 'https://via.placeholder.com/400x300',
+                'button_text' => 'Ver más',
+                'button_url' => '#',
+                'price' => '$99.99',
+                'rating' => '4.5',
+                'author' => 'John Doe',
+                'date' => now()->format('M d, Y'),
+                'tags' => ['Laravel', 'PHP', 'Web Development'],
+                'is_featured' => true,
+                'items' => [
+                    ['name' => 'Item 1', 'value' => 'Valor 1'],
+                    ['name' => 'Item 2', 'value' => 'Valor 2'],
+                    ['name' => 'Item 3', 'value' => 'Valor 3']
+                ]
+            ];
 
-                // 🆕 COMBINAR VARIABLES REALES CON DATOS DEFAULT
-                $testData = array_merge($globalVariables, $defaultTestData);
+            // Combinar datos: variables globales + datos de prueba
+            $allData = array_merge($globalVariables, $defaultTestData);
 
-                \Log::info('Preview window with real variables:', [
-                    'component_id' => $component->id,
-                    'global_variables_count' => count($globalVariables),
-                    'global_variables' => $globalVariables
-                ]);
+            // Renderizar el componente con todos los datos
+            $renderedComponent = $this->renderComponentSafely($component->blade_template, $allData);
 
-                $renderedComponent = $this->renderComponentSafely($component->blade_template, $testData);
+            // Preparar configuración para preview
+            $config = [
+                'component_id' => $component->id,
+                'component_name' => $component->name,
+                'props_count' => count($defaultTestData),
+                'variables_count' => count($globalVariables),
+                'design_tokens_count' => GlobalVariable::designTokens()->count()
+            ];
 
-                // Detectar librerías requeridas automáticamente
-                $requiredLibraries = $this->detectRequiredLibrariesFromCode($component->blade_template);
+            return $this->generatePreviewHTML($renderedComponent, $config, $designTokensCSS);
 
-                return view('component-preview.window', [
-                    'component' => $component,
-                    'renderedComponent' => $renderedComponent,
-                    'requiredLibraries' => $requiredLibraries,
-                    'testData' => $testData
-                ]);
+        } catch (\Exception $e) {
+            Log::error('Preview window error: ' . $e->getMessage(), [
+                'component_id' => $component->id,
+                'trace' => $e->getTraceAsString()
+            ]);
 
-            } catch (\Exception $e) {
-                \Log::error('Preview window error', [
-                    'component_id' => $component->id,
-                    'error' => $e->getMessage()
-                ]);
+            $errorHtml = "
+            <div style='background: #fee2e2; border: 1px solid #fca5a5; padding: 1rem; border-radius: 0.5rem; color: #dc2626; margin: 1rem;'>
+                <h3><strong>Error en Preview:</strong></h3>
+                <p>{$e->getMessage()}</p>
+                <details style='margin-top: 0.5rem;'>
+                    <summary style='cursor: pointer;'>Ver detalles técnicos</summary>
+                    <pre style='background: #f3f4f6; padding: 0.5rem; margin-top: 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; overflow: auto;'>{$e->getTraceAsString()}</pre>
+                </details>
+            </div>";
 
-                return view('component-preview.error', [
-                    'error' => $e->getMessage(),
-                    'component' => $component
-                ]);
-            }
+            return $this->generatePreviewHTML($errorHtml, ['error' => true]);
         }
+    }
+
+        private function generatePreviewHTML($content, $config = [], $designTokensCSS = '')
+        {
+            $nonce = Str::random(16);
+            
+            // CSP Policy para desarrollo
+            $cspPolicy = app()->environment('local') 
+                ? "default-src 'self'; script-src 'self' 'unsafe-eval' 'nonce-{$nonce}' https: http://localhost:5173; style-src 'self' 'unsafe-inline' https: http://localhost:5173; font-src 'self' data: https:; img-src 'self' data: https:; connect-src 'self' ws://localhost:5173 http://localhost:5173;"
+                : "default-src 'self'; script-src 'self' 'nonce-{$nonce}' https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; connect-src 'self';";
+
+            // CSS core (ya no incluye Tailwind CDN)
+            $coreCSS = $this->generateAssetTags($this->getCoreCSS(), 'css');
+
+            return "<!DOCTYPE html>
+            <html lang=\"es\">
+            <head>
+                <meta charset=\"UTF-8\">
+                <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+                <title>Component Preview - " . ($config['component_name'] ?? 'Component') . "</title>
+                <meta http-equiv=\"Content-Security-Policy\" content=\"{$cspPolicy}\">
+            <!-- CSS core -->
+            {$coreCSS}
+            
+            <style>
+                /* Reset básico */
+                * { box-sizing: border-box; }
+                body { 
+                    margin: 0; 
+                    padding: 2rem; 
+                    font-family: system-ui, -apple-system, sans-serif; 
+                    background: #f8fafc;
+                    line-height: 1.6;
+                }
+                
+                .component-preview { 
+                    min-height: 100vh; 
+                }
+                
+                .error-preview { 
+                    background: #fee2e2; 
+                    border: 1px solid #fca5a5; 
+                    padding: 1rem; 
+                    border-radius: 0.5rem; 
+                    color: #dc2626; 
+                    margin: 1rem 0;
+                }
+                
+                /* Design Tokens CSS - INYECTADO AUTOMÁTICAMENTE */
+                {$designTokensCSS}
+                
+                /* Preview info */
+                .preview-info {
+                    position: fixed;
+                    top: 10px;
+                    right: 10px;
+                    background: rgba(0,0,0,0.8);
+                    color: white;
+                    padding: 8px 12px;
+                    border-radius: 6px;
+                    font-size: 12px;
+                    z-index: 1000;
+                    backdrop-filter: blur(10px);
+                }
+                
+                .preview-info:hover {
+                    background: rgba(0,0,0,0.9);
+                }
+            </style>
+        </head>
+        <body class=\"component-preview\">
+            <!-- Info del preview -->
+            <div class=\"preview-info\">
+            🎨 Preview: " . ($config['component_name'] ?? 'Component') . "
+                <br>
+            📊 " . ($config['props_count'] ?? 0) . " props • " . ($config['variables_count'] ?? 0) . " variables • " . ($config['design_tokens_count'] ?? 0) . " tokens
+            </div>
+
+            <div class=\"component-preview-container\">
+                {$content}
+            </div>
+
+            <!-- Sistema Centralizado (App.js + CSS via Vite) -->
+            " . $this->getAppAssets() . "
+            
+            <!-- Inicialización del Preview -->
+            <script nonce=\"{$nonce}\">
+                " . $this->generatePreviewInitScript($config) . "
+                
+                // Log design tokens para debug
+                console.log('🎨 Design Tokens CSS injected');
+                console.log('📊 Preview data:', " . json_encode($config) . ");
+                
+                // Función para recargar design tokens CSS
+                window.reloadDesignTokens = async function() {
+                    try {
+                        const response = await fetch('/api/component-builder/design-tokens/css');
+                        if (response.ok) {
+                            const css = await response.text();
+                            
+                            // Remover CSS anterior
+                            const oldStyle = document.querySelector('#design-tokens-css');
+                            if (oldStyle) oldStyle.remove();
+                            
+                            // Agregar nuevo CSS
+                            const styleElement = document.createElement('style');
+                            styleElement.id = 'design-tokens-css';
+                            styleElement.textContent = css;
+                            document.head.appendChild(styleElement);
+                            
+                            console.log('✅ Design tokens CSS reloaded');
+                        }
+                    } catch (error) {
+                        console.error('❌ Error reloading design tokens:', error);
+                    }
+                };
+            </script>
+        </body>
+        </html>";
+        }
+
+
+
 
         public function previewWindowWithData(Request $request, Component $component)
         {

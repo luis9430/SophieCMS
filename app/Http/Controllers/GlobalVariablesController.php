@@ -8,6 +8,7 @@ use App\Models\GlobalVariable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
+use App\Services\DesignSystemService;
 
 class GlobalVariablesController extends Controller
 {
@@ -121,61 +122,68 @@ class GlobalVariablesController extends Controller
         }
     }
 
-    /**
-     * Crear nueva variable global
-     */
     public function store(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255|regex:/^[a-zA-Z_][a-zA-Z0-9_]*$/',
-            'value' => 'required|string',
-            'type' => 'required|in:string,number,boolean,array',
-            'category' => 'required|string|in:design,content,site,media,seo,social,api,custom',
-            'description' => 'nullable|string|max:500'
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'error' => 'Validation failed',
-                'messages' => $validator->errors()
-            ], 422);
-        }
-
-        try {
-            // Verificar que no exista una variable con el mismo nombre
-            if (GlobalVariable::where('name', $request->name)->exists()) {
-                return response()->json([
-                    'error' => 'Variable name already exists'
-                ], 409);
+        {
+            // Si es un design token, usar métodos específicos
+            if ($request->type === 'color_palette') {
+                return $this->createColorPalette($request);
+            }
+            
+            if ($request->type === 'typography_system') {
+                return $this->createTypographySystem($request);
             }
 
-            $variable = GlobalVariable::create([
-                'name' => $request->name,
-                'value' => $request->value,
-                'type' => $request->type,
-                'category' => $request->category,
-                'description' => $request->description,
-                'created_by_user_id' => Auth::id(),
-                'is_active' => true
+            // Para otros tipos, usar el método original
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:255|regex:/^[a-zA-Z_][a-zA-Z0-9_]*$/',
+                'value' => 'required|string',
+                'type' => 'required|in:string,number,boolean,array,color_palette,typography_system',
+                'category' => 'required|string|in:design,content,site,media,seo,social,api,custom',
+                'description' => 'nullable|string|max:500'
             ]);
 
-            return response()->json([
-                'id' => $variable->id,
-                'name' => $variable->name,
-                'value' => $variable->value,
-                'type' => $variable->type,
-                'category' => $variable->category,
-                'description' => $variable->description,
-                'created_at' => $variable->created_at->toISOString(),
-                'updated_at' => $variable->updated_at->toISOString()
-            ], 201);
+            if ($validator->fails()) {
+                return response()->json([
+                    'error' => 'Validation failed',
+                    'messages' => $validator->errors()
+                ], 422);
+            }
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Error creating variable: ' . $e->getMessage()
-            ], 500);
+            try {
+                // Verificar que no exista una variable con el mismo nombre
+                if (GlobalVariable::where('name', $request->name)->exists()) {
+                    return response()->json([
+                        'error' => 'Variable name already exists'
+                    ], 409);
+                }
+
+                $variable = GlobalVariable::create([
+                    'name' => $request->name,
+                    'value' => $request->value,
+                    'type' => $request->type,
+                    'category' => $request->category,
+                    'description' => $request->description,
+                    'created_by_user_id' => Auth::id(),
+                    'is_active' => true
+                ]);
+
+                return response()->json([
+                    'id' => $variable->id,
+                    'name' => $variable->name,
+                    'value' => $variable->value,
+                    'type' => $variable->type,
+                    'category' => $variable->category,
+                    'description' => $variable->description,
+                    'created_at' => $variable->created_at->toISOString(),
+                    'updated_at' => $variable->updated_at->toISOString()
+                ], 201);
+
+            } catch (\Exception $e) {
+                return response()->json([
+                    'error' => 'Error creating variable: ' . $e->getMessage()
+                ], 500);
+            }
         }
-    }
 
     /**
      * Actualizar variable existente
@@ -327,4 +335,241 @@ class GlobalVariablesController extends Controller
             ], 422);
         }
     }
+
+
+        public function createColorPalette(Request $request)
+        {
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:255|regex:/^[a-zA-Z_][a-zA-Z0-9_]*$/',
+                'base_color' => 'required|regex:/^#[0-9A-Fa-f]{6}$/',
+                'palette_name' => 'nullable|string|max:50',
+                'description' => 'nullable|string|max:500'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'error' => 'Validation failed',
+                    'messages' => $validator->errors()
+                ], 422);
+            }
+
+            try {
+                // Verificar que no exista una variable con el mismo nombre
+                if (GlobalVariable::where('name', $request->name)->exists()) {
+                    return response()->json([
+                        'error' => 'Variable name already exists'
+                    ], 409);
+                }
+
+                $variable = DesignSystemService::createColorVariable(
+                    $request->name,
+                    $request->base_color,
+                    $request->palette_name
+                );
+
+                if ($request->description) {
+                    $variable->update(['description' => $request->description]);
+                }
+
+                return response()->json([
+                    'message' => 'Color palette created successfully',
+                    'variable' => [
+                        'id' => $variable->id,
+                        'name' => $variable->name,
+                        'value' => $variable->value,
+                        'type' => $variable->type,
+                        'category' => $variable->category,
+                        'description' => $variable->description,
+                        'metadata' => $variable->metadata,
+                        'created_at' => $variable->created_at->toISOString()
+                    ]
+                ], 201);
+
+            } catch (\Exception $e) {
+                \Log::error('Error creating color palette: ' . $e->getMessage());
+                return response()->json([
+                    'error' => 'Error creating color palette: ' . $e->getMessage()
+                ], 500);
+            }
+        }
+
+        /**
+         * Crear variable de tipografía con escala automática
+         */
+        public function createTypographySystem(Request $request)
+        {
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:255|regex:/^[a-zA-Z_][a-zA-Z0-9_]*$/',
+                'primary_font' => 'required|string|max:100',
+                'secondary_font' => 'nullable|string|max:100',
+                'description' => 'nullable|string|max:500'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'error' => 'Validation failed',
+                    'messages' => $validator->errors()
+                ], 422);
+            }
+
+            try {
+                // Verificar que no exista una variable con el mismo nombre
+                if (GlobalVariable::where('name', $request->name)->exists()) {
+                    return response()->json([
+                        'error' => 'Variable name already exists'
+                    ], 409);
+                }
+
+                $variable = DesignSystemService::createTypographyVariable(
+                    $request->name,
+                    $request->primary_font,
+                    $request->secondary_font
+                );
+
+                if ($request->description) {
+                    $variable->update(['description' => $request->description]);
+                }
+
+                return response()->json([
+                    'message' => 'Typography system created successfully',
+                    'variable' => [
+                        'id' => $variable->id,
+                        'name' => $variable->name,
+                        'value' => $variable->value,
+                        'type' => $variable->type,
+                        'category' => $variable->category,
+                        'description' => $variable->description,
+                        'metadata' => $variable->metadata,
+                        'created_at' => $variable->created_at->toISOString()
+                    ]
+                ], 201);
+
+            } catch (\Exception $e) {
+                \Log::error('Error creating typography system: ' . $e->getMessage());
+                return response()->json([
+                    'error' => 'Error creating typography system: ' . $e->getMessage()
+                ], 500);
+            }
+        }
+
+        /**
+         * Previsualizar paleta de colores antes de guardar
+         */
+        public function previewColorPalette(Request $request)
+        {
+            $validator = Validator::make($request->all(), [
+                'base_color' => 'required|regex:/^#[0-9A-Fa-f]{6}$/',
+                'name' => 'nullable|string|max:50'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'error' => 'Validation failed',
+                    'messages' => $validator->errors()
+                ], 422);
+            }
+
+            try {
+                $palette = DesignSystemService::generateColorPalette(
+                    $request->base_color,
+                    $request->name ?: 'preview'
+                );
+
+                return response()->json([
+                    'palette' => $palette,
+                    'contrast_info' => [
+                        'white_text' => TailwindColorService::getContrastRatio($request->base_color, '#FFFFFF'),
+                        'black_text' => TailwindColorService::getContrastRatio($request->base_color, '#000000'),
+                        'wcag_compliant_white' => TailwindColorService::isWcagCompliant($request->base_color, '#FFFFFF'),
+                        'wcag_compliant_black' => TailwindColorService::isWcagCompliant($request->base_color, '#000000')
+                    ]
+                ]);
+
+            } catch (\Exception $e) {
+                return response()->json([
+                    'error' => 'Error generating palette preview: ' . $e->getMessage()
+                ], 500);
+            }
+        }
+
+        /**
+         * Previsualizar sistema tipográfico
+         */
+        public function previewTypographySystem(Request $request)
+        {
+            $validator = Validator::make($request->all(), [
+                'primary_font' => 'required|string|max:100',
+                'secondary_font' => 'nullable|string|max:100'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'error' => 'Validation failed',
+                    'messages' => $validator->errors()
+                ], 422);
+            }
+
+            try {
+                $typography = DesignSystemService::generateTypographySystem(
+                    $request->primary_font,
+                    $request->secondary_font
+                );
+
+                return response()->json([
+                    'typography' => $typography,
+                    'font_validation' => [
+                        'primary_available' => DesignSystemService::validateFont($request->primary_font),
+                        'secondary_available' => $request->secondary_font ? DesignSystemService::validateFont($request->secondary_font) : true
+                    ]
+                ]);
+
+            } catch (\Exception $e) {
+                return response()->json([
+                    'error' => 'Error generating typography preview: ' . $e->getMessage()
+                ], 500);
+            }
+        }
+
+        /**
+         * Obtener CSS completo de design tokens para preview
+         */
+        public function getDesignTokensCSS()
+        {
+            try {
+                $css = DesignSystemService::exportAllAsCSS();
+                
+                return response($css)
+                    ->header('Content-Type', 'text/css')
+                    ->header('Cache-Control', 'public, max-age=3600');
+
+            } catch (\Exception $e) {
+                return response()->json([
+                    'error' => 'Error generating CSS: ' . $e->getMessage()
+                ], 500);
+            }
+        }
+
+        /**
+         * Obtener presets de fuentes disponibles
+         */
+        public function getFontPresets()
+        {
+            try {
+                return response()->json([
+                    'presets' => DesignSystemService::getFontPresets(),
+                    'popular_fonts' => [
+                        'sans_serif' => ['Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins'],
+                        'serif' => ['Playfair Display', 'Merriweather', 'Lora', 'Crimson Text'],
+                        'mono' => ['JetBrains Mono', 'Fira Code', 'Source Code Pro', 'Monaco']
+                    ]
+                ]);
+
+            } catch (\Exception $e) {
+                return response()->json([
+                    'error' => 'Error loading font presets: ' . $e->getMessage()
+                ], 500);
+            }
+        }
+
+
 }

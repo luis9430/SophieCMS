@@ -83,7 +83,7 @@ Route::prefix('api/component-builder')->group(function () {
     
     // 🔥 CRÍTICO: RUTAS ESPECÍFICAS PRIMERO (antes de las rutas con parámetros)
     
-    // NUEVAS RUTAS para categorías - MOVER AL INICIO
+    // NUEVAS RUTAS para design tokens - MOVER AL INICIO
     Route::get('/global-variables/categories', [GlobalVariablesController::class, 'categories'])
         ->name('global-variables.categories');
 
@@ -95,6 +95,25 @@ Route::prefix('api/component-builder')->group(function () {
 
     Route::get('/global-variables/for-blade', [GlobalVariablesController::class, 'forBlade'])
         ->name('global-variables.for-blade');
+
+    // NUEVAS RUTAS para design tokens
+    Route::post('/design-tokens/color-palette', [GlobalVariablesController::class, 'createColorPalette'])
+        ->name('design-tokens.create-color-palette');
+
+    Route::post('/design-tokens/typography-system', [GlobalVariablesController::class, 'createTypographySystem'])
+        ->name('design-tokens.create-typography-system');
+
+    Route::post('/design-tokens/preview-color', [GlobalVariablesController::class, 'previewColorPalette'])
+        ->name('design-tokens.preview-color');
+
+    Route::post('/design-tokens/preview-typography', [GlobalVariablesController::class, 'previewTypographySystem'])
+        ->name('design-tokens.preview-typography');
+
+    Route::get('/design-tokens/css', [GlobalVariablesController::class, 'getDesignTokensCSS'])
+        ->name('design-tokens.css');
+
+    Route::get('/design-tokens/font-presets', [GlobalVariablesController::class, 'getFontPresets'])
+        ->name('design-tokens.font-presets');
     
     // DESPUÉS las rutas generales de variables (MOVER DESPUÉS DE LAS ESPECÍFICAS)
     Route::get('/global-variables', [GlobalVariablesController::class, 'index'])

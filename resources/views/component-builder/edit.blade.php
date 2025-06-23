@@ -424,6 +424,373 @@
                         </template>
                     </div>
                     
+
+                    <div x-show="viewMode === 'grouped' && Object.keys(groupedVariables).length > 0" class="mt-8">
+                        <div class="border-t border-gray-200 pt-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2 bg-purple-100 rounded-lg">
+                                        <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5H9a2 2 0 00-2 2v12a4 4 0 004 4h6a2 2 0 002-2V7a2 2 0 00-2-2z"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-semibold text-gray-900">🎨 Design Tokens</h3>
+                                        <p class="text-sm text-gray-600">Crea paletas de colores y sistemas tipográficos completos</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex gap-2">
+                                    <button 
+                                        @click="showCreateColorModal = true"
+                                        class="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all text-sm font-medium flex items-center gap-2"
+                                    >
+                                        <span>🎨</span>
+                                        Color Palette
+                                    </button>
+                                    
+                                    <button 
+                                        @click="showCreateTypographyModal = true"
+                                        class="px-4 py-2 bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-lg hover:from-green-600 hover:to-teal-700 transition-all text-sm font-medium flex items-center gap-2"
+                                    >
+                                        <span>📝</span>
+                                        Typography
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Design Tokens existentes -->
+                            <div class="grid gap-4 md:grid-cols-2" x-show="designTokens.length > 0">
+                                <template x-for="token in designTokens" :key="token.id">
+                                    <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                                        <!-- Color Palette Token -->
+                                        <template x-if="token.type === 'color_palette'">
+                                            <div>
+                                                <div class="flex items-start justify-between mb-3">
+                                                    <div>
+                                                        <h4 class="font-medium text-gray-900" x-text="token.name"></h4>
+                                                        <p class="text-sm text-gray-600" x-text="token.description || 'Paleta de colores'"></p>
+                                                    </div>
+                                                    <button @click="removeDesignToken(token)" class="text-red-500 hover:text-red-700">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                
+                                                <!-- Paleta de colores visual -->
+                                                <div class="flex rounded-lg overflow-hidden mb-3" x-show="token.metadata && token.metadata.shades">
+                                                    <template x-for="(color, shade) in token.metadata.shades" :key="shade">
+                                                        <div 
+                                                            class="flex-1 h-8 cursor-pointer hover:scale-105 transition-transform"
+                                                            :style="`background-color: ${color}`"
+                                                            :title="`${shade}: ${color}`"
+                                                            @click="copyToClipboard(color)"
+                                                        ></div>
+                                                    </template>
+                                                </div>
+                                                
+                                                <!-- Información técnica -->
+                                                <div class="text-xs text-gray-500 space-y-1">
+                                                    <div>Base: <span class="font-mono bg-gray-100 px-1 rounded" x-text="token.value"></span></div>
+                                                    <div>CSS: <span class="font-mono bg-gray-100 px-1 rounded">var(--color-<span x-text="token.metadata.name"></span>)</span></div>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                        <!-- Typography System Token -->
+                                        <template x-if="token.type === 'typography_system'">
+                                            <div>
+                                                <div class="flex items-start justify-between mb-3">
+                                                    <div>
+                                                        <h4 class="font-medium text-gray-900" x-text="token.name"></h4>
+                                                        <p class="text-sm text-gray-600" x-text="token.description || 'Sistema tipográfico'"></p>
+                                                    </div>
+                                                    <button @click="removeDesignToken(token)" class="text-red-500 hover:text-red-700">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                
+                                                <!-- Preview tipográfico -->
+                                                <div class="space-y-2 mb-3" x-show="token.metadata && token.metadata.fonts">
+                                                    <div class="text-lg font-medium" :style="`font-family: ${token.metadata.fonts.primary}`">
+                                                        <span x-text="token.metadata.fonts.primary.split(',')[0]"></span>
+                                                    </div>
+                                                    <div class="grid grid-cols-3 gap-2 text-xs">
+                                                        <template x-for="(size, name) in token.metadata.sizes" :key="name">
+                                                            <div class="text-center">
+                                                                <div class="text-gray-500" x-text="name"></div>
+                                                                <div class="font-mono text-gray-600" x-text="size"></div>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                                
+                                                <!-- Información técnica -->
+                                                <div class="text-xs text-gray-500 space-y-1">
+                                                    <div>Font: <span class="font-mono bg-gray-100 px-1 rounded" x-text="token.value"></span></div>
+                                                    <div>CSS: <span class="font-mono bg-gray-100 px-1 rounded">var(--font-primary)</span></div>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Empty state para design tokens -->
+                            <div x-show="designTokens.length === 0" class="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg">
+                                <div class="text-gray-400 mb-3">
+                                    <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5H9a2 2 0 00-2 2v12a4 4 0 004 4h6a2 2 0 002-2V7a2 2 0 00-2-2z"/>
+                                    </svg>
+                                </div>
+                                <h4 class="text-lg font-medium text-gray-900 mb-2">¡Crea tu primer Design Token!</h4>
+                                <p class="text-gray-600 mb-4">Los design tokens te permiten crear sistemas de diseño consistentes</p>
+                                <div class="flex justify-center gap-3">
+                                    <button 
+                                        @click="showCreateColorModal = true"
+                                        class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                                    >
+                                        🎨 Paleta de Colores
+                                    </button>
+                                    <button 
+                                        @click="showCreateTypographyModal = true"
+                                        class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                                    >
+                                        📝 Tipografía
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MODAL: Crear Paleta de Colores -->
+                    <div x-show="showCreateColorModal" 
+                        x-transition:enter="transition ease-out duration-300"
+                        x-transition:enter-start="opacity-0 scale-95"
+                        x-transition:enter-end="opacity-100 scale-100"
+                        x-transition:leave="transition ease-in duration-200"
+                        x-transition:leave-start="opacity-100 scale-100"
+                        x-transition:leave-end="opacity-0 scale-95"
+                        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+                        style="display: none;">
+                        
+                        <div class="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold">🎨 Crear Paleta de Colores</h3>
+                                <button @click="showCreateColorModal = false" class="text-gray-500 hover:text-gray-700">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <form @submit.prevent="createColorPalette()">
+                                <div class="space-y-4">
+                                    <!-- Nombre -->
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Nombre de la variable</label>
+                                        <input 
+                                            x-model="colorForm.name" 
+                                            type="text" 
+                                            placeholder="primary_color"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            required
+                                        >
+                                    </div>
+
+                                    <!-- Color Base -->
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Color base</label>
+                                        <div class="flex gap-2">
+                                            <input 
+                                                x-model="colorForm.base_color" 
+                                                type="color" 
+                                                class="w-16 h-10 border border-gray-300 rounded-lg cursor-pointer"
+                                                @change="previewColorPalette()"
+                                            >
+                                            <input 
+                                                x-model="colorForm.base_color" 
+                                                type="text" 
+                                                placeholder="#3B82F6"
+                                                class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
+                                                @input="previewColorPalette()"
+                                            >
+                                        </div>
+                                    </div>
+
+                                    <!-- Nombre de paleta -->
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Nombre de paleta (opcional)</label>
+                                        <input 
+                                            x-model="colorForm.palette_name" 
+                                            type="text" 
+                                            placeholder="primary (se usa primary_color si está vacío)"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        >
+                                    </div>
+
+                                    <!-- Descripción -->
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                                        <textarea 
+                                            x-model="colorForm.description" 
+                                            placeholder="Color principal del sitio web"
+                                            rows="2"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        ></textarea>
+                                    </div>
+
+                                    <!-- Preview de la paleta -->
+                                    <div x-show="colorPreview.shades" class="border border-gray-200 rounded-lg p-3">
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Vista previa</label>
+                                        <div class="flex rounded-lg overflow-hidden">
+                                            <template x-for="(color, shade) in colorPreview.shades" :key="shade">
+                                                <div 
+                                                    class="flex-1 h-8 cursor-pointer"
+                                                    :style="`background-color: ${color}`"
+                                                    :title="`${shade}: ${color}`"
+                                                ></div>
+                                            </template>
+                                        </div>
+                                        <div class="text-xs text-gray-500 mt-2" x-show="colorPreview.contrast_info">
+                                            Contraste con blanco: <span x-text="colorPreview.contrast_info ? Math.round(colorPreview.contrast_info.white_text * 100) / 100 : ''"></span>
+                                            <span x-show="colorPreview.contrast_info && colorPreview.contrast_info.wcag_compliant_white" class="text-green-600">✓ WCAG</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="flex justify-end gap-3 mt-6">
+                                    <button 
+                                        type="button" 
+                                        @click="showCreateColorModal = false"
+                                        class="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button 
+                                        type="submit" 
+                                        class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                                        :disabled="creatingToken"
+                                    >
+                                        <span x-show="!creatingToken">Crear Paleta</span>
+                                        <span x-show="creatingToken">Creando...</span>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- MODAL: Crear Sistema Tipográfico -->
+                    <div x-show="showCreateTypographyModal" 
+                        x-transition:enter="transition ease-out duration-300"
+                        x-transition:enter-start="opacity-0 scale-95"
+                        x-transition:enter-end="opacity-100 scale-100"
+                        x-transition:leave="transition ease-in duration-200"
+                        x-transition:leave-start="opacity-100 scale-100"
+                        x-transition:leave-end="opacity-0 scale-95"
+                        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+                        style="display: none;">
+                        
+                        <div class="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold">📝 Crear Sistema Tipográfico</h3>
+                                <button @click="showCreateTypographyModal = false" class="text-gray-500 hover:text-gray-700">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <form @submit.prevent="createTypographySystem()">
+                                <div class="space-y-4">
+                                    <!-- Nombre -->
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Nombre de la variable</label>
+                                        <input 
+                                            x-model="typographyForm.name" 
+                                            type="text" 
+                                            placeholder="primary_typography"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                            required
+                                        >
+                                    </div>
+
+                                    <!-- Fuente principal -->
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Fuente principal</label>
+                                        <select x-model="typographyForm.primary_font" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                            <option value="">Seleccionar fuente...</option>
+                                            <option value="Inter">Inter</option>
+                                            <option value="Roboto">Roboto</option>
+                                            <option value="Open Sans">Open Sans</option>
+                                            <option value="Lato">Lato</option>
+                                            <option value="Montserrat">Montserrat</option>
+                                            <option value="Poppins">Poppins</option>
+                                            <option value="Playfair Display">Playfair Display</option>
+                                            <option value="Merriweather">Merriweather</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Fuente secundaria -->
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Fuente secundaria (opcional)</label>
+                                        <select x-model="typographyForm.secondary_font" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                            <option value="">Usar serif por defecto</option>
+                                            <option value="Playfair Display">Playfair Display</option>
+                                            <option value="Merriweather">Merriweather</option>
+                                            <option value="Lora">Lora</option>
+                                            <option value="Crimson Text">Crimson Text</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Descripción -->
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                                        <textarea 
+                                            x-model="typographyForm.description" 
+                                            placeholder="Sistema tipográfico principal del sitio"
+                                            rows="2"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                        ></textarea>
+                                    </div>
+
+                                    <!-- Preview tipográfico -->
+                                    <div x-show="typographyForm.primary_font" class="border border-gray-200 rounded-lg p-3">
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Vista previa</label>
+                                        <div :style="`font-family: '${typographyForm.primary_font}', sans-serif`">
+                                            <div class="text-2xl font-bold mb-2">Heading Grande</div>
+                                            <div class="text-lg font-medium mb-2">Heading Medium</div>
+                                            <div class="text-base mb-2">Texto normal para párrafos y contenido general del sitio web.</div>
+                                            <div class="text-sm text-gray-600">Texto pequeño para notas y detalles.</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="flex justify-end gap-3 mt-6">
+                                    <button 
+                                        type="button" 
+                                        @click="showCreateTypographyModal = false"
+                                        class="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button 
+                                        type="submit" 
+                                        class="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                                        :disabled="creatingToken"
+                                    >
+                                        <span x-show="!creatingToken">Crear Sistema</span>
+                                        <span x-show="creatingToken">Creando...</span>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+
                     <!-- Empty state -->
                     <div x-show="filteredVariables.length === 0" class="text-center py-12">
                         <div class="text-gray-400 mb-4">
@@ -779,6 +1146,32 @@ function componentEditor() {
             return grouped;
         },
 
+
+
+        // ===== NUEVAS PROPIEDADES para Design Tokens =====
+        designTokens: [], // Array para almacenar design tokens
+        showCreateColorModal: false,
+        showCreateTypographyModal: false,
+        creatingToken: false,
+
+        // Formularios para modales
+        colorForm: {
+            name: '',
+            base_color: '#3B82F6',
+            palette_name: '',
+            description: ''
+        },
+
+        typographyForm: {
+            name: '',
+            primary_font: '',
+            secondary_font: '',
+            description: ''
+        },
+
+        // Preview data
+        colorPreview: {},
+
         // Init
         async init() {
             console.log('Component Editor initialized');
@@ -789,6 +1182,24 @@ function componentEditor() {
             
             // Cargar variables globales
             await this.loadGlobalVariables();
+
+             console.log('Component Editor initialized');
+            this.setupAutoSave();
+            
+            // Cargar categorías ANTES que variables
+            await this.loadCategories();
+            
+            // Cargar variables globales
+            await this.loadGlobalVariables();
+            
+            // NUEVO: Cargar design tokens
+            await this.loadDesignTokens();
+            
+            // NUEVO: Inyectar CSS de design tokens
+            await this.injectDesignTokensCSS();
+
+
+
         },
 
         // ===== NUEVOS MÉTODOS PARA CATEGORÍAS =====
@@ -1061,6 +1472,217 @@ function componentEditor() {
                 this.showNotification('error', 'Error al guardar variable');
             }
         },
+
+            // ===== MÉTODOS para Design Tokens =====
+
+            // Cargar design tokens del servidor
+            async loadDesignTokens() {
+                try {
+                    const response = await fetch('/api/component-builder/global-variables?category=design', {
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const allVariables = await response.json();
+                        this.designTokens = allVariables.filter(v => 
+                            v.type === 'color_palette' || v.type === 'typography_system'
+                        );
+                    } else {
+                        this.designTokens = [];
+                    }
+                } catch (error) {
+                    console.error('Error loading design tokens:', error);
+                    this.designTokens = [];
+                }
+            },
+
+            // Preview de paleta de colores en tiempo real
+            async previewColorPalette() {
+                if (!this.colorForm.base_color || !this.colorForm.base_color.match(/^#[0-9A-Fa-f]{6}$/)) {
+                    this.colorPreview = {};
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/api/component-builder/design-tokens/preview-color', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                        },
+                        body: JSON.stringify({
+                            base_color: this.colorForm.base_color,
+                            name: this.colorForm.palette_name || this.colorForm.name || 'preview'
+                        })
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.colorPreview = data.palette;
+                        this.colorPreview.contrast_info = data.contrast_info;
+                    }
+                } catch (error) {
+                    console.error('Error previewing color palette:', error);
+                }
+            },
+
+            // Crear paleta de colores
+            async createColorPalette() {
+                if (this.creatingToken) return;
+                
+                this.creatingToken = true;
+
+                try {
+                    const response = await fetch('/api/component-builder/design-tokens/color-palette', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                        },
+                        body: JSON.stringify(this.colorForm)
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        this.showNotification('success', 'Paleta de colores creada exitosamente');
+                        this.designTokens.push(data.variable);
+                        
+                        // Cerrar modal y limpiar formulario
+                        this.showCreateColorModal = false;
+                        this.colorForm = {
+                            name: '',
+                            base_color: '#3B82F6',
+                            palette_name: '',
+                            description: ''
+                        };
+                        this.colorPreview = {};
+
+                        // Recargar variables globales para incluir las nuevas
+                        await this.loadGlobalVariables();
+                        
+                    } else {
+                        this.showNotification('error', data.error || 'Error al crear paleta de colores');
+                    }
+
+                } catch (error) {
+                    console.error('Error creating color palette:', error);
+                    this.showNotification('error', 'Error de conexión al crear paleta');
+                } finally {
+                    this.creatingToken = false;
+                }
+            },
+
+            // Crear sistema tipográfico
+            async createTypographySystem() {
+                if (this.creatingToken) return;
+                
+                this.creatingToken = true;
+
+                try {
+                    const response = await fetch('/api/component-builder/design-tokens/typography-system', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                        },
+                        body: JSON.stringify(this.typographyForm)
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        this.showNotification('success', 'Sistema tipográfico creado exitosamente');
+                        this.designTokens.push(data.variable);
+                        
+                        // Cerrar modal y limpiar formulario
+                        this.showCreateTypographyModal = false;
+                        this.typographyForm = {
+                            name: '',
+                            primary_font: '',
+                            secondary_font: '',
+                            description: ''
+                        };
+
+                        // Recargar variables globales
+                        await this.loadGlobalVariables();
+                        
+                    } else {
+                        this.showNotification('error', data.error || 'Error al crear sistema tipográfico');
+                    }
+
+                } catch (error) {
+                    console.error('Error creating typography system:', error);
+                    this.showNotification('error', 'Error de conexión al crear tipografía');
+                } finally {
+                    this.creatingToken = false;
+                }
+            },
+
+            // Remover design token
+            async removeDesignToken(token) {
+                if (!confirm('¿Estás seguro de que quieres eliminar este design token?')) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/component-builder/global-variables/${token.id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                        }
+                    });
+
+                    if (response.ok) {
+                        this.designTokens = this.designTokens.filter(t => t.id !== token.id);
+                        this.showNotification('success', 'Design token eliminado');
+                        
+                        // Recargar variables globales
+                        await this.loadGlobalVariables();
+                    } else {
+                        this.showNotification('error', 'Error al eliminar design token');
+                    }
+
+                } catch (error) {
+                    console.error('Error removing design token:', error);
+                    this.showNotification('error', 'Error de conexión');
+                }
+            },
+
+            // Copiar color al clipboard
+            async copyToClipboard(text) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                    this.showNotification('success', `Copiado: ${text}`);
+                } catch (error) {
+                    console.error('Error copying to clipboard:', error);
+                }
+            },
+
+            // Inyectar CSS de design tokens en el preview
+            async injectDesignTokensCSS() {
+                try {
+                    const response = await fetch('/api/component-builder/design-tokens/css');
+                    if (response.ok) {
+                        const css = await response.text();
+                        
+                        // Si estás en preview window, inyectar el CSS
+                        if (window.opener) {
+                            const styleElement = document.createElement('style');
+                            styleElement.textContent = css;
+                            document.head.appendChild(styleElement);
+                        }
+                        
+                        return css;
+                    }
+                } catch (error) {
+                    console.error('Error loading design tokens CSS:', error);
+                }
+                return '';
+            },
+
 
         // ===== PROPS METHODS (SIN CAMBIOS) =====
 
@@ -1351,12 +1973,62 @@ function componentEditor() {
                 previewWindow.focus();
                 console.log('🚀 Preview window opened for component:', componentId);
                 this.showNotification('success', 'Preview abierto en nueva ventana');
+                
+                // NUEVO: Inyectar design tokens CSS en la ventana de preview
+                previewWindow.addEventListener('load', async () => {
+                    try {
+                        const response = await fetch('/api/component-builder/design-tokens/css');
+                        if (response.ok) {
+                            const css = await response.text();
+                            const styleElement = previewWindow.document.createElement('style');
+                            styleElement.textContent = css;
+                            previewWindow.document.head.appendChild(styleElement);
+                            console.log('✅ Design tokens CSS injected into preview');
+                        }
+                    } catch (error) {
+                        console.error('Error injecting design tokens CSS:', error);
+                    }
+                });
+                
             } else {
                 this.showNotification('error', 'No se pudo abrir la ventana. Verifica que no estén bloqueadas las ventanas emergentes.');
             }
             
             return previewWindow;
         },
+
+
+        // Método utilitario para resetear formularios
+        resetForms() {
+            this.colorForm = {
+                name: '',
+                base_color: '#3B82F6',
+                palette_name: '',
+                description: ''
+            };
+            
+            this.typographyForm = {
+                name: '',
+                primary_font: '',
+                secondary_font: '',
+                description: ''
+            };
+            
+            this.colorPreview = {};
+        },
+
+        // Método para obtener variables CSS generadas por design tokens
+        getDesignTokensCSSVariables() {
+            const cssVars = {};
+            
+            this.designTokens.forEach(token => {
+                if (token.metadata && token.metadata.css_variables) {
+                    Object.assign(cssVars, token.metadata.css_variables);
+                }
+            });
+            
+            return cssVars;
+        }
 
         // Navigate back
         goBack() {
