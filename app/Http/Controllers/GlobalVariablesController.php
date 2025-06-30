@@ -31,7 +31,7 @@ class GlobalVariablesController extends Controller
                 $searchTerm = $request->search;
                 $query->where(function($q) use ($searchTerm) {
                     $q->where('name', 'like', '%' . $searchTerm . '%')
-                      ->orWhere('description', 'like', '%' . $searchTerm . '%');
+                    ->orWhere('description', 'like', '%' . $searchTerm . '%');
                 });
             }
             
@@ -53,6 +53,8 @@ class GlobalVariablesController extends Controller
                     'type' => $variable->type,
                     'category' => $variable->category,
                     'description' => $variable->description,
+                    // ✅ AGREGAR: Incluir metadata
+                    'metadata' => $variable->metadata,
                     'created_at' => $variable->created_at->toISOString(),
                     'updated_at' => $variable->updated_at->toISOString()
                 ];
@@ -63,7 +65,6 @@ class GlobalVariablesController extends Controller
             return response()->json(['error' => 'Error loading variables'], 500);
         }
     }
-
     /**
      * Obtener categorías disponibles
      */
@@ -104,6 +105,8 @@ class GlobalVariablesController extends Controller
                         'type' => $variable->type,
                         'category' => $variable->category,
                         'description' => $variable->description,
+                        // ✅ AGREGAR: También incluir metadata aquí
+                        'metadata' => $variable->metadata,
                         'created_at' => $variable->created_at->toISOString(),
                         'updated_at' => $variable->updated_at->toISOString()
                     ];
@@ -124,68 +127,69 @@ class GlobalVariablesController extends Controller
     }
 
     public function store(Request $request)
-        {
-            // Si es un design token, usar métodos específicos
-            if ($request->type === 'color_palette') {
-                return $this->createColorPalette($request);
-            }
-            
-            if ($request->type === 'typography_system') {
-                return $this->createTypographySystem($request);
-            }
-
-            // Para otros tipos, usar el método original
-            $validator = Validator::make($request->all(), [
-                'name' => 'required|string|max:255|regex:/^[a-zA-Z_][a-zA-Z0-9_]*$/',
-                'value' => 'required|string',
-                'type' => 'required|in:string,number,boolean,array,color_palette,typography_system',
-                'category' => 'required|string|in:design,content,site,media,seo,social,api,custom',
-                'description' => 'nullable|string|max:500'
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'error' => 'Validation failed',
-                    'messages' => $validator->errors()
-                ], 422);
-            }
-
-            try {
-                // Verificar que no exista una variable con el mismo nombre
-                if (GlobalVariable::where('name', $request->name)->exists()) {
-                    return response()->json([
-                        'error' => 'Variable name already exists'
-                    ], 409);
-                }
-
-                $variable = GlobalVariable::create([
-                    'name' => $request->name,
-                    'value' => $request->value,
-                    'type' => $request->type,
-                    'category' => $request->category,
-                    'description' => $request->description,
-                    'created_by_user_id' => Auth::id(),
-                    'is_active' => true
-                ]);
-
-                return response()->json([
-                    'id' => $variable->id,
-                    'name' => $variable->name,
-                    'value' => $variable->value,
-                    'type' => $variable->type,
-                    'category' => $variable->category,
-                    'description' => $variable->description,
-                    'created_at' => $variable->created_at->toISOString(),
-                    'updated_at' => $variable->updated_at->toISOString()
-                ], 201);
-
-            } catch (\Exception $e) {
-                return response()->json([
-                    'error' => 'Error creating variable: ' . $e->getMessage()
-                ], 500);
-            }
+    {
+        // Si es un design token, usar métodos específicos
+        if ($request->type === 'color_palette') {
+            return $this->createColorPalette($request);
+        }
+        
+        if ($request->type === 'typography_system') {
+            return $this->createTypographySystem($request);
         }
 
+        // Para otros tipos, usar el método original
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255|regex:/^[a-zA-Z_][a-zA-Z0-9_]*$/',
+            'value' => 'required|string',
+            // ✅ VERIFICAR: Que incluya los nuevos tipos
+            'type' => 'required|in:string,number,boolean,array,color_palette,typography_system',
+            'category' => 'required|string|in:design,content,site,media,seo,social,api,custom',
+            'description' => 'nullable|string|max:500'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => 'Validation failed',
+                'messages' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            // Verificar que no exista una variable con el mismo nombre
+            if (GlobalVariable::where('name', $request->name)->exists()) {
+                return response()->json([
+                    'error' => 'Variable name already exists'
+                ], 409);
+            }
+
+            $variable = GlobalVariable::create([
+                'name' => $request->name,
+                'value' => $request->value,
+                'type' => $request->type,
+                'category' => $request->category,
+                'description' => $request->description,
+                'created_by_user_id' => Auth::id(),
+                'is_active' => true
+            ]);
+
+            return response()->json([
+                'id' => $variable->id,
+                'name' => $variable->name,
+                'value' => $variable->value,
+                'type' => $variable->type,
+                'category' => $variable->category,
+                'description' => $variable->description,
+                'metadata' => $variable->metadata,
+                'created_at' => $variable->created_at->toISOString(),
+                'updated_at' => $variable->updated_at->toISOString()
+            ], 201);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Error creating variable: ' . $e->getMessage()
+            ], 500);
+        }
+    }
     /**
      * Actualizar variable existente
      */
@@ -194,7 +198,8 @@ class GlobalVariablesController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255|regex:/^[a-zA-Z_][a-zA-Z0-9_]*$/',
             'value' => 'required|string',
-            'type' => 'required|in:string,number,boolean,array',
+            // ✅ CORREGIR: Incluir los nuevos tipos
+            'type' => 'required|in:string,number,boolean,array,color_palette,typography_system',
             'category' => 'required|string|in:design,content,site,media,seo,social,api,custom',
             'description' => 'nullable|string|max:500'
         ]);
@@ -233,6 +238,8 @@ class GlobalVariablesController extends Controller
                 'type' => $globalVariable->type,
                 'category' => $globalVariable->category,
                 'description' => $globalVariable->description,
+                // ✅ AGREGAR: Incluir metadata también en update
+                'metadata' => $globalVariable->metadata,
                 'created_at' => $globalVariable->created_at->toISOString(),
                 'updated_at' => $globalVariable->updated_at->toISOString()
             ]);
@@ -243,6 +250,7 @@ class GlobalVariablesController extends Controller
             ], 500);
         }
     }
+
 
     /**
      * Eliminar variable
@@ -284,7 +292,8 @@ class GlobalVariablesController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|regex:/^[a-zA-Z_][a-zA-Z0-9_]*$/',
             'value' => 'required|string',
-            'type' => 'required|in:string,number,boolean,array',
+            // ✅ CORREGIR: Incluir los nuevos tipos
+            'type' => 'required|in:string,number,boolean,array,color_palette,typography_system',
             'category' => 'required|string|in:design,content,site,media,seo,social,api,custom'
         ]);
 
@@ -322,6 +331,21 @@ class GlobalVariablesController extends Controller
                         }
                     }
                     break;
+
+                // ✅ AGREGAR: Validaciones para los nuevos tipos
+                case 'color_palette':
+                    // Validar que sea un color hex válido
+                    if (!preg_match('/^#[0-9A-Fa-f]{6}$/', $value)) {
+                        throw new \Exception('Value must be a valid hex color (e.g., #FF0000)');
+                    }
+                    break;
+
+                case 'typography_system':
+                    // Validar que sea un nombre de fuente válido
+                    if (empty(trim($value))) {
+                        throw new \Exception('Font family name cannot be empty');
+                    }
+                    break;
             }
 
             return response()->json([
@@ -336,6 +360,7 @@ class GlobalVariablesController extends Controller
             ], 422);
         }
     }
+
 
 
         public function createColorPalette(Request $request)
